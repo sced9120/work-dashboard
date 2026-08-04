@@ -1,0 +1,57 @@
+name: 윈도우 설치파일 빌드
+
+# 수동으로 실행하거나, v1.0.0 같은 태그를 붙여 올리면 자동으로 돌아간다.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: 소스 내려받기
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 타입 검사
+        run: npm run typecheck
+
+      - name: 아이콘 생성
+        run: npm run icon
+
+      - name: 설치파일 빌드
+        run: npm run build:win
+        env:
+          # 코드 서명 인증서가 없으므로 자동 탐색을 끈다.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: 결과물 올리기
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorkDashboard-Windows
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 태그로 올린 경우 릴리스에 첨부
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.exe
+          draft: false
+          generate_release_notes: true

@@ -1,0 +1,54 @@
+appId: kr.school.work-dashboard
+productName: 업무 인수인계 대시보드
+copyright: © 2026 정현서
+
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+
+asar: true
+
+win:
+  icon: build/icon.ico
+  # 학교 PC에서 관리자 권한 없이 설치할 수 있도록 사용자 단위로 설치한다.
+  requestedExecutionLevel: asInvoker
+  artifactName: WorkDashboard-Setup-${version}.${ext}
+  target:
+    - target: nsis
+      arch: [x64]
+    # 설치 프로그램 실행이 막힌 PC를 위해 실행만 하면 되는 파일도 같이 만든다.
+    - target: portable
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 업무 인수인계 대시보드
+  installerLanguages:
+    - ko-KR
+  language: '1042'
+  deleteAppDataOnUninstall: false
+
+portable:
+  artifactName: WorkDashboard-Portable-${version}.${ext}
+
+mac:
+  icon: build/icon.png
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+
+linux:
+  icon: build/icon.png
+  category: Office
+  target:
+    - AppImage

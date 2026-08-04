@@ -1,0 +1,11 @@
+node_modules/
+out/
+release/
+dist/
+*.tsbuildinfo
+.DS_Store
+*.log
+
+# 아이콘은 빌드할 때 스크립트로 만든다.
+build/icon.png
+build/icon.ico
