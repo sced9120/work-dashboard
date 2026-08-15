@@ -3,6 +3,8 @@ import type {
   AliasPair,
   AnalyzeResult,
   CaseDetail,
+  Deadline,
+  DeadlineInput,
   Doc,
   DocFull,
   DocInput,
@@ -45,6 +47,13 @@ const api = {
   },
   search: {
     run: (query: string): Promise<SearchHit[]> => ipcRenderer.invoke('search:run', query)
+  },
+  deadlines: {
+    list: (): Promise<Deadline[]> => ipcRenderer.invoke('deadlines:list'),
+    add: (d: DeadlineInput): Promise<number> => ipcRenderer.invoke('deadlines:add', d),
+    update: (id: number, patch: Partial<DeadlineInput>): Promise<void> =>
+      ipcRenderer.invoke('deadlines:update', id, patch),
+    remove: (id: number): Promise<void> => ipcRenderer.invoke('deadlines:delete', id)
   },
   templates: {
     list: (): Promise<Template[]> => ipcRenderer.invoke('templates:list'),
@@ -114,7 +123,8 @@ const api = {
   data: {
     info: (): Promise<{ path: string; backups: string; sizeKb: number }> =>
       ipcRenderer.invoke('data:info'),
-    export: (): Promise<ActionResult> => ipcRenderer.invoke('data:export'),
+    export: (includePersonal = false): Promise<ActionResult> =>
+      ipcRenderer.invoke('data:export', includePersonal),
     import: (): Promise<ActionResult> => ipcRenderer.invoke('data:import'),
     clear: (): Promise<ActionResult> => ipcRenderer.invoke('data:clear'),
     openFolder: (target: string): Promise<string> => ipcRenderer.invoke('data:openFolder', target)

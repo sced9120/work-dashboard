@@ -7,10 +7,20 @@ import Guide from './pages/Guide'
 import Learn from './pages/Learn'
 import Search from './pages/Search'
 import Committee from './pages/Committee'
+import Deadlines from './pages/Deadlines'
 import Data from './pages/Data'
 import Settings from './pages/Settings'
 
-export type PageId = '홈' | '로드맵' | '가이드' | '학습' | '검색' | '위원회' | '데이터' | '설정'
+export type PageId =
+  | '홈'
+  | '로드맵'
+  | '가이드'
+  | '학습'
+  | '검색'
+  | '위원회'
+  | '기한'
+  | '데이터'
+  | '설정'
 
 const NAV: { id: PageId; icon: string; label: string }[] = [
   { id: '홈', icon: '🏠', label: '홈' },
@@ -19,6 +29,7 @@ const NAV: { id: PageId; icon: string; label: string }[] = [
   { id: '검색', icon: '🔎', label: '통합 검색' },
   { id: '학습', icon: '📥', label: '문서로 업무 만들기' },
   { id: '위원회', icon: '⚖️', label: '선도위원회 자료' },
+  { id: '기한', icon: '⏰', label: '절차 기한' },
   { id: '데이터', icon: '💾', label: '인수인계 · 백업' },
   { id: '설정', icon: '⚙️', label: '설정' }
 ]
@@ -82,6 +93,7 @@ function Shell(): JSX.Element {
         {page === '검색' && <Search jobTitle={jobTitle} onGo={setPage} />}
         {page === '학습' && <Learn jobTitle={jobTitle} onGo={setPage} />}
         {page === '위원회' && <Committee onGo={setPage} />}
+        {page === '기한' && <Deadlines />}
         {page === '데이터' && <Data onChanged={reloadProfile} />}
         {page === '설정' && <Settings onProfileChanged={reloadProfile} />}
       </main>

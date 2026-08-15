@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import initSqlJs, { type Database, type SqlJsStatic } from 'sql.js'
 import type {
+  Deadline,
+  DeadlineInput,
   Doc,
   DocFull,
   DocInput,
@@ -39,7 +41,12 @@ const SCHEMA = [
   // 위원회 대본·회의록의 본보기. 사안 내용이 아니라 '형식'을 담아 두는 곳이다.
   `CREATE TABLE IF NOT EXISTS templates (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
-     name TEXT, kind TEXT, content TEXT, added_at TEXT)`
+     name TEXT, kind TEXT, content TEXT, added_at TEXT)`,
+  // 절차 기한. 사안명에 개인정보가 섞일 수 있어 인수인계 파일에서는 기본으로 뺀다.
+  `CREATE TABLE IF NOT EXISTS deadlines (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     title TEXT, case_ref TEXT, due_date TEXT, note TEXT,
+     done INTEGER DEFAULT 0)`
 ]
 
 let SQL: SqlJsStatic | null = null
@@ -341,6 +348,40 @@ export function deleteTemplate(id: number): void {
   run('DELETE FROM templates WHERE id=?', [id])
 }
 
+/* ---------- 절차 기한 ---------- */
+
+/** 기한이 빠른 것부터. 날짜가 비어 있는 것은 맨 뒤로 보낸다. */
+export function listDeadlines(): Deadline[] {
+  return rows<Deadline>(
+    `SELECT * FROM deadlines
+      ORDER BY done ASC,
+               CASE WHEN due_date IS NULL OR due_date='' THEN 1 ELSE 0 END,
+               due_date ASC`
+  )
+}
+
+export function addDeadline(d: DeadlineInput): number {
+  run('INSERT INTO deadlines (title, case_ref, due_date, note, done) VALUES (?,?,?,?,?)', [
+    d.title,
+    d.case_ref,
+    d.due_date,
+    d.note,
+    d.done ?? 0
+  ])
+  return lastId()
+}
+
+export function updateDeadline(id: number, patch: Partial<DeadlineInput>): void {
+  const fields = Object.keys(patch) as (keyof DeadlineInput)[]
+  if (!fields.length) return
+  const set = fields.map((f) => `${f}=?`).join(', ')
+  run(`UPDATE deadlines SET ${set} WHERE id=?`, [...fields.map((f) => patch[f] ?? ''), id])
+}
+
+export function deleteDeadline(id: number): void {
+  run('DELETE FROM deadlines WHERE id=?', [id])
+}
+
 /* ---------- 통합 검색 ---------- */
 
 /** 검색어 주변을 잘라 미리보기를 만든다. */
@@ -441,8 +482,22 @@ export function searchAll(query: string, limit = 60): SearchHit[] {
 
 /* ---------- 백업 / 복구 ---------- */
 
-export function exportTo(targetPath: string): void {
-  fs.writeFileSync(targetPath, Buffer.from(need().export()))
+/**
+ * 인수인계 파일로 내보낸다.
+ * 기한 목록에는 학생 이름이 섞여 있을 수 있어, 기본으로는 빼고 내보낸다.
+ * API 키를 DB에서 분리한 것과 같은 이유다.
+ */
+export async function exportTo(targetPath: string, includePersonal = false): Promise<void> {
+  if (includePersonal) {
+    fs.writeFileSync(targetPath, Buffer.from(need().export()))
+    return
+  }
+
+  if (!SQL) SQL = await initSqlJs({ wasmBinary: loadWasm() })
+  const copy = new SQL.Database(need().export())
+  copy.run('DELETE FROM deadlines')
+  fs.writeFileSync(targetPath, Buffer.from(copy.export()))
+  copy.close()
 }
 
 /**

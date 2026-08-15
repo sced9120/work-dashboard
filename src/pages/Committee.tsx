@@ -39,6 +39,10 @@ export default function Committee({ onGo }: Props): JSX.Element {
   const [busy, setBusy] = useState(false)
   const [hasKey, setHasKey] = useState(true)
 
+  const [mode, setMode] = useState<'생성' | '서식'>('생성')
+  const [formTemplateId, setFormTemplateId] = useState<number | null>(null)
+  const [slots, setSlots] = useState<Record<string, string>>({})
+
   const loadTemplates = useCallback(async () => {
     const list = await window.api.templates.list()
     setTemplates(list)
@@ -123,6 +127,31 @@ export default function Committee({ onGo }: Props): JSX.Element {
     toast('본보기를 저장했습니다.', 'ok')
   }
 
+  /** 서식 안의 {{항목}} 을 찾아 낸다. 같은 항목이 여러 번 나와도 한 번만 묻는다. */
+  const formTemplate = templates.find((t) => t.id === formTemplateId) ?? null
+
+  const slotNames = (() => {
+    if (!formTemplate) return []
+    const found = [...formTemplate.content.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((m) => m[1])
+    return [...new Set(found)]
+  })()
+
+  const filledForm = (() => {
+    if (!formTemplate) return ''
+    return formTemplate.content.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_m, key: string) => {
+      const v = slots[key.trim()]
+      return v && v.trim() ? v : `(${key.trim()})`
+    })
+  })()
+
+  const saveFilledForm = async (): Promise<void> => {
+    const res = await window.api.scenario.save({
+      name: formTemplate?.name ?? '서식',
+      text: filledForm
+    })
+    toast(res.message, res.ok ? 'ok' : 'err')
+  }
+
   const saveResult = async (): Promise<void> => {
     const name = `${detail.caseTitle || '선도위원회'}_${detail.kind}`
     const res = await window.api.scenario.save({ name, text: result })
@@ -136,6 +165,132 @@ export default function Committee({ onGo }: Props): JSX.Element {
         <p>기존 대본·회의록의 형식을 본떠, 새 사안에 맞는 초안을 만듭니다.</p>
       </div>
 
+      <div className="tabs">
+        <button
+          className={`tab ${mode === '생성' ? 'active' : ''}`}
+          onClick={() => setMode('생성')}
+        >
+          🎤 대본 · 회의록 만들기 (AI)
+        </button>
+        <button
+          className={`tab ${mode === '서식' ? 'active' : ''}`}
+          onClick={() => setMode('서식')}
+        >
+          📄 서식 채우기 (AI 안 씀)
+        </button>
+      </div>
+
+      {mode === '서식' ? (
+        <>
+          <div className="note note-ok" style={{ marginBottom: 14 }}>
+            <b>이 기능은 인터넷을 쓰지 않습니다.</b> 서식에 <code>{'{{학생명}}'}</code> 처럼 적어
+            두면 그 자리를 채워 넣기만 합니다. 입력한 내용이 이 PC 밖으로 나가지 않으므로 실명을
+            그대로 쓰셔도 됩니다.
+          </div>
+
+          <div className="card">
+            <div className="card-title">
+              <span>1. 서식 고르기</span>
+              <button
+                className="btn btn-sm"
+                onClick={() => {
+                  setEditing({ ...BLANK_TEMPLATE, kind: '서식' })
+                  setEditingId(null)
+                  setMode('생성')
+                  toast('아래 1번 칸에서 서식을 등록한 뒤 다시 돌아오세요.')
+                }}
+              >
+                ＋ 서식 등록하기
+              </button>
+            </div>
+
+            {templates.filter((t) => t.kind === '서식').length === 0 ? (
+              <div className="empty">
+                등록된 서식이 없습니다. 출석통지서·처분통지서처럼 자주 쓰는 서식을 한글에서 복사해
+                등록하고, 바뀌는 자리에 {'{{학생명}}'} {'{{일시}}'} 처럼 적어 두세요.
+              </div>
+            ) : (
+              <div className="list">
+                {templates
+                  .filter((t) => t.kind === '서식')
+                  .map((t) => (
+                    <div className="item" key={t.id}>
+                      <div className="item-head">
+                        <label className="row" style={{ gap: 8, cursor: 'pointer', minWidth: 0 }}>
+                          <input
+                            type="radio"
+                            checked={formTemplateId === t.id}
+                            onChange={() => {
+                              setFormTemplateId(t.id)
+                              setSlots({})
+                            }}
+                            style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+                          />
+                          <div style={{ minWidth: 0 }}>
+                            <div className="item-title">{t.name}</div>
+                            <div className="item-meta">{t.content.length.toLocaleString()}자</div>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+
+          {formTemplate && (
+            <>
+              <div className="card">
+                <div className="card-title">2. 내용 채우기</div>
+                {slotNames.length === 0 ? (
+                  <div className="note note-warn">
+                    이 서식에 채울 자리가 없습니다. 서식을 수정해서 바뀌는 부분을{' '}
+                    <code>{'{{학생명}}'}</code> 처럼 두 겹 중괄호로 감싸 주세요.
+                  </div>
+                ) : (
+                  slotNames.map((name) => (
+                    <div className="field" key={name}>
+                      <label>{name}</label>
+                      <input
+                        type="text"
+                        value={slots[name] ?? ''}
+                        onChange={(e) => setSlots((s) => ({ ...s, [name]: e.target.value }))}
+                        placeholder={`${name} 을(를) 입력하세요`}
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="card">
+                <div className="card-title">
+                  <span>3. 결과</span>
+                  <div className="row">
+                    <button
+                      className="btn btn-sm"
+                      onClick={() =>
+                        void (async () => {
+                          await window.api.clipboard.write(filledForm)
+                          toast('복사했습니다. 한글에 붙여넣으세요.', 'ok')
+                        })()
+                      }
+                    >
+                      📋 복사
+                    </button>
+                    <button className="btn btn-sm btn-primary" onClick={() => void saveFilledForm()}>
+                      💾 파일로 저장
+                    </button>
+                  </div>
+                </div>
+                <div className="scroll-box" style={{ whiteSpace: 'pre-wrap' }}>
+                  {filledForm}
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      ) : (
+        <>
       <div className="note note-danger" style={{ marginBottom: 14 }}>
         <b>개인정보 안내</b>
         <div style={{ marginTop: 6, lineHeight: 1.6 }}>
@@ -238,6 +393,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
                 >
                   <option value="대본">대본</option>
                   <option value="회의록">회의록</option>
+                  <option value="서식">서식</option>
                 </select>
               </div>
             </div>
@@ -507,6 +663,8 @@ export default function Committee({ onGo }: Props): JSX.Element {
             style={{ minHeight: 420, marginTop: 10, fontFamily: 'inherit', lineHeight: 1.7 }}
           />
         </div>
+      )}
+        </>
       )}
     </>
   )

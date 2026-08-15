@@ -378,6 +378,11 @@ textarea {
   color: var(--warn);
 }
 
+.badge-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 /* ---------- 목록 ---------- */
 
 .list {

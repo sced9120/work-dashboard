@@ -10,6 +10,7 @@ export default function Data({ onChanged }: Props): JSX.Element {
   const [info, setInfo] = useState<{ path: string; backups: string; sizeKb: number } | null>(null)
   const [counts, setCounts] = useState({ tasks: 0, notices: 0 })
   const [busy, setBusy] = useState(false)
+  const [includePersonal, setIncludePersonal] = useState(false)
 
   const load = useCallback(async () => {
     setInfo(await window.api.data.info())
@@ -65,13 +66,35 @@ export default function Data({ onChanged }: Props): JSX.Element {
           같은 프로그램에서 불러오면 그대로 이어서 쓸 수 있습니다.
         </p>
         <div className="note note-ok" style={{ marginBottom: 12 }}>
-          API 키는 이 파일에 들어가지 않습니다. 안심하고 전달하셔도 됩니다.
+          API 키와 <b>절차 기한 목록</b>은 이 파일에 들어가지 않습니다. 기한에는 학생 이름이 섞이기
+          쉬워 기본으로 빼고 내보냅니다.
         </div>
+
+        <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            checked={includePersonal}
+            onChange={(e) => setIncludePersonal(e.target.checked)}
+            style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+          />
+          <span className="small">
+            절차 기한도 함께 넘기기
+            <span className="muted"> — 같은 학교 후임에게 사안을 이어 넘길 때만 쓰세요</span>
+          </span>
+        </label>
+
+        {includePersonal && (
+          <div className="note note-danger" style={{ marginBottom: 12 }}>
+            개인정보가 포함된 파일이 됩니다. 메일이나 메신저로 보내지 마시고, 직접 전달하거나 학교
+            규정에 맞는 방법을 쓰세요.
+          </div>
+        )}
+
         <div className="row">
           <button
             className="btn btn-primary"
             disabled={busy}
-            onClick={() => void run(() => window.api.data.export())}
+            onClick={() => void run(() => window.api.data.export(includePersonal))}
           >
             📤 인수인계 파일 내보내기
           </button>

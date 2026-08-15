@@ -9,6 +9,7 @@ import fs from 'node:fs'
 import type {
   AliasPair,
   CaseDetail,
+  DeadlineInput,
   DocInput,
   DocKind,
   LocalSettings,
@@ -74,6 +75,14 @@ function registerIpc(): void {
   ipcMain.handle('docs:delete', (_e, id: number) => db.deleteDoc(id))
   ipcMain.handle('docs:count', () => db.docCount())
   ipcMain.handle('docs:guessDate', (_e, text: string) => db.guessDocDate(text))
+
+  /* ---------- 절차 기한 ---------- */
+  ipcMain.handle('deadlines:list', () => db.listDeadlines())
+  ipcMain.handle('deadlines:add', (_e, d: DeadlineInput) => db.addDeadline(d))
+  ipcMain.handle('deadlines:update', (_e, id: number, patch: Partial<DeadlineInput>) =>
+    db.updateDeadline(id, patch)
+  )
+  ipcMain.handle('deadlines:delete', (_e, id: number) => db.deleteDeadline(id))
 
   /* ---------- 통합 검색 ---------- */
   ipcMain.handle('search:run', (_e, query: string) => db.searchAll(query))
@@ -179,7 +188,7 @@ function registerIpc(): void {
   /* ---------- 백업 / 복구 ---------- */
   ipcMain.handle('data:info', () => db.dbInfo())
 
-  ipcMain.handle('data:export', async () => {
+  ipcMain.handle('data:export', async (_e, includePersonal = false) => {
     if (!mainWindow) return { ok: false, message: '창을 찾을 수 없습니다.' }
     const stamp = new Date().toISOString().slice(0, 10)
     const res = await dialog.showSaveDialog(mainWindow, {
@@ -189,8 +198,12 @@ function registerIpc(): void {
     })
     if (res.canceled || !res.filePath) return { ok: false, message: '취소했습니다.' }
     try {
-      db.exportTo(res.filePath)
-      return { ok: true, message: `저장했습니다: ${res.filePath}`, path: res.filePath }
+      await db.exportTo(res.filePath, includePersonal)
+      return {
+        ok: true,
+        message: `저장했습니다${includePersonal ? '' : ' (기한·사안 정보는 빼고)'}: ${res.filePath}`,
+        path: res.filePath
+      }
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : String(e) }
     }

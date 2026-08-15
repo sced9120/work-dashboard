@@ -183,6 +183,46 @@ export interface ScenarioResult {
 
 export const ROLES = ['학생', '보호자', '교사', '위원', '관계자'] as const
 
+/* ---------- 절차 기한 ---------- */
+
+/**
+ * 놓치면 절차에 하자가 생기는 날짜를 챙기기 위한 것.
+ * 사안명에 개인정보가 들어갈 수 있어, 인수인계 파일에서는 기본으로 빠진다.
+ */
+export interface Deadline {
+  id: number
+  /** 무엇을 해야 하는지 */
+  title: string
+  /** 관련 사안이나 대상 (선택) */
+  case_ref: string
+  /** 기한 YYYY-MM-DD */
+  due_date: string
+  note: string
+  /** 처리 완료 여부 (0/1) */
+  done: number
+}
+
+export type DeadlineInput = Omit<Deadline, 'id'>
+
+export const BLANK_DEADLINE: DeadlineInput = {
+  title: '',
+  case_ref: '',
+  due_date: '',
+  note: '',
+  done: 0
+}
+
+/** 자주 쓰는 기한 항목. 날짜만 채우면 되도록 이름을 미리 준비해 둔다. */
+export const DEADLINE_PRESETS = [
+  '선도위원회 개최 통보',
+  '보호자 출석 통지',
+  '심의 결과 통지',
+  '재심 청구 기간 만료',
+  '처분 이행 시작',
+  '처분 이행 완료',
+  '조치 결과 보고'
+] as const
+
 export interface AnalyzeResult {
   ok: boolean
   drafts: TaskDraft[]
