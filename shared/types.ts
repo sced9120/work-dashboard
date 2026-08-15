@@ -20,6 +20,8 @@ export interface Task {
   filename: string
   /** 완료 여부 (0/1) */
   is_completed: number
+  /** 근거가 된 보관 문서의 id. 0이면 연결된 원문이 없다. */
+  document_id: number
 }
 
 export type TaskInput = Omit<Task, 'id'>
@@ -70,6 +72,54 @@ export interface TaskDraft {
 }
 
 export type DocKind = '길라잡이/매뉴얼' | '개별 공문'
+
+/* ---------- 보관 문서 (공문 원문) ---------- */
+
+/** 목록용. 본문(content)은 무거워서 빼고 보낸다. */
+export interface Doc {
+  id: number
+  /** 원본 파일명 */
+  filename: string
+  /** 길라잡이/매뉴얼 · 개별 공문 */
+  doc_kind: string
+  /** 문서에서 찾아낸 접수·시행 일자. 못 찾으면 빈 문자열 */
+  doc_date: string
+  /** 프로그램에 보관한 날짜 */
+  added_at: string
+  /** 본문 글자 수 */
+  chars: number
+}
+
+/** 본문까지 포함한 문서 */
+export interface DocFull extends Doc {
+  content: string
+}
+
+export type DocInput = Omit<Doc, 'id' | 'chars'> & { content: string }
+
+/* ---------- 통합 검색 ---------- */
+
+export interface SearchHit {
+  /** 등록된 업무인지, 보관된 공문 원문인지 */
+  kind: 'task' | 'document'
+  id: number
+  title: string
+  /** 업무면 시기, 문서면 접수일자 */
+  subtitle: string
+  filename: string
+  /** 정렬용 날짜 (YYYY-MM-DD). 없으면 빈 문자열 */
+  date: string
+  /** 관련도 점수. 높을수록 먼저 */
+  score: number
+  /** 검색어 주변을 잘라낸 미리보기 */
+  snippets: string[]
+}
+
+export interface SearchAnswer {
+  ok: boolean
+  answer: string
+  error?: string
+}
 
 export interface AnalyzeResult {
   ok: boolean

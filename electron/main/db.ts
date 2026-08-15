@@ -2,7 +2,16 @@ import { app } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import initSqlJs, { type Database, type SqlJsStatic } from 'sql.js'
-import type { Notice, NoticeInput, Task, TaskInput } from '../../shared/types'
+import type {
+  Doc,
+  DocFull,
+  DocInput,
+  Notice,
+  NoticeInput,
+  SearchHit,
+  Task,
+  TaskInput
+} from '../../shared/types'
 
 /**
  * 예전 Streamlit 버전(school_admin_v25_final.db)과 같은 스키마를 유지한다.
@@ -18,7 +27,13 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS notices (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      title TEXT, content TEXT, date TEXT, link TEXT)`,
-  `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`
+  `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`,
+  // 올린 공문·매뉴얼의 원문을 그대로 보관한다. 예전에는 AI가 뽑아낸 업무만 남기고
+  // 원문을 버려서, 나중에 "그 공문 어디 갔지" 를 찾을 방법이 없었다.
+  `CREATE TABLE IF NOT EXISTS documents (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     filename TEXT, doc_kind TEXT, doc_date TEXT,
+     added_at TEXT, content TEXT)`
 ]
 
 let SQL: SqlJsStatic | null = null
@@ -53,6 +68,9 @@ function migrate(target: Database): void {
   if (!cols('notices').includes('link')) target.run('ALTER TABLE notices ADD COLUMN link TEXT')
   if (!cols('tasks').includes('is_completed')) {
     target.run('ALTER TABLE tasks ADD COLUMN is_completed INTEGER DEFAULT 0')
+  }
+  if (!cols('tasks').includes('document_id')) {
+    target.run('ALTER TABLE tasks ADD COLUMN document_id INTEGER DEFAULT 0')
   }
 
   // 예전 버전은 API 키를 DB에 넣어두었다. 인수인계 파일에 남의 키가 섞여
@@ -148,8 +166,8 @@ export function listTasks(): Task[] {
 export function addTask(t: TaskInput): number {
   run(
     `INSERT INTO tasks
-       (title, task_date_display, task_date_raw, task_type, workflow, draft_full, key_points, filename, is_completed)
-     VALUES (?,?,?,?,?,?,?,?,?)`,
+       (title, task_date_display, task_date_raw, task_type, workflow, draft_full, key_points, filename, is_completed, document_id)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
     [
       t.title,
       t.task_date_display,
@@ -159,7 +177,8 @@ export function addTask(t: TaskInput): number {
       t.draft_full,
       t.key_points,
       t.filename,
-      t.is_completed ?? 0
+      t.is_completed ?? 0,
+      t.document_id ?? 0
     ]
   )
   return lastId()
@@ -217,6 +236,179 @@ export function setSetting(key: string, value: string): void {
   run('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)', [key, value])
 }
 
+/* ---------- 보관 문서 (공문 원문) ---------- */
+
+/** 목록에서는 본문을 빼고 읽는다. 본문까지 다 읽으면 수십 MB가 오간다. */
+export function listDocs(): Doc[] {
+  return rows<Doc>(
+    `SELECT id, filename, doc_kind, doc_date, added_at, LENGTH(content) AS chars
+       FROM documents ORDER BY id DESC`
+  )
+}
+
+export function getDoc(id: number): DocFull | null {
+  const res = rows<DocFull>(
+    `SELECT id, filename, doc_kind, doc_date, added_at, content,
+            LENGTH(content) AS chars
+       FROM documents WHERE id=?`,
+    [id]
+  )
+  return res.length ? res[0] : null
+}
+
+/**
+ * 같은 파일을 두 번 올려도 중복 보관하지 않는다.
+ * 이미 있으면 그 id를 그대로 돌려준다.
+ */
+export function addDoc(d: DocInput): number {
+  const dup = rows<{ id: number }>(
+    'SELECT id FROM documents WHERE filename=? AND LENGTH(content)=?',
+    [d.filename, d.content.length]
+  )
+  if (dup.length) return dup[0].id
+
+  run('INSERT INTO documents (filename, doc_kind, doc_date, added_at, content) VALUES (?,?,?,?,?)', [
+    d.filename,
+    d.doc_kind,
+    d.doc_date,
+    d.added_at || today(),
+    d.content
+  ])
+  return lastId()
+}
+
+export function deleteDoc(id: number): void {
+  run('DELETE FROM documents WHERE id=?', [id])
+  run('UPDATE tasks SET document_id=0 WHERE document_id=?', [id])
+}
+
+export function docCount(): number {
+  const res = need().exec('SELECT COUNT(*) FROM documents')
+  return res.length ? Number(res[0].values[0][0]) : 0
+}
+
+/**
+ * 공문에서 접수일자·시행일자를 찾아 YYYY-MM-DD 로 돌려준다.
+ * 공문 서식마다 표기가 달라 완벽하지 않다. 못 찾으면 빈 문자열.
+ */
+export function guessDocDate(text: string): string {
+  const head = text.slice(0, 4000)
+  const patterns = [
+    /(?:접수|시행|기안)\s*(?:일자)?\s*[:：]?\s*(\d{4})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/,
+    /(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/
+  ]
+  for (const re of patterns) {
+    const m = head.match(re)
+    if (!m) continue
+    const [, y, mo, d] = m
+    const year = Number(y)
+    const month = Number(mo)
+    const day = Number(d)
+    if (year < 1990 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) continue
+    const p = (n: number): string => String(n).padStart(2, '0')
+    return `${year}-${p(month)}-${p(day)}`
+  }
+  return ''
+}
+
+/* ---------- 통합 검색 ---------- */
+
+/** 검색어 주변을 잘라 미리보기를 만든다. */
+function makeSnippets(text: string, terms: string[], max = 2): string[] {
+  const lower = text.toLowerCase()
+  const out: string[] = []
+  for (const term of terms) {
+    let from = 0
+    while (out.length < max) {
+      const at = lower.indexOf(term, from)
+      if (at < 0) break
+      const start = Math.max(0, at - 50)
+      const end = Math.min(text.length, at + term.length + 70)
+      const piece = `${start > 0 ? '…' : ''}${text.slice(start, end).replace(/\s+/g, ' ').trim()}${end < text.length ? '…' : ''}`
+      if (!out.includes(piece)) out.push(piece)
+      from = at + term.length
+    }
+    if (out.length >= max) break
+  }
+  return out
+}
+
+function countOf(haystack: string, term: string): number {
+  let n = 0
+  let from = 0
+  for (;;) {
+    const at = haystack.indexOf(term, from)
+    if (at < 0) return n
+    n++
+    from = at + term.length
+  }
+}
+
+/**
+ * 등록된 업무와 보관된 공문 원문을 한꺼번에 찾는다.
+ * 띄어쓰기로 나눈 낱말을 모두 포함하는 것만 결과에 넣는다.
+ */
+export function searchAll(query: string, limit = 60): SearchHit[] {
+  const terms = query
+    .toLowerCase()
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+  if (!terms.length) return []
+
+  const hits: SearchHit[] = []
+
+  for (const t of listTasks()) {
+    const title = t.title ?? ''
+    const body = `${t.draft_full ?? ''}\n${t.key_points ?? ''}\n${t.workflow ?? ''}`
+    const hay = `${title}\n${body}`.toLowerCase()
+    if (!terms.every((term) => hay.includes(term))) continue
+
+    // 제목에 걸린 것을 위로 올린다.
+    const score = terms.reduce(
+      (sum, term) => sum + countOf(hay, term) + countOf(title.toLowerCase(), term) * 5,
+      0
+    )
+    hits.push({
+      kind: 'task',
+      id: t.id,
+      title: title || '(제목 없음)',
+      subtitle: t.task_date_display || '수시',
+      filename: t.filename ?? '',
+      date: '',
+      score,
+      snippets: makeSnippets(body, terms)
+    })
+  }
+
+  const docs = rows<{ id: number; filename: string; doc_kind: string; doc_date: string; content: string }>(
+    'SELECT id, filename, doc_kind, doc_date, content FROM documents'
+  )
+  for (const d of docs) {
+    const content = d.content ?? ''
+    const name = d.filename ?? ''
+    const hay = `${name}\n${content}`.toLowerCase()
+    if (!terms.every((term) => hay.includes(term))) continue
+
+    const score = terms.reduce(
+      (sum, term) => sum + countOf(hay, term) + countOf(name.toLowerCase(), term) * 5,
+      0
+    )
+    hits.push({
+      kind: 'document',
+      id: d.id,
+      title: name,
+      subtitle: d.doc_date ? `${d.doc_date} 접수` : d.doc_kind || '문서',
+      filename: name,
+      date: d.doc_date ?? '',
+      score,
+      snippets: makeSnippets(content, terms)
+    })
+  }
+
+  return hits.sort((a, b) => b.score - a.score).slice(0, limit)
+}
+
 /* ---------- 백업 / 복구 ---------- */
 
 export function exportTo(targetPath: string): void {
@@ -227,7 +419,9 @@ export function exportTo(targetPath: string): void {
  * 인수인계 파일을 현재 데이터로 불러온다.
  * 덮어쓰기 전에 현재 상태를 backups 폴더에 자동 보관한다.
  */
-export async function importFrom(sourcePath: string): Promise<{ tasks: number; notices: number }> {
+export async function importFrom(
+  sourcePath: string
+): Promise<{ tasks: number; notices: number; documents: number }> {
   const buf = fs.readFileSync(sourcePath)
   if (!SQL) SQL = await initSqlJs({ wasmBinary: loadWasm() })
 
@@ -246,9 +440,11 @@ export async function importFrom(sourcePath: string): Promise<{ tasks: number; n
 
   const t = db.exec('SELECT COUNT(*) FROM tasks')
   const n = db.exec('SELECT COUNT(*) FROM notices')
+  const d = db.exec('SELECT COUNT(*) FROM documents')
   return {
     tasks: t.length ? Number(t[0].values[0][0]) : 0,
-    notices: n.length ? Number(n[0].values[0][0]) : 0
+    notices: n.length ? Number(n[0].values[0][0]) : 0,
+    documents: d.length ? Number(d[0].values[0][0]) : 0
   }
 }
 
@@ -257,6 +453,7 @@ export function clearAll(): void {
   fs.writeFileSync(path.join(backupDir(), `초기화전_${stamp}.db`), Buffer.from(need().export()))
   need().run('DELETE FROM tasks')
   need().run('DELETE FROM notices')
+  need().run('DELETE FROM documents')
   persist()
   seedIfEmpty(need())
   persist()

@@ -5,15 +5,17 @@ import Home from './pages/Home'
 import Roadmap from './pages/Roadmap'
 import Guide from './pages/Guide'
 import Learn from './pages/Learn'
+import Search from './pages/Search'
 import Data from './pages/Data'
 import Settings from './pages/Settings'
 
-export type PageId = '홈' | '로드맵' | '가이드' | '학습' | '데이터' | '설정'
+export type PageId = '홈' | '로드맵' | '가이드' | '학습' | '검색' | '데이터' | '설정'
 
 const NAV: { id: PageId; icon: string; label: string }[] = [
   { id: '홈', icon: '🏠', label: '홈' },
   { id: '로드맵', icon: '🗓', label: '연간 업무 로드맵' },
   { id: '가이드', icon: '📋', label: '업무 상세 가이드' },
+  { id: '검색', icon: '🔎', label: '통합 검색' },
   { id: '학습', icon: '📥', label: '문서로 업무 만들기' },
   { id: '데이터', icon: '💾', label: '인수인계 · 백업' },
   { id: '설정', icon: '⚙️', label: '설정' }
@@ -75,6 +77,7 @@ function Shell(): JSX.Element {
         {page === '홈' && <Home jobTitle={jobTitle} onGo={setPage} />}
         {page === '로드맵' && <Roadmap />}
         {page === '가이드' && <Guide />}
+        {page === '검색' && <Search jobTitle={jobTitle} onGo={setPage} />}
         {page === '학습' && <Learn jobTitle={jobTitle} onGo={setPage} />}
         {page === '데이터' && <Data onChanged={reloadProfile} />}
         {page === '설정' && <Settings onProfileChanged={reloadProfile} />}

@@ -1,0 +1,32 @@
+name: 타입 검사
+
+# main 에 올릴 때마다 돌려서, 빌드가 깨진 채로 쌓이지 않게 한다.
+# 설치파일까지 만들지는 않으므로 1분 안에 끝난다.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 소스 내려받기
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 타입 검사
+        run: npm run typecheck
+
+      - name: 렌더러·메인 빌드 확인
+        run: npm run build

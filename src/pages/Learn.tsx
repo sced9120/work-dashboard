@@ -25,6 +25,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   const [done, setDone] = useState(0)
   const [hasKey, setHasKey] = useState(true)
   const [preview, setPreview] = useState<string | null>(null)
+  const [keepOriginal, setKeepOriginal] = useState(true)
 
   useEffect(() => {
     void (async () => {
@@ -88,12 +89,36 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
     if (collected.length) toast(`${collected.length}건을 찾았습니다. 확인 후 등록해 주세요.`, 'ok')
   }
 
+  /**
+   * 읽어 둔 원문을 보관함에 넣고, 파일명 → 문서 id 를 돌려준다.
+   * 나중에 [통합 검색]에서 공문 자체를 찾을 수 있게 하려는 것이다.
+   */
+  const storeOriginals = async (): Promise<Map<string, number>> => {
+    const map = new Map<string, number>()
+    if (!keepOriginal) return map
+
+    for (const f of files) {
+      if (f.state !== '읽음' || !f.doc?.text) continue
+      const id = await window.api.docs.add({
+        filename: f.name,
+        doc_kind: kind,
+        doc_date: await window.api.docs.guessDate(f.doc.text),
+        added_at: '',
+        content: f.doc.text
+      })
+      map.set(f.name, id)
+    }
+    return map
+  }
+
   const registerSelected = async (): Promise<void> => {
     const chosen = drafts.filter((d) => d.selected)
     if (!chosen.length) {
       toast('등록할 항목을 선택해 주세요.', 'err')
       return
     }
+    const docIds = await storeOriginals()
+
     for (const d of chosen) {
       await window.api.tasks.add({
         title: d.title,
@@ -104,17 +129,35 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         draft_full: d.draft_full,
         key_points: d.key_points,
         filename: d.filename,
-        is_completed: 0
+        is_completed: 0,
+        document_id: docIds.get(d.filename) ?? 0
       })
     }
     setDrafts([])
     setFiles([])
-    toast(`${chosen.length}건을 등록했습니다.`, 'ok')
+    toast(
+      docIds.size
+        ? `${chosen.length}건을 등록하고, 공문 원문 ${docIds.size}건을 보관했습니다.`
+        : `${chosen.length}건을 등록했습니다.`,
+      'ok'
+    )
     onGo('로드맵')
   }
 
   const saveRawAsTask = async (f: FileRow): Promise<void> => {
     if (!f.doc) return
+
+    let docId = 0
+    if (keepOriginal && f.doc.text) {
+      docId = await window.api.docs.add({
+        filename: f.name,
+        doc_kind: kind,
+        doc_date: await window.api.docs.guessDate(f.doc.text),
+        added_at: '',
+        content: f.doc.text
+      })
+    }
+
     await window.api.tasks.add({
       title: f.name.replace(/\.[^.]+$/, ''),
       task_date_display: '수시',
@@ -124,9 +167,31 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
       draft_full: f.doc.text,
       key_points: '',
       filename: f.name,
-      is_completed: 0
+      is_completed: 0,
+      document_id: docId
     })
     toast('문서 내용을 그대로 등록했습니다.', 'ok')
+  }
+
+  /** AI 분석 없이 원문만 검색용으로 보관한다. */
+  const archiveOnly = async (): Promise<void> => {
+    const ready = files.filter((f) => f.state === '읽음' && f.doc?.text)
+    if (!ready.length) {
+      toast('먼저 읽을 수 있는 문서를 올려 주세요.', 'err')
+      return
+    }
+    for (const f of ready) {
+      await window.api.docs.add({
+        filename: f.name,
+        doc_kind: kind,
+        doc_date: await window.api.docs.guessDate(f.doc!.text),
+        added_at: '',
+        content: f.doc!.text
+      })
+    }
+    setFiles([])
+    toast(`${ready.length}건을 보관했습니다. [통합 검색]에서 찾을 수 있습니다.`, 'ok')
+    onGo('검색')
   }
 
   const readyCount = files.filter((f) => f.state === '읽음').length
@@ -182,6 +247,18 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
           PDF · 한글(hwp, hwpx) · 엑셀(xlsx) · 워드(docx) · 텍스트를 지원합니다. PDF가 가장
           정확합니다.
         </p>
+
+        <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 10 }}>
+          <input
+            type="checkbox"
+            checked={keepOriginal}
+            onChange={(e) => setKeepOriginal(e.target.checked)}
+            style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+          />
+          <span className="small">
+            공문 원문도 함께 보관하기 <span className="muted">— [통합 검색]에서 찾을 수 있습니다</span>
+          </span>
+        </label>
 
         {files.length === 0 ? (
           <div className="empty">아직 올린 파일이 없습니다.</div>
@@ -249,8 +326,19 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
           >
             {busy ? '분석 중…' : `${readyCount}개 문서 분석 시작`}
           </button>
+          <button
+            className="btn"
+            onClick={() => void archiveOnly()}
+            disabled={busy || readyCount === 0}
+          >
+            📁 AI 없이 원문만 보관
+          </button>
           {busy && <span className="muted small">{progress}</span>}
         </div>
+        <p className="hint" style={{ marginTop: 8 }}>
+          지난 공문을 검색용으로 쌓아두기만 할 때는 “원문만 보관”을 쓰세요. AI 사용료가 들지 않고
+          훨씬 빠릅니다.
+        </p>
         {busy && (
           <div className="progress" style={{ marginTop: 12 }}>
             <div style={{ width: `${readyCount ? (done / readyCount) * 100 : 0}%` }} />

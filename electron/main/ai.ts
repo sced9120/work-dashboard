@@ -104,7 +104,12 @@ function parseTasks(raw: string, filename: string): TaskDraft[] {
     .filter((t) => t.title !== '(제목 없음)' || t.draft_full.length > 0)
 }
 
-async function callOpenAI(key: string, model: string, prompt: string): Promise<string> {
+async function callOpenAI(
+  key: string,
+  model: string,
+  prompt: string,
+  json = true
+): Promise<string> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -114,7 +119,7 @@ async function callOpenAI(key: string, model: string, prompt: string): Promise<s
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
+      ...(json ? { response_format: { type: 'json_object' } } : {}),
       temperature: 0.2
     })
   })
@@ -126,14 +131,22 @@ async function callOpenAI(key: string, model: string, prompt: string): Promise<s
   return text
 }
 
-async function callGemini(key: string, model: string, prompt: string): Promise<string> {
+async function callGemini(
+  key: string,
+  model: string,
+  prompt: string,
+  json = true
+): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+      generationConfig: {
+        ...(json ? { responseMimeType: 'application/json' } : {}),
+        temperature: 0.2
+      }
     })
   })
 
@@ -167,13 +180,13 @@ async function describeHttpError(res: Response, who: string): Promise<string> {
   }
 }
 
-async function callModel(settings: LocalSettings, prompt: string): Promise<string> {
+async function callModel(settings: LocalSettings, prompt: string, json = true): Promise<string> {
   if (settings.provider === 'openai') {
     if (!settings.openai_key) throw new Error('OpenAI API 키가 설정되지 않았습니다.')
-    return callOpenAI(settings.openai_key, settings.openai_model, prompt)
+    return callOpenAI(settings.openai_key, settings.openai_model, prompt, json)
   }
   if (!settings.gemini_key) throw new Error('Gemini API 키가 설정되지 않았습니다.')
-  return callGemini(settings.gemini_key, settings.gemini_model, prompt)
+  return callGemini(settings.gemini_key, settings.gemini_model, prompt, json)
 }
 
 export async function analyzeDocument(
@@ -212,6 +225,75 @@ export async function analyzeDocument(
   })
 
   return { ok: true, drafts: unique }
+}
+
+/** 검색 결과 요약에 넘길 근거 한 건 */
+export interface SourceItem {
+  label: string
+  text: string
+}
+
+/** 근거로 넘기는 글의 총량 상한. 넘으면 앞쪽부터 잘라 담는다. */
+const ANSWER_BUDGET = 24000
+
+/**
+ * 검색으로 찾은 문서·업무를 근거로, 질문에 대한 요약 답변을 만든다.
+ * 근거에 없는 내용을 지어내지 않도록 못을 박고, 출처 번호를 달게 한다.
+ */
+export async function answerFromSources(
+  settings: LocalSettings,
+  jobTitle: string,
+  query: string,
+  sources: SourceItem[]
+): Promise<{ ok: boolean; answer: string; error?: string }> {
+  if (!sources.length) {
+    return { ok: false, answer: '', error: '요약할 근거 문서가 없습니다.' }
+  }
+
+  let used = 0
+  const blocks: string[] = []
+  for (let i = 0; i < sources.length; i++) {
+    if (used >= ANSWER_BUDGET) break
+    const room = ANSWER_BUDGET - used
+    const body = sources[i].text.slice(0, Math.min(room, 6000))
+    blocks.push(`[${i + 1}] ${sources[i].label}\n${body}`)
+    used += body.length
+  }
+
+  const prompt = `당신은 대한민국 학교 행정 업무를 잘 아는 '${jobTitle}' 담당자입니다.
+아래는 이 담당자가 보관해 둔 공문과 업무 기록 중 "${query}" 로 검색해 나온 것들입니다.
+
+이 자료만 근거로 삼아, 담당자가 한눈에 파악할 수 있게 정리해 주세요.
+
+작성 규칙:
+- 자료에 없는 내용은 절대 지어내지 마세요. 모르면 "자료에서 확인되지 않습니다" 라고 적으세요.
+- 시간 순서가 드러나면 오래된 것부터 차례로 정리하세요.
+- 문장 끝에 근거 번호를 [1] [3] 처럼 답니다.
+- 아래 형식을 지키되, 해당 내용이 없는 항목은 통째로 생략하세요.
+
+## 한 줄 요약
+(2~3문장)
+
+## 경과
+- (날짜나 순서가 드러나게, 항목마다 한 줄)
+
+## 담당자가 할 일
+- (자료에서 확인되는 처리 절차나 제출물만)
+
+## 주의할 점
+- (기한, 놓치기 쉬운 조건 등)
+
+검색어: ${query}
+
+--- 자료 ---
+${blocks.join('\n\n')}`
+
+  try {
+    const raw = await callModel(settings, prompt, false)
+    return { ok: true, answer: raw.trim() }
+  } catch (e) {
+    return { ok: false, answer: '', error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 export async function testConnection(

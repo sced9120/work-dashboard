@@ -1,12 +1,17 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AnalyzeResult,
+  Doc,
+  DocFull,
+  DocInput,
   DocKind,
   ExtractedDoc,
   LocalSettings,
   Notice,
   NoticeInput,
   PickedFile,
+  SearchAnswer,
+  SearchHit,
   Task,
   TaskInput
 } from '../../shared/types'
@@ -24,6 +29,17 @@ const api = {
     update: (id: number, patch: Partial<TaskInput>): Promise<void> =>
       ipcRenderer.invoke('tasks:update', id, patch),
     remove: (id: number): Promise<void> => ipcRenderer.invoke('tasks:delete', id)
+  },
+  docs: {
+    list: (): Promise<Doc[]> => ipcRenderer.invoke('docs:list'),
+    get: (id: number): Promise<DocFull | null> => ipcRenderer.invoke('docs:get', id),
+    add: (d: DocInput): Promise<number> => ipcRenderer.invoke('docs:add', d),
+    remove: (id: number): Promise<void> => ipcRenderer.invoke('docs:delete', id),
+    count: (): Promise<number> => ipcRenderer.invoke('docs:count'),
+    guessDate: (text: string): Promise<string> => ipcRenderer.invoke('docs:guessDate', text)
+  },
+  search: {
+    run: (query: string): Promise<SearchHit[]> => ipcRenderer.invoke('search:run', query)
   },
   notices: {
     list: (): Promise<Notice[]> => ipcRenderer.invoke('notices:list'),
@@ -55,6 +71,11 @@ const api = {
       kind: DocKind
       jobTitle: string
     }): Promise<AnalyzeResult> => ipcRenderer.invoke('ai:analyze', args),
+    answer: (args: {
+      jobTitle: string
+      query: string
+      sources: { label: string; text: string }[]
+    }): Promise<SearchAnswer> => ipcRenderer.invoke('ai:answer', args),
     test: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('ai:test'),
     onProgress: (cb: (msg: string) => void): (() => void) => {
       const handler = (_e: unknown, msg: string): void => cb(msg)

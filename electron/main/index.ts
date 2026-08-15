@@ -3,8 +3,8 @@ import path from 'node:path'
 import * as db from './db'
 import { encryptionAvailable, loadLocalSettings, saveLocalSettings } from './secrets'
 import { extractFile } from './extract'
-import { analyzeDocument, testConnection } from './ai'
-import type { DocKind, LocalSettings, NoticeInput, TaskInput } from '../../shared/types'
+import { analyzeDocument, answerFromSources, testConnection } from './ai'
+import type { DocInput, DocKind, LocalSettings, NoticeInput, TaskInput } from '../../shared/types'
 import { SUPPORTED_EXTENSIONS } from '../../shared/types'
 
 let mainWindow: BrowserWindow | null = null
@@ -56,6 +56,17 @@ function registerIpc(): void {
   )
   ipcMain.handle('tasks:delete', (_e, id: number) => db.deleteTask(id))
 
+  /* ---------- 보관 문서 (공문 원문) ---------- */
+  ipcMain.handle('docs:list', () => db.listDocs())
+  ipcMain.handle('docs:get', (_e, id: number) => db.getDoc(id))
+  ipcMain.handle('docs:add', (_e, d: DocInput) => db.addDoc(d))
+  ipcMain.handle('docs:delete', (_e, id: number) => db.deleteDoc(id))
+  ipcMain.handle('docs:count', () => db.docCount())
+  ipcMain.handle('docs:guessDate', (_e, text: string) => db.guessDocDate(text))
+
+  /* ---------- 통합 검색 ---------- */
+  ipcMain.handle('search:run', (_e, query: string) => db.searchAll(query))
+
   /* ---------- 공지 ---------- */
   ipcMain.handle('notices:list', () => db.listNotices())
   ipcMain.handle('notices:add', (_e, n: NoticeInput) => db.addNotice(n))
@@ -99,6 +110,13 @@ function registerIpc(): void {
         args.kind,
         (msg) => send('ai:progress', msg)
       )
+  )
+  ipcMain.handle(
+    'ai:answer',
+    async (
+      _e,
+      args: { jobTitle: string; query: string; sources: { label: string; text: string }[] }
+    ) => answerFromSources(loadLocalSettings(), args.jobTitle, args.query, args.sources)
   )
   ipcMain.handle('ai:test', () => testConnection(loadLocalSettings()))
 
@@ -146,7 +164,7 @@ function registerIpc(): void {
       const counts = await db.importFrom(res.filePaths[0])
       return {
         ok: true,
-        message: `불러왔습니다. 업무 ${counts.tasks}건, 공지 ${counts.notices}건.`
+        message: `불러왔습니다. 업무 ${counts.tasks}건, 공지 ${counts.notices}건, 보관 문서 ${counts.documents}건.`
       }
     } catch {
       return { ok: false, message: '이 파일은 인수인계 파일이 아니거나 손상되었습니다.' }

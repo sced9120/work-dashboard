@@ -10,7 +10,8 @@ export const BLANK: TaskInput = {
   draft_full: '',
   key_points: '',
   filename: '',
-  is_completed: 0
+  is_completed: 0,
+  document_id: 0
 }
 
 interface Props {
