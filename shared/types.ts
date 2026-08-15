@@ -121,6 +121,68 @@ export interface SearchAnswer {
   error?: string
 }
 
+/* ---------- 위원회 대본 · 회의록 ---------- */
+
+/** 실명과 가명의 짝. 이 PC 밖으로 나가지 않는다. */
+export interface AliasPair {
+  real: string
+  alias: string
+}
+
+export type ScenarioKind = '대본' | '회의록'
+
+/** 기존에 쓰던 대본·회의록. AI에 형식 본보기로 함께 보낸다. */
+export interface Template {
+  id: number
+  name: string
+  kind: string
+  content: string
+  added_at: string
+}
+
+export type TemplateInput = Omit<Template, 'id'>
+
+/** 화면에서 입력받는 사안 정보. 실명이 들어 있을 수 있다. */
+export interface CaseDetail {
+  kind: ScenarioKind
+  /** 회차·일시·장소 */
+  meetingInfo: string
+  /** 사안명 */
+  caseTitle: string
+  /** 사안 개요 */
+  summary: string
+  /** 학생 진술 요지 */
+  statements: string
+  /** 위원 구성 */
+  members: string
+  /** 심의 방향이나 예상 처분 */
+  expected: string
+  /** 회의록을 쓸 때 넣는 진행 메모 */
+  notes: string
+}
+
+export const BLANK_CASE: CaseDetail = {
+  kind: '대본',
+  meetingInfo: '',
+  caseTitle: '',
+  summary: '',
+  statements: '',
+  members: '',
+  expected: '',
+  notes: ''
+}
+
+export interface ScenarioResult {
+  ok: boolean
+  /** 실명으로 되돌린 결과 */
+  text: string
+  /** 실제로 AI에 보낸 글. 무엇이 나갔는지 확인용 */
+  sentToAi: string
+  error?: string
+}
+
+export const ROLES = ['학생', '보호자', '교사', '위원', '관계자'] as const
+
 export interface AnalyzeResult {
   ok: boolean
   drafts: TaskDraft[]

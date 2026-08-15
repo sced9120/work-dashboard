@@ -10,7 +10,9 @@ import type {
   NoticeInput,
   SearchHit,
   Task,
-  TaskInput
+  TaskInput,
+  Template,
+  TemplateInput
 } from '../../shared/types'
 
 /**
@@ -33,7 +35,11 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS documents (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      filename TEXT, doc_kind TEXT, doc_date TEXT,
-     added_at TEXT, content TEXT)`
+     added_at TEXT, content TEXT)`,
+  // 위원회 대본·회의록의 본보기. 사안 내용이 아니라 '형식'을 담아 두는 곳이다.
+  `CREATE TABLE IF NOT EXISTS templates (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT, kind TEXT, content TEXT, added_at TEXT)`
 ]
 
 let SQL: SqlJsStatic | null = null
@@ -309,6 +315,30 @@ export function guessDocDate(text: string): string {
     return `${year}-${p(month)}-${p(day)}`
   }
   return ''
+}
+
+/* ---------- 대본 · 회의록 본보기 ---------- */
+
+export function listTemplates(): Template[] {
+  return rows<Template>('SELECT * FROM templates ORDER BY id DESC')
+}
+
+export function addTemplate(t: TemplateInput): number {
+  run('INSERT INTO templates (name, kind, content, added_at) VALUES (?,?,?,?)', [
+    t.name,
+    t.kind,
+    t.content,
+    t.added_at || today()
+  ])
+  return lastId()
+}
+
+export function updateTemplate(id: number, t: TemplateInput): void {
+  run('UPDATE templates SET name=?, kind=?, content=? WHERE id=?', [t.name, t.kind, t.content, id])
+}
+
+export function deleteTemplate(id: number): void {
+  run('DELETE FROM templates WHERE id=?', [id])
 }
 
 /* ---------- 통합 검색 ---------- */

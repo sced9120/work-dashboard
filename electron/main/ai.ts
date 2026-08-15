@@ -1,4 +1,14 @@
-import type { AnalyzeResult, DocKind, LocalSettings, TaskDraft } from '../../shared/types'
+import type {
+  AliasPair,
+  AnalyzeResult,
+  CaseDetail,
+  DocKind,
+  LocalSettings,
+  ScenarioResult,
+  TaskDraft,
+  Template
+} from '../../shared/types'
+import { leakCheck, maskText, unmaskText } from './anonymize'
 
 /** 한 번에 모델에 보내는 글자 수. 긴 매뉴얼은 여러 번 나눠 보낸다. */
 const CHUNK_SIZE = 28000
@@ -293,6 +303,119 @@ ${blocks.join('\n\n')}`
     return { ok: true, answer: raw.trim() }
   } catch (e) {
     return { ok: false, answer: '', error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/* ---------- 위원회 대본 · 회의록 ---------- */
+
+/** 본보기로 보내는 대본 한 건의 길이 상한 */
+const TEMPLATE_BUDGET = 6000
+
+function caseBlock(c: CaseDetail): string {
+  const lines: [string, string][] = [
+    ['회의 정보', c.meetingInfo],
+    ['사안명', c.caseTitle],
+    ['사안 개요', c.summary],
+    ['진술 요지', c.statements],
+    ['위원 구성', c.members],
+    ['심의 방향·예상 처분', c.expected],
+    ['진행 메모', c.notes]
+  ]
+  return lines
+    .filter(([, v]) => v.trim())
+    .map(([k, v]) => `[${k}]\n${v.trim()}`)
+    .join('\n\n')
+}
+
+function scenarioPrompt(
+  schoolName: string,
+  c: CaseDetail,
+  templates: Template[]
+): string {
+  const examples = templates
+    .map((t, i) => `--- 본보기 ${i + 1}: ${t.name} ---\n${t.content.slice(0, TEMPLATE_BUDGET)}`)
+    .join('\n\n')
+
+  const shape =
+    c.kind === '대본'
+      ? `학생선도위원회를 실제로 진행할 때 사회자가 그대로 읽을 수 있는 **진행 대본**을 쓰세요.
+개회 선언 → 위원 소개 → 사안 보고 → 대상 학생 진술 → 위원 질의응답 → 학생 퇴장 →
+위원 심의 → 처분 의결 → 결과 고지 → 폐회 순서를 기본으로 하되, 본보기가 있으면 그 순서를 따르세요.
+사회자가 읽을 말은 "위원장: " 처럼 말하는 사람을 앞에 붙여 적고,
+진행상 필요한 안내는 (괄호) 로 표시하세요.`
+      : `학생선도위원회 **회의록**을 쓰세요.
+회의 개요(일시·장소·참석자), 안건, 논의 내용, 의결 사항, 향후 조치 순으로 정리합니다.
+말한 사람을 밝혀 요약하되, 대화를 그대로 옮기지 말고 회의록 문체로 간결하게 적으세요.
+본보기가 있으면 그 형식과 문체를 그대로 따르세요.`
+
+  return `당신은 대한민국 고등학교의 학생선도 업무를 오래 맡아 온 교사입니다.
+${schoolName ? `학교명은 '${schoolName}' 입니다.` : ''}
+
+${shape}
+
+반드시 지킬 것:
+- 아래 [사안 정보] 에 있는 사실만 쓰세요. 없는 사실, 없는 진술, 없는 날짜를 지어내지 마세요.
+- 정보가 비어 있는 부분은 (   ) 또는 "○○○" 처럼 담당자가 채울 빈칸으로 남기세요. 추측해서 메우지 마세요.
+- 사람 이름이 '학생A', '위원B' 처럼 적혀 있으면 그대로 쓰세요. 실제 이름을 만들어 넣지 마세요.
+- 처분의 수위를 단정하지 마세요. 처분은 위원회가 정하는 것이므로, 의결 부분은 빈칸이나 선택지로 두세요.
+- 설명이나 머리말 없이 결과물만 출력하세요.
+
+${examples ? `아래는 이 학교에서 쓰던 형식입니다. 말투와 구성을 최대한 따르세요.\n\n${examples}\n` : ''}
+--- 사안 정보 ---
+${caseBlock(c)}`
+}
+
+/**
+ * 대본·회의록을 만든다.
+ * 보내기 전에 실명을 가명으로 바꾸고, 받은 뒤 다시 실명으로 되돌린다.
+ * 가리기에 실패한 이름이 하나라도 있으면 아예 보내지 않는다.
+ */
+export async function generateScenario(
+  settings: LocalSettings,
+  schoolName: string,
+  c: CaseDetail,
+  templates: Template[],
+  aliases: AliasPair[]
+): Promise<ScenarioResult> {
+  // 사안 정보만 가린다. 본보기는 형식용이라 그대로 두되 함께 가려 준다.
+  const maskedCase: CaseDetail = {
+    ...c,
+    meetingInfo: maskText(c.meetingInfo, aliases),
+    caseTitle: maskText(c.caseTitle, aliases),
+    summary: maskText(c.summary, aliases),
+    statements: maskText(c.statements, aliases),
+    members: maskText(c.members, aliases),
+    expected: maskText(c.expected, aliases),
+    notes: maskText(c.notes, aliases)
+  }
+  const maskedTemplates: Template[] = templates.map((t) => ({
+    ...t,
+    content: maskText(t.content, aliases)
+  }))
+
+  const prompt = scenarioPrompt(schoolName, maskedCase, maskedTemplates)
+
+  // 마지막 방어선: 가렸는데도 실명이 남아 있으면 전송을 멈춘다.
+  const leaked = leakCheck(prompt, aliases)
+  if (leaked.length) {
+    return {
+      ok: false,
+      text: '',
+      sentToAi: '',
+      error: `가명처리가 끝나지 않아 보내지 않았습니다. 남아 있는 이름: ${leaked.join(', ')}`
+    }
+  }
+
+  try {
+    const raw = await callModel(settings, prompt, false)
+    return { ok: true, text: unmaskText(raw.trim(), aliases), sentToAi: prompt }
+  } catch (e) {
+    return {
+      ok: false,
+      text: '',
+      sentToAi: prompt,
+      error: e instanceof Error ? e.message : String(e)
+    }
   }
 }
 

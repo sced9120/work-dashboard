@@ -1,10 +1,21 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron'
 import path from 'node:path'
 import * as db from './db'
 import { encryptionAvailable, loadLocalSettings, saveLocalSettings } from './secrets'
 import { extractFile } from './extract'
-import { analyzeDocument, answerFromSources, testConnection } from './ai'
-import type { DocInput, DocKind, LocalSettings, NoticeInput, TaskInput } from '../../shared/types'
+import { analyzeDocument, answerFromSources, generateScenario, testConnection } from './ai'
+import { buildAliases, findNameCandidates, maskText } from './anonymize'
+import fs from 'node:fs'
+import type {
+  AliasPair,
+  CaseDetail,
+  DocInput,
+  DocKind,
+  LocalSettings,
+  NoticeInput,
+  TaskInput,
+  TemplateInput
+} from '../../shared/types'
 import { SUPPORTED_EXTENSIONS } from '../../shared/types'
 
 let mainWindow: BrowserWindow | null = null
@@ -66,6 +77,51 @@ function registerIpc(): void {
 
   /* ---------- 통합 검색 ---------- */
   ipcMain.handle('search:run', (_e, query: string) => db.searchAll(query))
+
+  /* ---------- 대본 · 회의록 본보기 ---------- */
+  ipcMain.handle('templates:list', () => db.listTemplates())
+  ipcMain.handle('templates:add', (_e, t: TemplateInput) => db.addTemplate(t))
+  ipcMain.handle('templates:update', (_e, id: number, t: TemplateInput) => db.updateTemplate(id, t))
+  ipcMain.handle('templates:delete', (_e, id: number) => db.deleteTemplate(id))
+
+  /* ---------- 가명처리 ---------- */
+  ipcMain.handle('privacy:candidates', (_e, text: string) => findNameCandidates(text))
+  ipcMain.handle('privacy:aliases', (_e, entries: { name: string; role: string }[]) =>
+    buildAliases(entries)
+  )
+  ipcMain.handle('privacy:mask', (_e, text: string, pairs: AliasPair[]) => maskText(text, pairs))
+
+  /* ---------- 위원회 자료 생성 ---------- */
+  ipcMain.handle(
+    'scenario:generate',
+    async (_e, args: { detail: CaseDetail; templateIds: number[]; aliases: AliasPair[] }) => {
+      const picked = db.listTemplates().filter((t) => args.templateIds.includes(t.id))
+      return generateScenario(
+        loadLocalSettings(),
+        db.getSetting('school_name', ''),
+        args.detail,
+        picked,
+        args.aliases
+      )
+    }
+  )
+
+  ipcMain.handle('scenario:save', async (_e, args: { name: string; text: string }) => {
+    if (!mainWindow) return { ok: false, message: '창을 찾을 수 없습니다.' }
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: '문서로 저장',
+      defaultPath: `${args.name}.txt`,
+      filters: [{ name: '텍스트 문서', extensions: ['txt'] }]
+    })
+    if (res.canceled || !res.filePath) return { ok: false, message: '취소했습니다.' }
+    try {
+      // 한글(HWP)에서 바로 열리도록 BOM 을 붙여 UTF-8 로 저장한다.
+      fs.writeFileSync(res.filePath, `﻿${args.text}`, 'utf8')
+      return { ok: true, message: `저장했습니다: ${res.filePath}`, path: res.filePath }
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) }
+    }
+  })
 
   /* ---------- 공지 ---------- */
   ipcMain.handle('notices:list', () => db.listNotices())
@@ -192,6 +248,8 @@ function registerIpc(): void {
     if (/^https?:\/\//i.test(url)) return shell.openExternal(url)
     return Promise.resolve('')
   })
+  // file:// 로 띄운 창에서는 navigator.clipboard 가 막히므로 메인에서 처리한다.
+  ipcMain.handle('clipboard:write', (_e, text: string) => clipboard.writeText(text))
   ipcMain.handle('app:version', () => app.getVersion())
 }
 

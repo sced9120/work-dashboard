@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  AliasPair,
   AnalyzeResult,
+  CaseDetail,
   Doc,
   DocFull,
   DocInput,
@@ -10,10 +12,13 @@ import type {
   Notice,
   NoticeInput,
   PickedFile,
+  ScenarioResult,
   SearchAnswer,
   SearchHit,
   Task,
-  TaskInput
+  TaskInput,
+  Template,
+  TemplateInput
 } from '../../shared/types'
 
 export interface ActionResult {
@@ -40,6 +45,29 @@ const api = {
   },
   search: {
     run: (query: string): Promise<SearchHit[]> => ipcRenderer.invoke('search:run', query)
+  },
+  templates: {
+    list: (): Promise<Template[]> => ipcRenderer.invoke('templates:list'),
+    add: (t: TemplateInput): Promise<number> => ipcRenderer.invoke('templates:add', t),
+    update: (id: number, t: TemplateInput): Promise<void> =>
+      ipcRenderer.invoke('templates:update', id, t),
+    remove: (id: number): Promise<void> => ipcRenderer.invoke('templates:delete', id)
+  },
+  privacy: {
+    candidates: (text: string): Promise<string[]> => ipcRenderer.invoke('privacy:candidates', text),
+    aliases: (entries: { name: string; role: string }[]): Promise<AliasPair[]> =>
+      ipcRenderer.invoke('privacy:aliases', entries),
+    mask: (text: string, pairs: AliasPair[]): Promise<string> =>
+      ipcRenderer.invoke('privacy:mask', text, pairs)
+  },
+  scenario: {
+    generate: (args: {
+      detail: CaseDetail
+      templateIds: number[]
+      aliases: AliasPair[]
+    }): Promise<ScenarioResult> => ipcRenderer.invoke('scenario:generate', args),
+    save: (args: { name: string; text: string }): Promise<ActionResult> =>
+      ipcRenderer.invoke('scenario:save', args)
   },
   notices: {
     list: (): Promise<Notice[]> => ipcRenderer.invoke('notices:list'),
@@ -93,6 +121,9 @@ const api = {
   },
   shell: {
     open: (url: string): Promise<string | void> => ipcRenderer.invoke('shell:open', url)
+  },
+  clipboard: {
+    write: (text: string): Promise<void> => ipcRenderer.invoke('clipboard:write', text)
   },
   appVersion: (): Promise<string> => ipcRenderer.invoke('app:version')
 }
