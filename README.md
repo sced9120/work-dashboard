@@ -1,13 +1,51 @@
 # 업무 인수인계 대시보드
 
-학교 담당 업무를 정리해 두고, 다음 담당자에게 **파일 하나로** 넘겨주기 위한 데스크톱 프로그램입니다.
+학교 담당 업무를 정리해 두고, 다음 담당자에게 **파일 하나로** 넘겨주는 윈도우 프로그램입니다.
 
-기존 Streamlit 버전(`my_dashboard/app.py`)을 Electron 데스크톱 앱으로 새로 만든 것으로,
-받는 사람이 Python이나 PyCharm을 설치할 필요 없이 **설치파일 하나로 끝납니다.**
+받는 분은 Python도, 개발 도구도 설치할 필요가 없습니다. **설치파일 하나면 끝납니다.**
+
+---
+
+## 🚀 그냥 쓰고 싶다면 (대부분 여기만 보면 됩니다)
+
+**만들어진 설치파일이 이미 올라가 있습니다. 내려받아 실행하기만 하면 됩니다.**
+이 문서 아래쪽의 명령어들은 **볼 필요 없습니다.** 프로그램을 고칠 때만 쓰는 것들입니다.
+
+### 1단계 — 설치파일 내려받기
+
+👉 **[여기를 눌러 최신 설치파일 받기](https://github.com/sced9120/work-dashboard/releases/latest)**
+
+열린 페이지를 아래로 내리면 **Assets** 라는 목록이 있습니다. 거기서 하나를 고르세요.
+
+| 파일 | 어떤 경우에 |
+|---|---|
+| `WorkDashboard-Setup-1.0.0.exe` | **보통은 이것.** 설치하면 바탕화면에 아이콘이 생깁니다 |
+| `WorkDashboard-Portable-1.0.0.exe` | 학교 PC라 설치가 막혀 있을 때. 설치 없이 그 파일만 더블클릭 |
+
+크기는 약 100MB라 내려받는 데 1~2분 걸릴 수 있습니다.
+
+### 2단계 — 실행하기
+
+받은 파일을 더블클릭합니다.
+
+> **"Windows의 PC 보호" 라는 파란 창이 뜨면?**
+> 고장난 게 아닙니다. 개인이 만든 프로그램이라 마이크로소프트에 등록돼 있지 않아서 나오는 안내입니다.
+> 창에서 **추가 정보** → **실행** 을 누르면 그대로 진행됩니다.
+
+관리자 권한은 필요 없습니다.
+
+### 3단계 — 쓰기
+
+설치가 끝나면 바탕화면 아이콘을 더블클릭.
+이후 사용법은 **[사용안내.md](사용안내.md)** 에 화면별로 정리해 두었습니다.
+
+**여기까지가 전부입니다.** 아래 내용은 프로그램을 수정하거나 새 버전을 만들 때만 필요합니다.
 
 ---
 
 ## 무엇이 달라졌나
+
+예전 Streamlit 버전(`my_dashboard/app.py`)을 Electron 데스크톱 앱으로 새로 만든 것입니다.
 
 | | 예전 (Streamlit) | 지금 (Electron) |
 |---|---|---|
@@ -22,74 +60,98 @@
 
 ---
 
-## 배포용 설치파일 만들기 (GitHub Actions)
+# 🔧 프로그램을 고치거나 새 버전을 만들 때 (개발자용)
 
-맥에서는 윈도우 설치파일을 만들 수 없어서, GitHub의 윈도우 서버에서 대신 빌드합니다.
-**처음 한 번만** 아래를 설정해 두면, 이후에는 버튼 한 번으로 새 설치파일이 나옵니다.
+여기부터는 **코드를 수정할 때만** 필요합니다. 그냥 쓰실 거면 위 3단계로 충분합니다.
 
-### 1. GitHub에 비공개 저장소 만들기
+## 명령어는 어디에 붙여넣나요?
 
-[github.com/new](https://github.com/new) 에서 저장소를 하나 만듭니다. (Private 권장)
+이 아래 나오는 회색 상자들은 전부 **터미널(명령 창)** 에 입력하는 것입니다.
+"어디에 붙여넣지?" 싶으셨다면 아래 순서대로 하시면 됩니다.
 
-### 2. 코드 올리기
+### 윈도우에서 터미널 여는 법
 
-이 폴더에서:
+1. 키보드에서 `Windows 키` 를 누릅니다
+2. `powershell` 이라고 칩니다
+3. **Windows PowerShell** 을 엽니다 → 검고 파란 창이 뜹니다
 
-```bash
-git remote add origin https://github.com/<사용자명>/<저장소명>.git
+### 중요 — 반드시 "코드가 있는 폴더"로 먼저 이동해야 합니다
+
+터미널을 갓 열면 엉뚱한 위치(예: `C:\Users\내이름`)에 있습니다.
+그 상태로 명령어를 붙여넣으면 "그런 파일 없다"는 오류가 납니다.
+
+코드를 내려받고 그 폴더로 이동하는 것까지 한 번에:
+
+```powershell
+cd $HOME\Desktop
+git clone https://github.com/sced9120/work-dashboard.git
+cd work-dashboard
 ```
 
-```bash
-git push -u origin main
-```
+이제 터미널 왼쪽에 `...\Desktop\work-dashboard>` 라고 보이면 준비 끝입니다.
+**앞으로 나오는 모든 명령어는 이 창에, 이 위치에서** 실행합니다.
 
-### 3. 빌드 실행
+> 붙여넣기는 터미널 안에서 **마우스 오른쪽 클릭** 또는 `Ctrl+V` 입니다.
+> 명령어 한 줄을 붙여넣은 뒤에는 꼭 **Enter** 를 눌러야 실행됩니다.
 
-GitHub 저장소 → **Actions** 탭 → 왼쪽에서 **윈도우 설치파일 빌드** →
-오른쪽 **Run workflow** 버튼 클릭. 5분쯤 뒤 완료됩니다.
+## 필요한 도구
 
-완료된 실행을 눌러 맨 아래 **Artifacts** 에서 `WorkDashboard-Windows` 를 내려받으면
-그 안에 설치파일이 있습니다.
+이 PC에 아직 없다면 먼저 설치하세요.
 
-- `WorkDashboard-Setup-1.0.0.exe` — 설치 프로그램 (관리자 권한 없이 설치됨)
-- `WorkDashboard-Portable-1.0.0.exe` — 설치 없이 실행만 하는 파일 (설치가 막힌 PC용)
+| 도구 | 받는 곳 | 확인 명령 |
+|---|---|---|
+| Git | [git-scm.com](https://git-scm.com/download/win) | `git --version` |
+| Node.js (LTS) | [nodejs.org](https://nodejs.org) | `node --version` |
 
-### 4. 버전 올려 배포하기
+확인 명령을 쳐서 버전 번호가 나오면 설치된 것입니다.
+설치 직후에는 **터미널을 닫았다가 다시 열어야** 인식됩니다.
 
-`package.json`의 `version`을 올리고 태그를 붙여 올리면, 설치파일이 자동으로
-**Releases** 에 첨부되어 링크로 바로 공유할 수 있습니다.
+## 개발 모드로 실행
 
-```bash
-git tag v1.0.1 && git push origin v1.0.1
-```
-
----
-
-## 개발자용
-
-### 실행
-
-```bash
+```powershell
 npm install
 ```
 
-```bash
+```powershell
 npm run dev
 ```
 
-### 확인
+`npm install` 은 처음 한 번만 하면 되고, 몇 분 걸립니다.
 
-```bash
+## 타입 검사
+
+```powershell
 npm run typecheck
 ```
 
-### 로컬에서 빌드 (맥용 dmg)
+## 새 설치파일 만들기 (GitHub Actions)
+
+윈도우 설치파일은 윈도우에서만 만들 수 있습니다.
+맥에서 작업 중이라면 GitHub의 윈도우 서버에서 대신 빌드하면 됩니다.
+
+1. GitHub 저장소 → **Actions** 탭
+2. 왼쪽 목록에서 **윈도우 설치파일 빌드**
+3. 오른쪽 **Run workflow** 버튼 클릭
+4. 5분쯤 뒤 완료 → 그 실행을 눌러 맨 아래 **Artifacts** 에서 `WorkDashboard-Windows` 내려받기
+
+## 버전 올려 배포하기
+
+`package.json` 의 `version` 을 올린 뒤, 태그를 붙여 올리면
+설치파일이 자동으로 **Releases** 에 첨부되어 링크로 바로 공유됩니다.
+
+```powershell
+git add -A
+git commit -m "v1.0.1"
+git push
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+## 맥에서 로컬 빌드 (dmg)
 
 ```bash
 npm run build:mac
 ```
-
-> 윈도우 설치파일은 윈도우에서만 만들 수 있습니다. 맥에서는 GitHub Actions를 쓰세요.
 
 ---
 
@@ -114,13 +176,15 @@ shared/types.ts   양쪽이 함께 쓰는 타입
 scripts/make-icon.mjs  아이콘 생성 (외부 도구 없이 픽셀을 직접 그림)
 ```
 
-### 자료가 저장되는 곳
+## 자료가 저장되는 곳
 
 | | 경로 |
 |---|---|
 | 업무·공지 자료 | `%APPDATA%\업무 인수인계 대시보드\work-dashboard.db` |
 | 자동 백업 | `%APPDATA%\업무 인수인계 대시보드\backups\` |
 | API 키 | `%APPDATA%\업무 인수인계 대시보드\settings.json` (Windows DPAPI로 암호화) |
+
+> 경로를 여는 법: `Windows 키 + R` → `%APPDATA%\업무 인수인계 대시보드` 입력 → Enter
 
 자료 파일은 평범한 SQLite 파일이라 필요하면 DB 뷰어로도 열립니다.
 예전 Streamlit 버전에서 쓰던 `school_admin_v25_final.db` 도 그대로 불러올 수 있습니다.
