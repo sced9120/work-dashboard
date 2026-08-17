@@ -5,6 +5,7 @@ import { encryptionAvailable, loadLocalSettings, saveLocalSettings } from './sec
 import { extractFile } from './extract'
 import { analyzeDocument, answerFromSources, generateScenario, testConnection } from './ai'
 import { buildAliases, findNameCandidates, maskText } from './anonymize'
+import { checkForUpdate } from './update'
 import fs from 'node:fs'
 import type {
   AliasPair,
@@ -264,6 +265,7 @@ function registerIpc(): void {
   // file:// 로 띄운 창에서는 navigator.clipboard 가 막히므로 메인에서 처리한다.
   ipcMain.handle('clipboard:write', (_e, text: string) => clipboard.writeText(text))
   ipcMain.handle('app:version', () => app.getVersion())
+  ipcMain.handle('update:check', () => checkForUpdate())
 }
 
 app.whenReady().then(async () => {

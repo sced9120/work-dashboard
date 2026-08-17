@@ -183,6 +183,21 @@ export interface ScenarioResult {
 
 export const ROLES = ['학생', '보호자', '교사', '위원', '관계자'] as const
 
+/* ---------- 업데이트 확인 ---------- */
+
+export interface UpdateInfo {
+  /** 새 버전이 있는지 */
+  available: boolean
+  /** 지금 쓰고 있는 버전 */
+  current: string
+  /** 올라와 있는 최신 버전. 확인 못 했으면 빈 문자열 */
+  latest: string
+  /** 내려받을 페이지 주소 */
+  url: string
+  /** 확인에 실패한 이유. 학교망에서 막히는 경우가 있어 조용히 넘긴다. */
+  error?: string
+}
+
 /* ---------- 절차 기한 ---------- */
 
 /**

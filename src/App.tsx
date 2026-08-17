@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { UpdateInfo } from '../shared/types'
 import { ToastProvider } from './lib/toast'
 import Onboarding from './pages/Onboarding'
 import Home from './pages/Home'
@@ -40,6 +41,8 @@ function Shell(): JSX.Element {
   const [schoolName, setSchoolName] = useState('')
   const [page, setPage] = useState<PageId>('홈')
   const [version, setVersion] = useState('')
+  const [update, setUpdate] = useState<UpdateInfo | null>(null)
+  const [updateHidden, setUpdateHidden] = useState(false)
 
   const reloadProfile = useCallback(async () => {
     const [job, school] = await Promise.all([
@@ -57,6 +60,15 @@ function Shell(): JSX.Element {
       setLoaded(true)
     })()
   }, [reloadProfile])
+
+  // 새 버전 확인. 실패해도 화면에 아무 것도 띄우지 않는다.
+  // 학교망에서 막히는 일이 있어서, 못 물어본 것과 최신인 것을 구분해 보여 주지 않는다.
+  useEffect(() => {
+    void (async () => {
+      const info = await window.api.update.check()
+      if (info.available) setUpdate(info)
+    })()
+  }, [])
 
   if (!loaded) return <div className="onboard muted">불러오는 중…</div>
 
@@ -87,6 +99,28 @@ function Shell(): JSX.Element {
       </nav>
 
       <main className="main">
+        {update && !updateHidden && (
+          <div className="update-bar">
+            <span className="update-dot" />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <b>새 버전 {update.latest} 이 나왔습니다.</b>{' '}
+              <span className="muted small">지금 쓰는 버전은 {update.current} 입니다.</span>
+              <div className="small muted" style={{ marginTop: 2 }}>
+                업데이트해도 정리해 둔 업무·공문·기한은 그대로 남습니다.
+              </div>
+            </div>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={() => void window.api.shell.open(update.url)}
+            >
+              받으러 가기
+            </button>
+            <button className="btn btn-sm btn-ghost" onClick={() => setUpdateHidden(true)}>
+              나중에
+            </button>
+          </div>
+        )}
+
         {page === '홈' && <Home jobTitle={jobTitle} onGo={setPage} />}
         {page === '로드맵' && <Roadmap />}
         {page === '가이드' && <Guide />}

@@ -20,7 +20,8 @@ import type {
   Task,
   TaskInput,
   Template,
-  TemplateInput
+  TemplateInput,
+  UpdateInfo
 } from '../../shared/types'
 
 export interface ActionResult {
@@ -135,7 +136,10 @@ const api = {
   clipboard: {
     write: (text: string): Promise<void> => ipcRenderer.invoke('clipboard:write', text)
   },
-  appVersion: (): Promise<string> => ipcRenderer.invoke('app:version')
+  appVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
+  update: {
+    check: (): Promise<UpdateInfo> => ipcRenderer.invoke('update:check')
+  }
 }
 
 export type Api = typeof api
