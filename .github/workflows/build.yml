@@ -25,7 +25,8 @@ jobs:
           cache: npm
 
       - name: 의존성 설치
-        run: npm ci
+        # package-lock.json 을 갱신할 수 없는 환경에서 의존성을 추가하므로 npm install 을 쓴다.
+        run: npm install --no-audit --no-fund
 
       - name: 타입 검사
         run: npm run typecheck
@@ -43,7 +44,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: WorkDashboard-Windows
-          path: release/*.exe
+          # latest.yml 이 없으면 자동 업데이트가 새 버전을 찾지 못한다.
+          path: |
+            release/*.exe
+            release/*.yml
           if-no-files-found: error
           retention-days: 30
 
@@ -53,5 +57,6 @@ jobs:
         with:
           files: |
             release/*.exe
+            release/*.yml
           draft: false
           generate_release_notes: true

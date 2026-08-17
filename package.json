@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "cfb": "^1.2.2",
+    "electron-updater": "^6.3.9",
     "exceljs": "^4.4.0",
     "fflate": "^0.8.2",
     "pdfjs-dist": "^4.10.38",

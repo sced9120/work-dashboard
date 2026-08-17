@@ -150,7 +150,25 @@ const api = {
   },
   appVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
   update: {
-    check: (): Promise<UpdateInfo> => ipcRenderer.invoke('update:check')
+    check: (): Promise<UpdateInfo> => ipcRenderer.invoke('update:check'),
+    download: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('update:download'),
+    install: (): Promise<void> => ipcRenderer.invoke('update:install'),
+    onProgress: (cb: (percent: number) => void): (() => void) => {
+      const handler = (_e: unknown, percent: number): void => cb(percent)
+      ipcRenderer.on('update:progress', handler)
+      return () => ipcRenderer.removeListener('update:progress', handler)
+    },
+    onDownloaded: (cb: () => void): (() => void) => {
+      const handler = (): void => cb()
+      ipcRenderer.on('update:downloaded', handler)
+      return () => ipcRenderer.removeListener('update:downloaded', handler)
+    },
+    onError: (cb: (msg: string) => void): (() => void) => {
+      const handler = (_e: unknown, msg: string): void => cb(msg)
+      ipcRenderer.on('update:error', handler)
+      return () => ipcRenderer.removeListener('update:error', handler)
+    }
   }
 }
 

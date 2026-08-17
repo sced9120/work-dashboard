@@ -16,6 +16,7 @@ import { extractFile } from './extract'
 import { analyzeDocument, answerFromSources, generateScenario, testConnection } from './ai'
 import { buildAliases, findNameCandidates, maskText } from './anonymize'
 import { checkForUpdate } from './update'
+import { downloadUpdate, installUpdate, wireAutoUpdate } from './autoupdate'
 import { applyLocalSettings, checkDeadlinesNow, stopDeadlineWatch } from './notify'
 import fs from 'node:fs'
 import type {
@@ -363,6 +364,13 @@ function registerIpc(): void {
   ipcMain.handle('clipboard:write', (_e, text: string) => clipboard.writeText(text))
   ipcMain.handle('app:version', () => app.getVersion())
   ipcMain.handle('update:check', () => checkForUpdate())
+  ipcMain.handle('update:download', () => downloadUpdate())
+  ipcMain.handle('update:install', () => {
+    // 설치 프로그램이 실행되는 동안 트레이에 남아 있으면 교체가 막힌다.
+    quitting = true
+    destroyTray()
+    installUpdate()
+  })
 }
 
 // 트레이에 숨어 있는데 아이콘을 또 눌러 두 개가 뜨는 일을 막는다.
@@ -389,6 +397,7 @@ app.whenReady().then(async () => {
   }
 
   registerIpc()
+  wireAutoUpdate(() => mainWindow)
   createWindow()
 
   // 자료를 열고 난 뒤에 알림·트레이·자동실행을 설정에 맞춘다.

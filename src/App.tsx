@@ -46,6 +46,9 @@ function Shell(): JSX.Element {
   const [version, setVersion] = useState('')
   const [update, setUpdate] = useState<UpdateInfo | null>(null)
   const [updateHidden, setUpdateHidden] = useState(false)
+  /** null이면 아직 안 받는 중, 숫자면 진행률, 'done'이면 받아 놓은 상태 */
+  const [dlProgress, setDlProgress] = useState<number | 'done' | null>(null)
+  const [dlError, setDlError] = useState('')
 
   const reloadProfile = useCallback(async () => {
     const [job, school] = await Promise.all([
@@ -71,6 +74,20 @@ function Shell(): JSX.Element {
       const info = await window.api.update.check()
       if (info.available) setUpdate(info)
     })()
+  }, [])
+
+  useEffect(() => {
+    const offProgress = window.api.update.onProgress((p) => setDlProgress(p))
+    const offDone = window.api.update.onDownloaded(() => setDlProgress('done'))
+    const offError = window.api.update.onError((msg) => {
+      setDlError(msg)
+      setDlProgress(null)
+    })
+    return () => {
+      offProgress()
+      offDone()
+      offError()
+    }
   }, [])
 
   if (!loaded) return <div className="onboard muted">불러오는 중…</div>
@@ -110,17 +127,64 @@ function Shell(): JSX.Element {
               <span className="muted small">지금 쓰는 버전은 {update.current} 입니다.</span>
               <div className="small muted" style={{ marginTop: 2 }}>
                 업데이트해도 정리해 둔 업무·공문·기한은 그대로 남습니다.
+                {!update.canAutoInstall && ' 무설치(Portable)로 쓰고 계셔서 직접 받아 바꿔야 합니다.'}
               </div>
             </div>
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={() => void window.api.shell.open(update.url)}
-            >
-              받으러 가기
-            </button>
-            <button className="btn btn-sm btn-ghost" onClick={() => setUpdateHidden(true)}>
-              나중에
-            </button>
+            {/* 받아 놓은 뒤 */}
+            {dlProgress === 'done' && (
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => void window.api.update.install()}
+              >
+                다시 시작하고 설치
+              </button>
+            )}
+
+            {/* 받는 중 */}
+            {typeof dlProgress === 'number' && (
+              <span className="small" style={{ minWidth: 90 }}>
+                받는 중… {dlProgress}%
+              </span>
+            )}
+
+            {/* 아직 시작 안 함 */}
+            {dlProgress === null && (
+              <>
+                {update.canAutoInstall && (
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() =>
+                      void (async () => {
+                        setDlError('')
+                        setDlProgress(0)
+                        const res = await window.api.update.download()
+                        if (!res.ok) {
+                          setDlError(res.error ?? '받지 못했습니다.')
+                          setDlProgress(null)
+                        }
+                      })()
+                    }
+                  >
+                    지금 받아서 설치
+                  </button>
+                )}
+                <button
+                  className={`btn btn-sm ${update.canAutoInstall ? '' : 'btn-primary'}`}
+                  onClick={() => void window.api.shell.open(update.url)}
+                >
+                  받으러 가기
+                </button>
+                <button className="btn btn-sm btn-ghost" onClick={() => setUpdateHidden(true)}>
+                  나중에
+                </button>
+              </>
+            )}
+
+            {dlError && (
+              <div className="small" style={{ flexBasis: '100%', color: 'var(--danger)' }}>
+                {dlError} — [받으러 가기]로 직접 내려받아 설치해 주세요.
+              </div>
+            )}
           </div>
         )}
 

@@ -9,6 +9,7 @@
 
 import { app } from 'electron'
 import type { UpdateInfo } from '../../shared/types'
+import { canAutoInstall } from './autoupdate'
 
 /** 릴리스를 올리는 저장소. 저장소를 옮기면 이 줄만 고치면 된다. */
 const REPO = 'sced9120/work-dashboard'
@@ -44,7 +45,13 @@ export function isNewer(latest: string, current: string): boolean {
 
 export async function checkForUpdate(): Promise<UpdateInfo> {
   const current = app.getVersion()
-  const base: UpdateInfo = { available: false, current, latest: '', url: RELEASES_PAGE }
+  const base: UpdateInfo = {
+    available: false,
+    current,
+    latest: '',
+    url: RELEASES_PAGE,
+    canAutoInstall: canAutoInstall()
+  }
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
@@ -61,8 +68,8 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
     if (!tag) return { ...base, error: '릴리스 정보를 읽지 못했습니다.' }
 
     return {
+      ...base,
       available: isNewer(tag, current),
-      current,
       latest: tag.replace(/^v/i, ''),
       url: typeof data.html_url === 'string' ? data.html_url : RELEASES_PAGE
     }

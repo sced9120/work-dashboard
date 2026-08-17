@@ -15,6 +15,13 @@ files:
 
 asar: true
 
+# electron-updater 가 새 버전을 찾아볼 곳. 이 설정이 있어야 빌드할 때
+# latest.yml 이 함께 만들어지고, 앱 안에 app-update.yml 이 들어간다.
+publish:
+  provider: github
+  owner: sced9120
+  repo: work-dashboard
+
 win:
   icon: build/icon.ico
   # 학교 PC에서 관리자 권한 없이 설치할 수 있도록 사용자 단위로 설치한다.

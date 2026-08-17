@@ -214,6 +214,8 @@ export interface UpdateInfo {
   latest: string
   /** 내려받을 페이지 주소 */
   url: string
+  /** 프로그램 안에서 바로 받아 설치할 수 있는 환경인지. Portable·개발 중이면 false */
+  canAutoInstall: boolean
   /** 확인에 실패한 이유. 학교망에서 막히는 경우가 있어 조용히 넘긴다. */
   error?: string
 }
