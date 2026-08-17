@@ -33,6 +33,65 @@ import type {
 import { SUPPORTED_EXTENSIONS } from '../../shared/types'
 
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+
+/** 진짜 종료하려는 중인지. 트레이로 숨기기와 구분하기 위한 것. */
+let quitting = false
+
+function trayIconPath(): string {
+  return path.join(app.getAppPath(), 'build', 'icon.png')
+}
+
+function showWindow(): void {
+  if (!mainWindow) {
+    createWindow()
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+/** 시계 옆에 아이콘을 올린다. 아이콘 파일이 없으면 조용히 넘어간다. */
+function createTray(): void {
+  if (tray) return
+  try {
+    const img = nativeImage.createFromPath(trayIconPath())
+    if (img.isEmpty()) return
+
+    tray = new Tray(img.resize({ width: 16, height: 16 }))
+    tray.setToolTip('업무 인수인계 대시보드')
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: '창 열기', click: () => showWindow() },
+        { label: '기한 지금 확인', click: () => checkDeadlinesNow() },
+        { type: 'separator' },
+        {
+          label: '완전히 종료',
+          click: () => {
+            quitting = true
+            app.quit()
+          }
+        }
+      ])
+    )
+    tray.on('double-click', () => showWindow())
+  } catch {
+    // 트레이를 못 만드는 환경이면 없이 동작한다.
+    tray = null
+  }
+}
+
+function destroyTray(): void {
+  tray?.destroy()
+  tray = null
+}
+
+/** 설정에 맞춰 트레이를 올리거나 내린다. */
+function syncTray(): void {
+  if (loadLocalSettings().keep_in_tray) createTray()
+  else destroyTray()
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
