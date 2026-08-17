@@ -1,4 +1,14 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeImage,
+  shell,
+  Tray
+} from 'electron'
 import path from 'node:path'
 import * as db from './db'
 import { encryptionAvailable, loadLocalSettings, saveLocalSettings } from './secrets'
@@ -6,6 +16,7 @@ import { extractFile } from './extract'
 import { analyzeDocument, answerFromSources, generateScenario, testConnection } from './ai'
 import { buildAliases, findNameCandidates, maskText } from './anonymize'
 import { checkForUpdate } from './update'
+import { applyLocalSettings, checkDeadlinesNow, stopDeadlineWatch } from './notify'
 import fs from 'node:fs'
 import type {
   AliasPair,
@@ -13,6 +24,7 @@ import type {
   DeadlineInput,
   DocInput,
   DocKind,
+  JournalInput,
   LocalSettings,
   NoticeInput,
   TaskInput,
@@ -40,7 +52,19 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.on('ready-to-show', () => mainWindow?.show())
+  // 자동 실행으로 켜진 경우에는 창을 띄우지 않고 트레이에만 올린다.
+  const startHidden = process.argv.includes('--hidden') && loadLocalSettings().keep_in_tray
+  mainWindow.on('ready-to-show', () => {
+    if (!startHidden) mainWindow?.show()
+  })
+
+  // [트레이에 남기기]가 켜져 있으면 창을 닫아도 프로그램은 살아 있게 한다.
+  // 그래야 기한 알림이 뜬다. 완전히 끄려면 트레이 메뉴의 [완전히 종료].
+  mainWindow.on('close', (e) => {
+    if (quitting || !loadLocalSettings().keep_in_tray) return
+    e.preventDefault()
+    mainWindow?.hide()
+  })
 
   // 앱 안에서 외부 링크를 열면 기본 브라우저로 보낸다.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -76,6 +100,15 @@ function registerIpc(): void {
   ipcMain.handle('docs:delete', (_e, id: number) => db.deleteDoc(id))
   ipcMain.handle('docs:count', () => db.docCount())
   ipcMain.handle('docs:guessDate', (_e, text: string) => db.guessDocDate(text))
+
+  /* ---------- 업무 일지 ---------- */
+  ipcMain.handle('journal:list', () => db.listJournal())
+  ipcMain.handle('journal:add', (_e, j: JournalInput) => db.addJournal(j))
+  ipcMain.handle('journal:update', (_e, id: number, j: JournalInput) => db.updateJournal(id, j))
+  ipcMain.handle('journal:delete', (_e, id: number) => db.deleteJournal(id))
+
+  /* ---------- 알림 ---------- */
+  ipcMain.handle('notify:checkNow', () => checkDeadlinesNow())
 
   /* ---------- 절차 기한 ---------- */
   ipcMain.handle('deadlines:list', () => db.listDeadlines())
@@ -145,7 +178,12 @@ function registerIpc(): void {
 
   /* ---------- 이 PC에만 저장되는 설정 ---------- */
   ipcMain.handle('local:load', () => loadLocalSettings())
-  ipcMain.handle('local:save', (_e, s: LocalSettings) => saveLocalSettings(s))
+  ipcMain.handle('local:save', (_e, s: LocalSettings) => {
+    saveLocalSettings(s)
+    // 저장만 하고 반영하지 않으면 켰는데 동작하지 않는다.
+    applyLocalSettings()
+    syncTray()
+  })
   ipcMain.handle('local:encrypted', () => encryptionAvailable())
 
   /* ---------- 파일 ---------- */
@@ -268,6 +306,14 @@ function registerIpc(): void {
   ipcMain.handle('update:check', () => checkForUpdate())
 }
 
+// 트레이에 숨어 있는데 아이콘을 또 눌러 두 개가 뜨는 일을 막는다.
+// 같은 자료 파일을 두 프로세스가 동시에 쓰면 저장이 서로를 덮어쓴다.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => showWindow())
+}
+
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
 
@@ -286,11 +332,23 @@ app.whenReady().then(async () => {
   registerIpc()
   createWindow()
 
+  // 자료를 열고 난 뒤에 알림·트레이·자동실행을 설정에 맞춘다.
+  syncTray()
+  applyLocalSettings()
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
+app.on('before-quit', () => {
+  quitting = true
+  stopDeadlineWatch()
+})
+
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (process.platform === 'darwin') return
+  // 트레이에 남기기가 켜져 있으면 창이 없어도 계속 살아 있는다.
+  if (loadLocalSettings().keep_in_tray && !quitting) return
+  app.quit()
 })

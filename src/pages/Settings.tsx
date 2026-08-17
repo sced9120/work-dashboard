@@ -12,7 +12,11 @@ const DEFAULT_LOCAL: LocalSettings = {
   openai_key: '',
   gemini_key: '',
   openai_model: 'gpt-4.1',
-  gemini_model: 'gemini-2.5-flash'
+  gemini_model: 'gemini-2.5-flash',
+  notify_deadlines: false,
+  notify_days: 3,
+  keep_in_tray: false,
+  open_at_login: false
 }
 
 export default function Settings({ onProfileChanged }: Props): JSX.Element {
@@ -182,6 +186,84 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
         <div className="row row-end" style={{ marginTop: 12 }}>
           <button className="btn" onClick={() => void test()} disabled={testing}>
             {testing ? '확인 중…' : '연결 테스트'}
+          </button>
+          <button className="btn btn-primary" onClick={() => void saveLocal()}>
+            저장
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">기한 알림 · 자동 실행</div>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          이 설정은 <b>이 컴퓨터에만</b> 저장되고 인수인계 파일에 들어가지 않습니다.
+        </p>
+
+        <label className="row" style={{ gap: 8, cursor: 'pointer', marginBottom: 10 }}>
+          <input
+            type="checkbox"
+            checked={local.notify_deadlines}
+            onChange={(e) => setLocal({ ...local, notify_deadlines: e.target.checked })}
+            style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+          />
+          <span className="small">
+            <b>기한이 다가오면 윈도우 알림 띄우기</b>
+          </span>
+        </label>
+
+        {local.notify_deadlines && (
+          <div className="field" style={{ maxWidth: 220, marginLeft: 23 }}>
+            <label>며칠 전부터 알릴까요</label>
+            <input
+              type="number"
+              min={0}
+              max={30}
+              value={local.notify_days}
+              onChange={(e) =>
+                setLocal({ ...local, notify_days: Number.parseInt(e.target.value, 10) || 0 })
+              }
+            />
+          </div>
+        )}
+
+        <label className="row" style={{ gap: 8, cursor: 'pointer', marginBottom: 10 }}>
+          <input
+            type="checkbox"
+            checked={local.keep_in_tray}
+            onChange={(e) => setLocal({ ...local, keep_in_tray: e.target.checked })}
+            style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+          />
+          <span className="small">
+            <b>창을 닫아도 시계 옆에 남기기</b>
+            <span className="muted">
+              {' '}
+              — 완전히 끄려면 시계 옆 아이콘을 우클릭 → [완전히 종료]
+            </span>
+          </span>
+        </label>
+
+        <label className="row" style={{ gap: 8, cursor: 'pointer', marginBottom: 10 }}>
+          <input
+            type="checkbox"
+            checked={local.open_at_login}
+            onChange={(e) => setLocal({ ...local, open_at_login: e.target.checked })}
+            style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+          />
+          <span className="small">
+            <b>컴퓨터를 켤 때 자동으로 실행하기</b>
+          </span>
+        </label>
+
+        {local.notify_deadlines && !local.keep_in_tray && (
+          <div className="note note-warn">
+            알림은 <b>프로그램이 켜져 있을 때만</b> 뜹니다. 창을 닫으면 알림도 멈춥니다.
+            위의 <b>[창을 닫아도 시계 옆에 남기기]</b> 를 함께 켜 두시길 권합니다.
+          </div>
+        )}
+
+        <div className="row row-end" style={{ marginTop: 12 }}>
+          <button className="btn" onClick={() => void window.api.notify.checkNow()}>
+            지금 시험해 보기
           </button>
           <button className="btn btn-primary" onClick={() => void saveLocal()}>
             저장

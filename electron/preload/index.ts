@@ -8,6 +8,8 @@ import type {
   Doc,
   DocFull,
   DocInput,
+  JournalEntry,
+  JournalInput,
   DocKind,
   ExtractedDoc,
   LocalSettings,
@@ -48,6 +50,16 @@ const api = {
   },
   search: {
     run: (query: string): Promise<SearchHit[]> => ipcRenderer.invoke('search:run', query)
+  },
+  journal: {
+    list: (): Promise<JournalEntry[]> => ipcRenderer.invoke('journal:list'),
+    add: (j: JournalInput): Promise<number> => ipcRenderer.invoke('journal:add', j),
+    update: (id: number, j: JournalInput): Promise<void> =>
+      ipcRenderer.invoke('journal:update', id, j),
+    remove: (id: number): Promise<void> => ipcRenderer.invoke('journal:delete', id)
+  },
+  notify: {
+    checkNow: (): Promise<void> => ipcRenderer.invoke('notify:checkNow')
   },
   deadlines: {
     list: (): Promise<Deadline[]> => ipcRenderer.invoke('deadlines:list'),

@@ -8,6 +8,8 @@ import type {
   Doc,
   DocFull,
   DocInput,
+  JournalEntry,
+  JournalInput,
   Notice,
   NoticeInput,
   SearchHit,
@@ -46,7 +48,12 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS deadlines (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      title TEXT, case_ref TEXT, due_date TEXT, note TEXT,
-     done INTEGER DEFAULT 0)`
+     done INTEGER DEFAULT 0)`,
+  // 그날 무슨 일을 했는지 남기는 기록. "작년 이맘때 뭐 했더라" 에 답하기 위한 것이라
+  // 인수인계 파일에 함께 넘어간다.
+  `CREATE TABLE IF NOT EXISTS journal (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     entry_date TEXT, content TEXT)`
 ]
 
 let SQL: SqlJsStatic | null = null
@@ -382,6 +389,38 @@ export function deleteDeadline(id: number): void {
   run('DELETE FROM deadlines WHERE id=?', [id])
 }
 
+/* ---------- 업무 일지 ---------- */
+
+export function listJournal(): JournalEntry[] {
+  return rows<JournalEntry>('SELECT * FROM journal ORDER BY entry_date DESC, id DESC')
+}
+
+export function addJournal(j: JournalInput): number {
+  run('INSERT INTO journal (entry_date, content) VALUES (?,?)', [j.entry_date || today(), j.content])
+  return lastId()
+}
+
+export function updateJournal(id: number, j: JournalInput): void {
+  run('UPDATE journal SET entry_date=?, content=? WHERE id=?', [j.entry_date, j.content, id])
+}
+
+export function deleteJournal(id: number): void {
+  run('DELETE FROM journal WHERE id=?', [id])
+}
+
+/** 기한이 다가온 것만 골라 낸다. 알림에 쓴다. */
+export function dueDeadlines(withinDays: number): Deadline[] {
+  const now = new Date()
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return listDeadlines().filter((d) => {
+    if (d.done === 1 || !d.due_date) return false
+    const target = new Date(`${d.due_date}T00:00:00`)
+    if (Number.isNaN(target.getTime())) return false
+    const left = Math.round((target.getTime() - midnight.getTime()) / 86400000)
+    return left <= withinDays
+  })
+}
+
 /* ---------- 통합 검색 ---------- */
 
 /** 검색어 주변을 잘라 미리보기를 만든다. */
@@ -477,6 +516,25 @@ export function searchAll(query: string, limit = 60): SearchHit[] {
     })
   }
 
+  for (const j of listJournal()) {
+    const content = j.content ?? ''
+    const hay = content.toLowerCase()
+    if (!terms.every((term) => hay.includes(term))) continue
+
+    const score = terms.reduce((sum, term) => sum + countOf(hay, term), 0)
+    hits.push({
+      kind: 'journal',
+      id: j.id,
+      // 일지는 제목이 없으니 첫 줄을 제목처럼 쓴다.
+      title: content.split('\n')[0].slice(0, 60) || '(내용 없음)',
+      subtitle: `${j.entry_date} 업무 일지`,
+      filename: '',
+      date: j.entry_date ?? '',
+      score,
+      snippets: makeSnippets(content, terms)
+    })
+  }
+
   return hits.sort((a, b) => b.score - a.score).slice(0, limit)
 }
 
@@ -539,6 +597,7 @@ export function clearAll(): void {
   need().run('DELETE FROM tasks')
   need().run('DELETE FROM notices')
   need().run('DELETE FROM documents')
+  need().run('DELETE FROM journal')
   persist()
   seedIfEmpty(need())
   persist()

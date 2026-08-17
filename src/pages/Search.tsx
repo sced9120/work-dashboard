@@ -81,7 +81,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
           })
         } else {
           sources.push({
-            label: `업무: ${h.title} (${h.subtitle})`,
+            label: `${h.kind === 'journal' ? '업무 일지' : '업무'}: ${h.title} (${h.subtitle})`,
             text: h.snippets.join('\n')
           })
         }
@@ -116,6 +116,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
 
   const docHits = sorted.filter((h) => h.kind === 'document').length
   const taskHits = sorted.filter((h) => h.kind === 'task').length
+  const journalHits = sorted.filter((h) => h.kind === 'journal').length
 
   return (
     <>
@@ -163,7 +164,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
             <div className="row">
               <span className="badge badge-accent">{hits.length}건</span>
               <span className="muted small">
-                공문 {docHits}건 · 업무 {taskHits}건
+                공문 {docHits}건 · 업무 {taskHits}건 · 일지 {journalHits}건
               </span>
               <span className="spacer" />
               <span className="muted small">정렬</span>
@@ -229,8 +230,12 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
                         <span className="muted small" style={{ marginRight: 6 }}>
                           [{i + 1}]
                         </span>
-                        <span className={h.kind === 'document' ? 'badge' : 'badge badge-accent'}>
-                          {h.kind === 'document' ? '공문 원문' : '등록된 업무'}
+                        <span className={h.kind === 'task' ? 'badge badge-accent' : 'badge'}>
+                          {h.kind === 'document'
+                            ? '공문 원문'
+                            : h.kind === 'journal'
+                              ? '업무 일지'
+                              : '등록된 업무'}
                         </span>{' '}
                         {h.title}
                       </div>
@@ -256,6 +261,11 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
                       {h.kind === 'task' && (
                         <button className="btn btn-sm btn-ghost" onClick={() => onGo('로드맵')}>
                           로드맵에서 보기
+                        </button>
+                      )}
+                      {h.kind === 'journal' && (
+                        <button className="btn btn-sm btn-ghost" onClick={() => onGo('일지')}>
+                          일지에서 보기
                         </button>
                       )}
                     </div>

@@ -14,13 +14,23 @@ const DEFAULTS: LocalSettings = {
   openai_key: '',
   gemini_key: '',
   openai_model: 'gpt-4.1',
-  gemini_model: 'gemini-2.5-flash'
+  gemini_model: 'gemini-2.5-flash',
+  // 알림·트레이·자동실행은 기본으로 꺼 둔다.
+  // 학교 PC에서 모르는 사이에 뭔가 상주하고 있으면 당황스럽기 때문이다.
+  notify_deadlines: false,
+  notify_days: 3,
+  keep_in_tray: false,
+  open_at_login: false
 }
 
 interface StoredShape {
   provider?: string
   openai_model?: string
   gemini_model?: string
+  notify_deadlines?: boolean
+  notify_days?: number
+  keep_in_tray?: boolean
+  open_at_login?: boolean
   /** base64로 인코딩된 암호문 */
   enc?: { openai_key?: string; gemini_key?: string }
   /** 암호화를 못 쓰는 환경일 때만 사용 */
@@ -68,7 +78,11 @@ export function loadLocalSettings(): LocalSettings {
     openai_key,
     gemini_key,
     openai_model: raw.openai_model || DEFAULTS.openai_model,
-    gemini_model: raw.gemini_model || DEFAULTS.gemini_model
+    gemini_model: raw.gemini_model || DEFAULTS.gemini_model,
+    notify_deadlines: raw.notify_deadlines ?? DEFAULTS.notify_deadlines,
+    notify_days: raw.notify_days ?? DEFAULTS.notify_days,
+    keep_in_tray: raw.keep_in_tray ?? DEFAULTS.keep_in_tray,
+    open_at_login: raw.open_at_login ?? DEFAULTS.open_at_login
   }
 }
 
@@ -77,7 +91,11 @@ export function saveLocalSettings(next: LocalSettings): void {
   const out: StoredShape = {
     provider: next.provider,
     openai_model: next.openai_model || DEFAULTS.openai_model,
-    gemini_model: next.gemini_model || DEFAULTS.gemini_model
+    gemini_model: next.gemini_model || DEFAULTS.gemini_model,
+    notify_deadlines: next.notify_deadlines,
+    notify_days: next.notify_days || DEFAULTS.notify_days,
+    keep_in_tray: next.keep_in_tray,
+    open_at_login: next.open_at_login
   }
 
   if (useEnc) {

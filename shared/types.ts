@@ -49,6 +49,14 @@ export interface LocalSettings {
   gemini_key: string
   openai_model: string
   gemini_model: string
+  /** 기한이 다가오면 윈도우 알림을 띄운다 */
+  notify_deadlines: boolean
+  /** 며칠 전부터 알릴지 */
+  notify_days: number
+  /** 창을 닫아도 시계 옆(트레이)에 남긴다 */
+  keep_in_tray: boolean
+  /** 컴퓨터를 켤 때 자동으로 실행한다 */
+  open_at_login: boolean
 }
 
 export interface ExtractedDoc {
@@ -100,8 +108,8 @@ export type DocInput = Omit<Doc, 'id' | 'chars'> & { content: string }
 /* ---------- 통합 검색 ---------- */
 
 export interface SearchHit {
-  /** 등록된 업무인지, 보관된 공문 원문인지 */
-  kind: 'task' | 'document'
+  /** 등록된 업무인지, 보관된 공문 원문인지, 업무 일지인지 */
+  kind: 'task' | 'document' | 'journal'
   id: number
   title: string
   /** 업무면 시기, 문서면 접수일자 */
@@ -182,6 +190,18 @@ export interface ScenarioResult {
 }
 
 export const ROLES = ['학생', '보호자', '교사', '위원', '관계자'] as const
+
+/* ---------- 업무 일지 ---------- */
+
+/** 그날 무슨 일을 했는지 짧게 남기는 기록. 인수인계 파일에 함께 넘어간다. */
+export interface JournalEntry {
+  id: number
+  /** YYYY-MM-DD */
+  entry_date: string
+  content: string
+}
+
+export type JournalInput = Omit<JournalEntry, 'id'>
 
 /* ---------- 업데이트 확인 ---------- */
 
