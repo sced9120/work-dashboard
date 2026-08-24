@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { LocalSettings, Provider } from '../../shared/types'
-import { isBuiltinModel, modelsFor, withCustomModel } from '../../shared/types'
+import {
+  addModel as addToLists,
+  isBuiltinModel,
+  modelsFor,
+  removeModel as removeFromLists,
+  resetModels
+} from '../../shared/types'
 import { useToast } from '../lib/toast'
 
 interface Props {
@@ -17,6 +23,7 @@ const DEFAULT_LOCAL: LocalSettings = {
   claude_model: 'claude-sonnet-5',
   feature_models: {},
   custom_models: {},
+  hidden_models: {},
   notify_deadlines: false,
   notify_days: 3,
   keep_in_tray: false,
@@ -98,7 +105,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     setTesting(false)
   }
 
-  const models = modelsFor(local.provider, local.custom_models)
+  const models = modelsFor(local.provider, local.custom_models, local.hidden_models)
   const currentModel =
     local.provider === 'openai'
       ? local.openai_model
@@ -132,6 +139,29 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
         : local.gemini_key
   const providerInfo = PROVIDERS[local.provider]
 
+  /** 목록 변경을 화면과 파일에 함께 반영한다. */
+  const applyLists = async (
+    lists: { custom: LocalSettings['custom_models']; hidden: LocalSettings['hidden_models'] }
+  ): Promise<void> => {
+    const next: LocalSettings = { ...local, custom_models: lists.custom, hidden_models: lists.hidden }
+
+    // 쓰고 있던 모델이 목록에서 사라졌다면 남은 것 중 첫 번째로 되돌린다.
+    const remaining = modelsFor(local.provider, lists.custom, lists.hidden)
+    if (currentModel && !remaining.includes(currentModel)) {
+      const fallback = remaining[0] ?? ''
+      if (local.provider === 'openai') next.openai_model = fallback
+      else if (local.provider === 'claude') next.claude_model = fallback
+      else next.gemini_model = fallback
+    }
+
+    setLocal(next)
+    const latest = await window.api.local.load()
+    await window.api.local.save({ ...next, feature_models: latest.feature_models })
+  }
+
+  const lists = { custom: local.custom_models ?? {}, hidden: local.hidden_models ?? {} }
+  const hiddenCount = (local.hidden_models?.[local.provider] ?? []).length
+
   /** 목록에 모델 이름을 더한다. 저장까지 바로 해서 다른 화면에 즉시 반영된다. */
   const addModel = async (): Promise<void> => {
     const name = newModel.trim()
@@ -141,36 +171,25 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
       setNewModel('')
       return
     }
-    const next: LocalSettings = {
-      ...local,
-      custom_models: withCustomModel(local.custom_models ?? {}, local.provider, name)
-    }
-    setLocal(next)
     setNewModel('')
-    const latest = await window.api.local.load()
-    await window.api.local.save({ ...next, feature_models: latest.feature_models })
+    await applyLists(addToLists(lists, local.provider, name))
     toast(`'${name}' 을(를) 목록에 넣었습니다.`, 'ok')
   }
 
-  /** 추가했던 모델을 목록에서 뺀다. 기본 제공 모델은 지울 수 없다. */
+  /** 목록에서 모델을 뺀다. 기본 제공 모델도 뺄 수 있다(되돌리기로 복구). */
   const removeModel = async (name: string): Promise<void> => {
-    const list = (local.custom_models?.[local.provider] ?? []).filter((m) => m !== name)
-    const nextCustom = { ...(local.custom_models ?? {}), [local.provider]: list }
-
-    // 지운 모델을 쓰고 있었다면 남은 것 중 첫 번째로 되돌린다.
-    const remaining = modelsFor(local.provider, nextCustom)
-    const fallback = remaining[0] ?? ''
-    const next: LocalSettings = { ...local, custom_models: nextCustom }
-    if (currentModel === name) {
-      if (local.provider === 'openai') next.openai_model = fallback
-      else if (local.provider === 'claude') next.claude_model = fallback
-      else next.gemini_model = fallback
+    if (models.length <= 1) {
+      toast('마지막 하나는 남겨 두세요. 먼저 다른 모델을 추가한 뒤 빼면 됩니다.', 'err')
+      return
     }
-
-    setLocal(next)
-    const latest = await window.api.local.load()
-    await window.api.local.save({ ...next, feature_models: latest.feature_models })
+    await applyLists(removeFromLists(lists, local.provider, name))
     toast(`'${name}' 을(를) 목록에서 뺐습니다.`)
+  }
+
+  /** 이 서비스의 목록을 처음 상태로 되돌린다. */
+  const restoreModels = async (): Promise<void> => {
+    await applyLists(resetModels(lists, local.provider))
+    toast('기본 목록으로 되돌렸습니다.', 'ok')
   }
 
   return (
@@ -281,29 +300,38 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
           </div>
 
           <div className="model-chips">
-            {models.map((m) => {
-              const builtin = isBuiltinModel(local.provider, m)
-              return (
-                <span key={m} className={`model-chip ${builtin ? '' : 'custom'}`}>
-                  {m}
-                  {!builtin && (
-                    <button
-                      className="model-chip-x"
-                      title="목록에서 빼기"
-                      onClick={() => void removeModel(m)}
-                    >
-                      ×
-                    </button>
-                  )}
-                </span>
-              )
-            })}
+            {models.map((m) => (
+              <span
+                key={m}
+                className={`model-chip ${isBuiltinModel(local.provider, m) ? '' : 'custom'}`}
+              >
+                {m}
+                <button
+                  className="model-chip-x"
+                  title="목록에서 빼기"
+                  onClick={() => void removeModel(m)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {models.length === 0 && <span className="muted small">목록이 비었습니다.</span>}
           </div>
 
+          {hiddenCount > 0 && (
+            <div className="row" style={{ marginTop: 10 }}>
+              <span className="muted small">기본 모델 {hiddenCount}개를 빼 두었습니다.</span>
+              <button className="btn btn-sm" onClick={() => void restoreModels()}>
+                ↺ 기본 목록으로 되돌리기
+              </button>
+            </div>
+          )}
+
           <div className="hint">
-            여기에 추가한 이름은 <b>모든 AI 화면의 모델 고르개</b>에 함께 나옵니다. 새 모델이
-            나오면 이름만 넣어 두면 됩니다. 기본 제공 모델은 지울 수 없고, 직접 추가한 것만 × 로
-            뺍니다.
+            여기 있는 이름이 <b>모든 AI 화면의 모델 고르개</b>에 그대로 나옵니다. 새 모델이 나오면
+            이름만 넣어 두면 되고, 안 쓰는 모델은 × 로 빼면 됩니다.{' '}
+            <b>기본 제공 모델도 뺄 수 있습니다</b> — 실수로 뺐다면 [기본 목록으로 되돌리기]로
+            복구됩니다. 파란 딱지는 직접 추가한 것입니다.
           </div>
         </div>
 

@@ -60,6 +60,13 @@ export type FeatureModels = Partial<Record<AiFeature, ModelChoice>>
 /** 사용자가 설정에서 직접 추가한 모델 이름들 (서비스별) */
 export type CustomModels = Partial<Record<Provider, string[]>>
 
+/**
+ * 기본 제공 목록에서 사용자가 빼 버린 모델 이름들 (서비스별).
+ * 기본 목록을 통째로 저장하지 않고 "뺀 것"만 기억하므로,
+ * 나중에 프로그램이 새 모델을 기본으로 추가하면 그것은 그대로 나타난다.
+ */
+export type HiddenModels = Partial<Record<Provider, string[]>>
+
 /** 이 PC에만 남는 설정. 인수인계 DB에 포함되지 않는다. */
 export interface LocalSettings {
   /** 기능별 지정이 없을 때 쓸 기본 서비스 */
@@ -75,6 +82,8 @@ export interface LocalSettings {
   feature_models: FeatureModels
   /** 설정에서 추가한 모델 이름. 기본 목록과 합쳐 드롭다운에 나온다. */
   custom_models: CustomModels
+  /** 기본 목록에서 빼 버린 모델 이름. */
+  hidden_models: HiddenModels
   /** 기한이 다가오면 윈도우 알림을 띄운다 */
   notify_deadlines: boolean
   /** 며칠 전부터 알릴지 */
@@ -308,31 +317,66 @@ export const BUILTIN_MODELS: Record<Provider, readonly string[]> = {
   claude: CLAUDE_MODELS
 }
 
-/** 기본 목록 + 설정에서 추가한 목록. 중복은 없앤다. */
-export function modelsFor(p: Provider, custom?: CustomModels): string[] {
-  const out = [...BUILTIN_MODELS[p]]
+/** 모델 목록을 이루는 두 조각. 함께 저장되고 함께 바뀐다. */
+export interface ModelLists {
+  custom: CustomModels
+  hidden: HiddenModels
+}
+
+/** 화면에 보여 줄 최종 목록 = (기본 목록 − 뺀 것) + 추가한 것 */
+export function modelsFor(p: Provider, custom?: CustomModels, hidden?: HiddenModels): string[] {
+  const hide = new Set(hidden?.[p] ?? [])
+  const out = BUILTIN_MODELS[p].filter((m) => !hide.has(m))
   for (const m of custom?.[p] ?? []) {
     if (m && !out.includes(m)) out.push(m)
   }
   return out
 }
 
-/** 기본 제공 모델인지 (지우기 버튼을 감추는 데 쓴다) */
+/** 프로그램이 기본으로 아는 이름인지 (되돌리기 가능 여부 표시에 쓴다) */
 export function isBuiltinModel(p: Provider, model: string): boolean {
   return (BUILTIN_MODELS[p] as readonly string[]).includes(model)
 }
 
-/** custom_models 에 모델 하나를 더한 새 객체를 돌려준다. */
-export function withCustomModel(
-  custom: CustomModels,
-  p: Provider,
-  model: string
-): CustomModels {
+/**
+ * 목록에 모델 하나를 넣는다.
+ * 기본 제공 이름을 다시 넣는 경우라면 "뺀 것" 목록에서 빼 주면 된다.
+ */
+export function addModel(lists: ModelLists, p: Provider, model: string): ModelLists {
   const m = model.trim()
-  if (!m || isBuiltinModel(p, m)) return custom
-  const list = custom[p] ?? []
-  if (list.includes(m)) return custom
-  return { ...custom, [p]: [...list, m] }
+  if (!m) return lists
+
+  if (isBuiltinModel(p, m)) {
+    const hiddenList = (lists.hidden[p] ?? []).filter((x) => x !== m)
+    return { custom: lists.custom, hidden: { ...lists.hidden, [p]: hiddenList } }
+  }
+
+  const list = lists.custom[p] ?? []
+  if (list.includes(m)) return lists
+  return { custom: { ...lists.custom, [p]: [...list, m] }, hidden: lists.hidden }
+}
+
+/**
+ * 목록에서 모델 하나를 뺀다.
+ * 직접 추가한 것은 지우고, 기본 제공 이름은 "뺀 것" 목록에 넣어 감춘다.
+ */
+export function removeModel(lists: ModelLists, p: Provider, model: string): ModelLists {
+  if (isBuiltinModel(p, model)) {
+    const hiddenList = lists.hidden[p] ?? []
+    if (hiddenList.includes(model)) return lists
+    return { custom: lists.custom, hidden: { ...lists.hidden, [p]: [...hiddenList, model] } }
+  }
+
+  const list = (lists.custom[p] ?? []).filter((x) => x !== model)
+  return { custom: { ...lists.custom, [p]: list }, hidden: lists.hidden }
+}
+
+/** 그 서비스의 목록을 기본 상태로 되돌린다(추가한 것도 함께 사라진다). */
+export function resetModels(lists: ModelLists, p: Provider): ModelLists {
+  return {
+    custom: { ...lists.custom, [p]: [] },
+    hidden: { ...lists.hidden, [p]: [] }
+  }
 }
 
 /* ---------- 업무 도우미 (문서 기반 챗봇) ---------- */

@@ -5,7 +5,7 @@ import type {
   ModelChoice,
   Provider
 } from '../../shared/types'
-import { modelsFor, withCustomModel } from '../../shared/types'
+import { addModel, modelsFor } from '../../shared/types'
 
 interface Props {
   feature: AiFeature
@@ -82,7 +82,7 @@ export default function ModelPicker({
 
   const applyChoice = async (
     next: ModelChoice,
-    customModels?: LocalSettings['custom_models']
+    lists?: { custom: LocalSettings['custom_models']; hidden: LocalSettings['hidden_models'] }
   ): Promise<void> => {
     if (!settings) return
     setChoice(next)
@@ -92,7 +92,8 @@ export default function ModelPicker({
     const latest = await window.api.local.load()
     const merged: LocalSettings = {
       ...latest,
-      custom_models: customModels ?? latest.custom_models,
+      custom_models: lists?.custom ?? latest.custom_models,
+      hidden_models: lists?.hidden ?? latest.hidden_models,
       feature_models: { ...(latest.feature_models ?? {}), [feature]: next }
     }
     setSettings(merged)
@@ -116,9 +117,13 @@ export default function ModelPicker({
   const commitCustom = (): void => {
     const m = custom.trim()
     if (!m || !choice || !settings) return
-    const nextCustom = withCustomModel(settings.custom_models ?? {}, choice.provider, m)
-    setSettings({ ...settings, custom_models: nextCustom })
-    void applyChoice({ provider: choice.provider, model: m }, nextCustom)
+    const nextLists = addModel(
+      { custom: settings.custom_models ?? {}, hidden: settings.hidden_models ?? {} },
+      choice.provider,
+      m
+    )
+    setSettings({ ...settings, custom_models: nextLists.custom, hidden_models: nextLists.hidden })
+    void applyChoice({ provider: choice.provider, model: m }, nextLists)
     setCustomOpen(false)
   }
 
@@ -134,7 +139,11 @@ export default function ModelPicker({
 
   const selectValue = `${choice.provider}${OPT_SEP}${choice.model}`
   // 현재 모델이 목록에 없으면 select 에 표시할 임시 옵션을 넣어 준다.
-  const extraOption = !modelsFor(choice.provider, settings.custom_models).includes(choice.model)
+  const extraOption = !modelsFor(
+    choice.provider,
+    settings.custom_models,
+    settings.hidden_models
+  ).includes(choice.model)
     ? choice.model
     : null
 
@@ -151,7 +160,7 @@ export default function ModelPicker({
             const enabled = availableProviders.includes(p)
             return (
               <optgroup key={p} label={`${PROVIDER_LABEL[p]}${enabled ? '' : ' (키 없음)'}`}>
-                {modelsFor(p, settings.custom_models).map((m) => (
+                {modelsFor(p, settings.custom_models, settings.hidden_models).map((m) => (
                   <option key={m} value={`${p}${OPT_SEP}${m}`} disabled={!enabled}>
                     {m}
                   </option>
