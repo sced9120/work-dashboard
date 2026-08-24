@@ -1,4 +1,5 @@
 import type {
+  AiFeature,
   AliasPair,
   AnalyzeResult,
   CaseDetail,
@@ -6,6 +7,8 @@ import type {
   ChatTurn,
   DocKind,
   LocalSettings,
+  ModelChoice,
+  Provider,
   ScenarioResult,
   TaskDraft,
   Template
@@ -129,6 +132,24 @@ function jsonSystem(system: string): string {
   return system ? `${system}\n\n${rule}` : rule
 }
 
+/**
+ * temperature 파라미터를 거부하는 모델들. 세 부류:
+ * 1) 정적 판단: o1·o3·o4 계열, gpt-5.x 등 추론 모델은 애초에 안 받는다.
+ * 2) 동적 학습: 그 밖의 모델에서 400 이 나면 이 세트에 넣고 이후 요청부터 뺀다.
+ * 프로세스 안에서만 기억한다(간단하고, 잘못 학습돼도 재시작이면 초기화된다).
+ */
+const openaiNoTemperature = new Set<string>()
+
+function openaiSupportsTemperature(model: string): boolean {
+  if (openaiNoTemperature.has(model)) return false
+  const m = model.toLowerCase()
+  // o1/o3/o4 는 이름이 `o1`, `o1-mini`, `o3-mini`, `o4-mini` 처럼 온다.
+  if (/^o[1-9](-|$)/.test(m)) return false
+  // gpt-5.x / gpt-5-* / gpt-5.6-luna 처럼 gpt-5 계열 (gpt-4·gpt-3.5 는 제외)
+  if (/^gpt-5(\.|-|$)/.test(m)) return false
+  return true
+}
+
 async function openaiChat(
   key: string,
   model: string,
@@ -141,19 +162,35 @@ async function openaiChat(
   if (sys) messages.push({ role: 'system', content: sys })
   for (const t of turns) messages.push({ role: t.role, content: t.content })
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${key}`
-    },
-    body: JSON.stringify({
+  const body = (withTemperature: boolean): string =>
+    JSON.stringify({
       model,
       messages,
       ...(json ? { response_format: { type: 'json_object' } } : {}),
-      temperature: 0.2
+      ...(withTemperature ? { temperature: 0.2 } : {})
     })
-  })
+
+  const url = 'https://api.openai.com/v1/chat/completions'
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${key}`
+  }
+
+  let useTemperature = openaiSupportsTemperature(model)
+  let res = await fetch(url, { method: 'POST', headers, body: body(useTemperature) })
+
+  // temperature 를 못 받는 걸 미처 몰랐던 모델은 한 번만 재시도한다.
+  if (!res.ok && useTemperature && res.status === 400) {
+    const txt = await res.text().catch(() => '')
+    if (/temperature/i.test(txt) && /unsupported|does not support|not.*supported/i.test(txt)) {
+      openaiNoTemperature.add(model)
+      useTemperature = false
+      res = await fetch(url, { method: 'POST', headers, body: body(false) })
+    } else {
+      // 재시도 없음. 아래 공통 처리로 넘긴다.
+      throw new Error(await describeHttpError(new Response(txt, { status: res.status }), 'OpenAI'))
+    }
+  }
 
   if (!res.ok) throw new Error(await describeHttpError(res, 'OpenAI'))
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
@@ -251,34 +288,69 @@ async function describeHttpError(res: Response, who: string): Promise<string> {
   }
 }
 
-/** 지금 고른 서비스의 모델 이름. 안내 문구에 쓴다. */
-function activeModel(settings: LocalSettings): string {
-  if (settings.provider === 'openai') return settings.openai_model
-  if (settings.provider === 'claude') return settings.claude_model
+/** 서비스별 기본 모델. */
+function defaultModelFor(settings: LocalSettings, p: Provider): string {
+  if (p === 'openai') return settings.openai_model
+  if (p === 'claude') return settings.claude_model
   return settings.gemini_model
 }
 
-/** 고른 서비스로 여러 차례의 대화를 보낸다. 단발 요청은 turns 를 한 개만 넣으면 된다. */
+/**
+ * 기능별로 어떤 (서비스·모델) 을 쓸지 최종 결정한다.
+ * 우선순위: 함수 호출 시 넘긴 override → 기능별 저장값 → 서비스 기본값.
+ * override 에 provider 만 있고 model 이 비면 그 서비스의 기본 모델을 쓴다.
+ */
+function resolveChoice(
+  settings: LocalSettings,
+  feature: AiFeature,
+  override?: ModelChoice | null
+): ModelChoice {
+  const from = override ?? settings.feature_models?.[feature]
+  if (from && from.model) return { provider: from.provider, model: from.model }
+  if (from?.provider) return { provider: from.provider, model: defaultModelFor(settings, from.provider) }
+  return { provider: settings.provider, model: defaultModelFor(settings, settings.provider) }
+}
+
+function keyFor(settings: LocalSettings, p: Provider): string {
+  if (p === 'openai') return settings.openai_key
+  if (p === 'claude') return settings.claude_key
+  return settings.gemini_key
+}
+
+const PROVIDER_LABEL: Record<Provider, string> = {
+  openai: 'OpenAI',
+  claude: 'Claude',
+  gemini: 'Gemini'
+}
+
+/**
+ * 고른 서비스로 여러 차례의 대화를 보낸다. 단발 요청은 turns 를 한 개만 넣으면 된다.
+ * feature 는 기본 모델 결정에, override 는 그 화면에서 사용자가 고른 값에 쓴다.
+ */
 async function chatModel(
   settings: LocalSettings,
+  feature: AiFeature,
+  override: ModelChoice | undefined | null,
   system: string,
   turns: ChatTurn[],
   json: boolean
 ): Promise<string> {
-  if (settings.provider === 'openai') {
-    if (!settings.openai_key) throw new Error('OpenAI API 키가 설정되지 않았습니다.')
-    return openaiChat(settings.openai_key, settings.openai_model, system, turns, json)
-  }
-  if (settings.provider === 'claude') {
-    if (!settings.claude_key) throw new Error('Claude API 키가 설정되지 않았습니다.')
-    return claudeChat(settings.claude_key, settings.claude_model, system, turns, json)
-  }
-  if (!settings.gemini_key) throw new Error('Gemini API 키가 설정되지 않았습니다.')
-  return geminiChat(settings.gemini_key, settings.gemini_model, system, turns, json)
+  const choice = resolveChoice(settings, feature, override)
+  const key = keyFor(settings, choice.provider)
+  if (!key) throw new Error(`${PROVIDER_LABEL[choice.provider]} API 키가 설정되지 않았습니다.`)
+  if (choice.provider === 'openai') return openaiChat(key, choice.model, system, turns, json)
+  if (choice.provider === 'claude') return claudeChat(key, choice.model, system, turns, json)
+  return geminiChat(key, choice.model, system, turns, json)
 }
 
-async function callModel(settings: LocalSettings, prompt: string, json = true): Promise<string> {
-  return chatModel(settings, '', [{ role: 'user', content: prompt }], json)
+async function callModel(
+  settings: LocalSettings,
+  feature: AiFeature,
+  override: ModelChoice | undefined | null,
+  prompt: string,
+  json = true
+): Promise<string> {
+  return chatModel(settings, feature, override, '', [{ role: 'user', content: prompt }], json)
 }
 
 export async function analyzeDocument(
@@ -287,7 +359,8 @@ export async function analyzeDocument(
   filename: string,
   text: string,
   kind: DocKind,
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  override?: ModelChoice
 ): Promise<AnalyzeResult> {
   const parts = chunk(text)
   const drafts: TaskDraft[] = []
@@ -296,7 +369,12 @@ export async function analyzeDocument(
     for (let i = 0; i < parts.length; i++) {
       const label = parts.length > 1 ? ` (${i + 1}/${parts.length}번째 부분)` : ''
       onProgress?.(`${filename}${label} 분석 중`)
-      const raw = await callModel(settings, buildPrompt(jobTitle, filename, parts[i], kind, label))
+      const raw = await callModel(
+        settings,
+        'analyze',
+        override,
+        buildPrompt(jobTitle, filename, parts[i], kind, label)
+      )
       drafts.push(...parseTasks(raw, filename))
     }
   } catch (e) {
@@ -336,7 +414,8 @@ export async function answerFromSources(
   settings: LocalSettings,
   jobTitle: string,
   query: string,
-  sources: SourceItem[]
+  sources: SourceItem[],
+  override?: ModelChoice
 ): Promise<{ ok: boolean; answer: string; error?: string }> {
   if (!sources.length) {
     return { ok: false, answer: '', error: '요약할 근거 문서가 없습니다.' }
@@ -381,7 +460,7 @@ export async function answerFromSources(
 ${blocks.join('\n\n')}`
 
   try {
-    const raw = await callModel(settings, prompt, false)
+    const raw = await callModel(settings, 'summary', override, prompt, false)
     return { ok: true, answer: raw.trim() }
   } catch (e) {
     return { ok: false, answer: '', error: e instanceof Error ? e.message : String(e) }
@@ -457,7 +536,8 @@ export async function generateScenario(
   schoolName: string,
   c: CaseDetail,
   templates: Template[],
-  aliases: AliasPair[]
+  aliases: AliasPair[],
+  override?: ModelChoice
 ): Promise<ScenarioResult> {
   // 사안 정보만 가린다. 본보기는 형식용이라 그대로 두되 함께 가려 준다.
   const maskedCase: CaseDetail = {
@@ -489,7 +569,7 @@ export async function generateScenario(
   }
 
   try {
-    const raw = await callModel(settings, prompt, false)
+    const raw = await callModel(settings, 'scenario', override, prompt, false)
     return { ok: true, text: unmaskText(raw.trim(), aliases), sentToAi: prompt }
   } catch (e) {
     return {
@@ -516,7 +596,8 @@ export async function chatAnswer(
   settings: LocalSettings,
   jobTitle: string,
   history: ChatTurn[],
-  sources: SourceItem[]
+  sources: SourceItem[],
+  override?: ModelChoice
 ): Promise<ChatReply> {
   const turns = history.slice(-CHAT_HISTORY).filter((t) => t.content.trim())
   // Claude·Gemini 는 첫 메시지가 반드시 user 여야 한다. 잘려서 assistant 로 시작하면 앞을 버린다.
@@ -555,24 +636,34 @@ export async function chatAnswer(
 ${refs}`
 
   try {
-    const raw = await chatModel(settings, system, turns, false)
+    const raw = await chatModel(settings, 'chat', override, system, turns, false)
     return { ok: true, answer: raw.trim(), sources: usedLabels }
   } catch (e) {
     return { ok: false, answer: '', sources: [], error: e instanceof Error ? e.message : String(e) }
   }
 }
 
+/**
+ * 연결 테스트는 설정에서 지금 고른 (서비스·모델) 로 보낸다.
+ * 기능별 override 는 각 화면의 관심사이므로 여기선 굳이 안 쓴다.
+ */
 export async function testConnection(
   settings: LocalSettings
 ): Promise<{ ok: boolean; message: string }> {
+  const choice: ModelChoice = {
+    provider: settings.provider,
+    model: defaultModelFor(settings, settings.provider)
+  }
   try {
     const reply = await callModel(
       settings,
+      'chat',
+      choice,
       '연결 확인용 요청입니다. {"tasks":[]} 라고만 답하세요.'
     )
     return {
       ok: true,
-      message: `연결에 성공했습니다. (${activeModel(settings)}) 응답: ${reply.trim().slice(0, 60)}`
+      message: `연결에 성공했습니다. (${choice.model}) 응답: ${reply.trim().slice(0, 60)}`
     }
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) }

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { DocFull, SearchHit } from '../../shared/types'
+import type { DocFull, ModelChoice, SearchHit } from '../../shared/types'
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
+import ModelPicker from '../components/ModelPicker'
 
 interface Props {
   jobTitle: string
@@ -24,6 +25,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
 
   const [answer, setAnswer] = useState('')
   const [answering, setAnswering] = useState(false)
+  const [model, setModel] = useState<ModelChoice | null>(null)
 
   const [openDoc, setOpenDoc] = useState<DocFull | null>(null)
 
@@ -35,13 +37,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
     void (async () => {
       await refreshCount()
       const s = await window.api.local.load()
-      setHasKey(
-        s.provider === 'openai'
-          ? !!s.openai_key
-          : s.provider === 'claude'
-            ? !!s.claude_key
-            : !!s.gemini_key
-      )
+      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key))
     })()
   }, [refreshCount])
 
@@ -93,7 +89,12 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
         }
       }
 
-      const res = await window.api.ai.answer({ jobTitle, query: query.trim(), sources })
+      const res = await window.api.ai.answer({
+        jobTitle,
+        query: query.trim(),
+        sources,
+        model: model ?? undefined
+      })
       if (!res.ok) {
         toast(res.error ?? '요약에 실패했습니다.', 'err')
         return
@@ -184,6 +185,12 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
                 </button>
               ))}
             </div>
+
+            {hits.length > 0 && hasKey && (
+              <div style={{ marginTop: 12 }}>
+                <ModelPicker feature="summary" label="요약에 쓸 모델" onReady={setModel} onChange={setModel} />
+              </div>
+            )}
 
             {hits.length > 0 && (
               <div className="row" style={{ marginTop: 12 }}>

@@ -15,6 +15,7 @@ import type {
   DocKind,
   ExtractedDoc,
   LocalSettings,
+  ModelChoice,
   Notice,
   NoticeInput,
   PickedFile,
@@ -89,6 +90,7 @@ const api = {
       detail: CaseDetail
       templateIds: number[]
       aliases: AliasPair[]
+      model?: ModelChoice
     }): Promise<ScenarioResult> => ipcRenderer.invoke('scenario:generate', args),
     save: (args: { name: string; text: string }): Promise<ActionResult> =>
       ipcRenderer.invoke('scenario:save', args)
@@ -122,14 +124,19 @@ const api = {
       text: string
       kind: DocKind
       jobTitle: string
+      model?: ModelChoice
     }): Promise<AnalyzeResult> => ipcRenderer.invoke('ai:analyze', args),
     answer: (args: {
       jobTitle: string
       query: string
       sources: { label: string; text: string }[]
+      model?: ModelChoice
     }): Promise<SearchAnswer> => ipcRenderer.invoke('ai:answer', args),
-    chat: (args: { jobTitle: string; history: ChatTurn[] }): Promise<ChatReply> =>
-      ipcRenderer.invoke('ai:chat', args),
+    chat: (args: {
+      jobTitle: string
+      history: ChatTurn[]
+      model?: ModelChoice
+    }): Promise<ChatReply> => ipcRenderer.invoke('ai:chat', args),
     test: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('ai:test'),
     onProgress: (cb: (msg: string) => void): (() => void) => {
       const handler = (_e: unknown, msg: string): void => cb(msg)

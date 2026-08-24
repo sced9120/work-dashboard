@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChatTurn } from '../../shared/types'
+import type { ChatTurn, ModelChoice } from '../../shared/types'
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
+import ModelPicker from '../components/ModelPicker'
 
 interface Props {
   jobTitle: string
@@ -28,19 +29,14 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
   const [busy, setBusy] = useState(false)
   const [hasKey, setHasKey] = useState(true)
   const [docCount, setDocCount] = useState(0)
+  const [model, setModel] = useState<ModelChoice | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     void (async () => {
       setDocCount(await window.api.docs.count())
       const s = await window.api.local.load()
-      setHasKey(
-        s.provider === 'openai'
-          ? !!s.openai_key
-          : s.provider === 'claude'
-            ? !!s.claude_key
-            : !!s.gemini_key
-      )
+      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key))
     })()
   }, [])
 
@@ -62,7 +58,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
     setBusy(true)
     try {
       const history: ChatTurn[] = next.map((m) => ({ role: m.role, content: m.content }))
-      const res = await window.api.ai.chat({ jobTitle, history })
+      const res = await window.api.ai.chat({ jobTitle, history, model: model ?? undefined })
       if (!res.ok) {
         toast(res.error ?? '답변을 만들지 못했습니다.', 'err')
         setMsgs((prev) => [
@@ -103,6 +99,10 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
             설정에서 키 넣기
           </button>
         </div>
+      )}
+
+      {hasKey && (
+        <ModelPicker feature="chat" label="이 대화에 쓸 모델" onReady={setModel} onChange={setModel} />
       )}
 
       <div className="chat-thread">

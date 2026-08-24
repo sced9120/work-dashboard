@@ -44,15 +44,32 @@ export interface DbSettings {
 
 export type Provider = 'openai' | 'gemini' | 'claude'
 
+/**
+ * AI 기능별로 어떤 서비스·모델을 쓸지.
+ * 각 기능에서 개별 선택할 수 있고, 저장돼 다음에도 이어진다.
+ */
+export type AiFeature = 'analyze' | 'summary' | 'scenario' | 'chat'
+
+export interface ModelChoice {
+  provider: Provider
+  model: string
+}
+
+export type FeatureModels = Partial<Record<AiFeature, ModelChoice>>
+
 /** 이 PC에만 남는 설정. 인수인계 DB에 포함되지 않는다. */
 export interface LocalSettings {
+  /** 기능별 지정이 없을 때 쓸 기본 서비스 */
   provider: Provider
   openai_key: string
   gemini_key: string
   claude_key: string
+  /** 서비스별 기본 모델. 기능별로 따로 고르지 않았을 때 이 값을 쓴다. */
   openai_model: string
   gemini_model: string
   claude_model: string
+  /** 기능별 개별 선택. 비어 있으면 위의 기본값을 쓴다. */
+  feature_models: FeatureModels
   /** 기한이 다가오면 윈도우 알림을 띄운다 */
   notify_deadlines: boolean
   /** 며칠 전부터 알릴지 */

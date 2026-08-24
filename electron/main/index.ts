@@ -34,6 +34,7 @@ import type {
   DocKind,
   JournalInput,
   LocalSettings,
+  ModelChoice,
   NoticeInput,
   TaskInput,
   TemplateInput
@@ -204,14 +205,23 @@ function registerIpc(): void {
   /* ---------- 위원회 자료 생성 ---------- */
   ipcMain.handle(
     'scenario:generate',
-    async (_e, args: { detail: CaseDetail; templateIds: number[]; aliases: AliasPair[] }) => {
+    async (
+      _e,
+      args: {
+        detail: CaseDetail
+        templateIds: number[]
+        aliases: AliasPair[]
+        model?: ModelChoice
+      }
+    ) => {
       const picked = db.listTemplates().filter((t) => args.templateIds.includes(t.id))
       return generateScenario(
         loadLocalSettings(),
         db.getSetting('school_name', ''),
         args.detail,
         picked,
-        args.aliases
+        args.aliases,
+        args.model
       )
     }
   )
@@ -272,31 +282,47 @@ function registerIpc(): void {
   /* ---------- AI ---------- */
   ipcMain.handle(
     'ai:analyze',
-    async (_e, args: { filename: string; text: string; kind: DocKind; jobTitle: string }) =>
+    async (
+      _e,
+      args: {
+        filename: string
+        text: string
+        kind: DocKind
+        jobTitle: string
+        model?: ModelChoice
+      }
+    ) =>
       analyzeDocument(
         loadLocalSettings(),
         args.jobTitle,
         args.filename,
         args.text,
         args.kind,
-        (msg) => send('ai:progress', msg)
+        (msg) => send('ai:progress', msg),
+        args.model
       )
   )
   ipcMain.handle(
     'ai:answer',
     async (
       _e,
-      args: { jobTitle: string; query: string; sources: { label: string; text: string }[] }
-    ) => answerFromSources(loadLocalSettings(), args.jobTitle, args.query, args.sources)
+      args: {
+        jobTitle: string
+        query: string
+        sources: { label: string; text: string }[]
+        model?: ModelChoice
+      }
+    ) =>
+      answerFromSources(loadLocalSettings(), args.jobTitle, args.query, args.sources, args.model)
   )
   ipcMain.handle('ai:test', () => testConnection(loadLocalSettings()))
   ipcMain.handle(
     'ai:chat',
-    async (_e, args: { jobTitle: string; history: ChatTurn[] }) => {
+    async (_e, args: { jobTitle: string; history: ChatTurn[]; model?: ModelChoice }) => {
       // 가장 최근 질문을 근거로 관련 자료를 골라 함께 넘긴다.
       const lastUser = [...args.history].reverse().find((t) => t.role === 'user')
       const sources = lastUser ? db.retrieveForChat(lastUser.content) : []
-      return chatAnswer(loadLocalSettings(), args.jobTitle, args.history, sources)
+      return chatAnswer(loadLocalSettings(), args.jobTitle, args.history, sources, args.model)
     }
   )
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type {
   AliasPair,
   CaseDetail,
+  ModelChoice,
   ScenarioKind,
   Template,
   TemplateInput
@@ -9,6 +10,7 @@ import type {
 import { BLANK_CASE, ROLES } from '../../shared/types'
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
+import ModelPicker from '../components/ModelPicker'
 
 interface Props {
   onGo: (p: PageId) => void
@@ -38,6 +40,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
   const [result, setResult] = useState('')
   const [busy, setBusy] = useState(false)
   const [hasKey, setHasKey] = useState(true)
+  const [model, setModel] = useState<ModelChoice | null>(null)
 
   const [mode, setMode] = useState<'생성' | '서식'>('생성')
   const [formTemplateId, setFormTemplateId] = useState<number | null>(null)
@@ -53,7 +56,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
     void (async () => {
       await loadTemplates()
       const s = await window.api.local.load()
-      setHasKey(s.provider === 'openai' ? !!s.openai_key : !!s.gemini_key)
+      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key))
     })()
   }, [loadTemplates])
 
@@ -101,7 +104,8 @@ export default function Committee({ onGo }: Props): JSX.Element {
       const res = await window.api.scenario.generate({
         detail,
         templateIds: picked,
-        aliases
+        aliases,
+        model: model ?? undefined
       })
       if (!res.ok) {
         toast(res.error ?? '만들지 못했습니다.', 'err')
@@ -611,6 +615,14 @@ export default function Committee({ onGo }: Props): JSX.Element {
       {/* 4. 생성 */}
       <div className="card">
         <div className="card-title">4. 초안 만들기</div>
+        {hasKey && (
+          <ModelPicker
+            feature="scenario"
+            label="대본·회의록 생성에 쓸 모델"
+            onReady={setModel}
+            onChange={setModel}
+          />
+        )}
         <div className="row">
           <button
             className="btn btn-primary"

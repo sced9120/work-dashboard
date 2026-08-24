@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { DocKind, ExtractedDoc, TaskDraft } from '../../shared/types'
+import type { DocKind, ExtractedDoc, ModelChoice, TaskDraft } from '../../shared/types'
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
+import ModelPicker from '../components/ModelPicker'
 
 interface Props {
   jobTitle: string
@@ -26,11 +27,12 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   const [hasKey, setHasKey] = useState(true)
   const [preview, setPreview] = useState<string | null>(null)
   const [keepOriginal, setKeepOriginal] = useState(true)
+  const [model, setModel] = useState<ModelChoice | null>(null)
 
   useEffect(() => {
     void (async () => {
       const s = await window.api.local.load()
-      setHasKey(s.provider === 'openai' ? !!s.openai_key : !!s.gemini_key)
+      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key))
     })()
   }, [])
 
@@ -72,7 +74,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         filename: f.name,
         text: f.doc!.text,
         kind,
-        jobTitle
+        jobTitle,
+        model: model ?? undefined
       })
       if (!res.ok) {
         toast(`${f.name}: ${res.error}`, 'err')
@@ -318,6 +321,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
 
       <div className="card">
         <div className="card-title">3. AI로 정리하기</div>
+        {hasKey && <ModelPicker feature="analyze" label="문서 분석에 쓸 모델" onReady={setModel} onChange={setModel} />}
         <div className="row">
           <button
             className="btn btn-primary"

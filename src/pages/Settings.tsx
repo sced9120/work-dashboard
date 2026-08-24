@@ -15,6 +15,7 @@ const DEFAULT_LOCAL: LocalSettings = {
   openai_model: 'gpt-4.1',
   gemini_model: 'gemini-2.5-flash',
   claude_model: 'claude-sonnet-5',
+  feature_models: {},
   notify_deadlines: false,
   notify_days: 3,
   keep_in_tray: false,
@@ -77,14 +78,20 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
   }
 
   const saveLocal = async (): Promise<void> => {
-    await window.api.local.save(local)
+    // Settings 는 feature_models 를 다루지 않는다. 다른 화면(ModelPicker)이
+    // 그 사이 저장했을 값을 덮어쓰지 않도록, 직전 값을 그대로 다시 실어 보낸다.
+    const latest = await window.api.local.load()
+    await window.api.local.save({ ...local, feature_models: latest.feature_models })
     toast('저장했습니다.', 'ok')
   }
 
   const test = async (): Promise<void> => {
     setTesting(true)
     setTestMsg(null)
-    await window.api.local.save(local)
+    // Settings 는 feature_models 를 다루지 않는다. 다른 화면(ModelPicker)이
+    // 그 사이 저장했을 값을 덮어쓰지 않도록, 직전 값을 그대로 다시 실어 보낸다.
+    const latest = await window.api.local.load()
+    await window.api.local.save({ ...local, feature_models: latest.feature_models })
     setTestMsg(await window.api.ai.test())
     setTesting(false)
   }
