@@ -160,6 +160,10 @@ function registerIpc(): void {
     db.updateTask(id, patch)
   )
   ipcMain.handle('tasks:delete', (_e, id: number) => db.deleteTask(id))
+  // 여러 건을 한 번에. 건마다 DB 전체를 다시 쓰지 않도록 묶어서 저장한다.
+  ipcMain.handle('tasks:addMany', (_e, list: TaskInput[]) =>
+    db.batched(() => list.map((t) => db.addTask(t)))
+  )
 
   /* ---------- 보관 문서 (공문 원문) ---------- */
   ipcMain.handle('docs:list', () => db.listDocs())
@@ -167,6 +171,9 @@ function registerIpc(): void {
   ipcMain.handle('docs:add', (_e, d: DocInput) => db.addDoc(d))
   ipcMain.handle('docs:delete', (_e, id: number) => db.deleteDoc(id))
   ipcMain.handle('docs:count', () => db.docCount())
+  ipcMain.handle('docs:addMany', (_e, list: DocInput[]) =>
+    db.batched(() => list.map((d) => db.addDoc(d)))
+  )
   ipcMain.handle('docs:guessDate', (_e, text: string) => db.guessDocDate(text))
 
   /* ---------- 업무 일지 ---------- */
@@ -256,10 +263,23 @@ function registerIpc(): void {
   /* ---------- 이 PC에만 저장되는 설정 ---------- */
   ipcMain.handle('local:load', () => loadLocalSettings())
   ipcMain.handle('local:save', (_e, s: LocalSettings) => {
+    const before = loadLocalSettings()
+    // 알림·트레이·자동실행에 얽힌 값이 실제로 바뀌었을 때만 OS 쪽을 다시 건드린다.
+    // 이 셋은 각각 레지스트리 쓰기·트레이 재생성·기한 재조회를 부르기 때문에,
+    // 모델을 고를 때마다 함께 돌면 드롭다운 하나 바꾸는 데도 눈에 띄게 느려진다.
+    const osChanged =
+      before.open_at_login !== s.open_at_login ||
+      before.keep_in_tray !== s.keep_in_tray ||
+      before.notify_deadlines !== s.notify_deadlines ||
+      before.notify_days !== s.notify_days
+
     saveLocalSettings(s)
+
     // 저장만 하고 반영하지 않으면 켰는데 동작하지 않는다.
-    applyLocalSettings()
-    syncTray()
+    if (osChanged) {
+      applyLocalSettings()
+      syncTray()
+    }
   })
   ipcMain.handle('local:encrypted', () => encryptionAvailable())
 

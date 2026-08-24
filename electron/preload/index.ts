@@ -39,6 +39,7 @@ const api = {
   tasks: {
     list: (): Promise<Task[]> => ipcRenderer.invoke('tasks:list'),
     add: (t: TaskInput): Promise<number> => ipcRenderer.invoke('tasks:add', t),
+    addMany: (list: TaskInput[]): Promise<number[]> => ipcRenderer.invoke('tasks:addMany', list),
     update: (id: number, patch: Partial<TaskInput>): Promise<void> =>
       ipcRenderer.invoke('tasks:update', id, patch),
     remove: (id: number): Promise<void> => ipcRenderer.invoke('tasks:delete', id)
@@ -47,6 +48,7 @@ const api = {
     list: (): Promise<Doc[]> => ipcRenderer.invoke('docs:list'),
     get: (id: number): Promise<DocFull | null> => ipcRenderer.invoke('docs:get', id),
     add: (d: DocInput): Promise<number> => ipcRenderer.invoke('docs:add', d),
+    addMany: (list: DocInput[]): Promise<number[]> => ipcRenderer.invoke('docs:addMany', list),
     remove: (id: number): Promise<void> => ipcRenderer.invoke('docs:delete', id),
     count: (): Promise<number> => ipcRenderer.invoke('docs:count'),
     guessDate: (text: string): Promise<string> => ipcRenderer.invoke('docs:guessDate', text)

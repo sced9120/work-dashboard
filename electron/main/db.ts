@@ -75,9 +75,13 @@ function loadWasm(): ArrayBuffer {
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
 }
 
-/** 스키마를 최신 상태로 맞춘다. 예전 DB를 불러왔을 때 빠진 컬럼을 채우는 용도. */
-function migrate(target: Database): void {
+/**
+ * 스키마를 최신 상태로 맞춘다. 예전 DB를 불러왔을 때 빠진 컬럼을 채우는 용도.
+ * 실제로 무언가 바꿨으면 true 를 돌려준다 (바뀐 게 없으면 저장을 건너뛰기 위해).
+ */
+function migrate(target: Database): boolean {
   for (const stmt of SCHEMA) target.run(stmt)
+  let changed = false
 
   const cols = (table: string): string[] => {
     const res = target.exec(`PRAGMA table_info(${table})`)
@@ -85,23 +89,32 @@ function migrate(target: Database): void {
     return res[0].values.map((row) => String(row[1]))
   }
 
-  if (!cols('notices').includes('link')) target.run('ALTER TABLE notices ADD COLUMN link TEXT')
+  if (!cols('notices').includes('link')) {
+    target.run('ALTER TABLE notices ADD COLUMN link TEXT')
+    changed = true
+  }
   if (!cols('tasks').includes('is_completed')) {
     target.run('ALTER TABLE tasks ADD COLUMN is_completed INTEGER DEFAULT 0')
+    changed = true
   }
   if (!cols('tasks').includes('document_id')) {
     target.run('ALTER TABLE tasks ADD COLUMN document_id INTEGER DEFAULT 0')
+    changed = true
   }
 
   // 예전 버전은 API 키를 DB에 넣어두었다. 인수인계 파일에 남의 키가 섞여
   // 들어가지 않도록, 불러온 시점에 지운다. 키는 이 PC의 안전 저장소에만 둔다.
   target.run("DELETE FROM settings WHERE key IN ('openai_key','gemini_key','model_choice')")
+  if (target.getRowsModified() > 0) changed = true
+
+  return changed
 }
 
-function seedIfEmpty(target: Database): void {
+/** 처음 켰을 때 안내 공지를 하나 넣는다. 넣었으면 true. */
+function seedIfEmpty(target: Database): boolean {
   const res = target.exec('SELECT COUNT(*) FROM notices')
   const count = res.length ? Number(res[0].values[0][0]) : 0
-  if (count > 0) return
+  if (count > 0) return false
 
   const guide = `이 프로그램은 담당 업무를 다음 담당자에게 넘겨주기 위한 도구입니다.
 
@@ -124,6 +137,7 @@ function seedIfEmpty(target: Database): void {
     today(),
     ''
   ])
+  return true
 }
 
 function today(): string {
@@ -132,8 +146,20 @@ function today(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
+/**
+ * 여러 건을 잇달아 넣는 동안에는 저장을 미룬다.
+ * sql.js 는 파일 일부만 고치지 못하고 DB 전체를 내보내 다시 쓰므로,
+ * 공문 300건을 한 번에 보관하면 "전체 다시 쓰기" 가 300번 일어난다.
+ */
+let deferDepth = 0
+let dirtyWhileDeferred = false
+
 function persist(): void {
   if (!db) return
+  if (deferDepth > 0) {
+    dirtyWhileDeferred = true
+    return
+  }
   const data = Buffer.from(db.export())
   const target = dbPath()
   const tmp = `${target}.tmp`
@@ -141,15 +167,33 @@ function persist(): void {
   fs.renameSync(tmp, target)
 }
 
+/** fn 이 도는 동안 저장을 미루고, 끝날 때 한 번만 저장한다. */
+export function batched<T>(fn: () => T): T {
+  deferDepth++
+  try {
+    return fn()
+  } finally {
+    deferDepth--
+    if (deferDepth === 0 && dirtyWhileDeferred) {
+      dirtyWhileDeferred = false
+      persist()
+    }
+  }
+}
+
 export async function openDb(): Promise<void> {
   if (!SQL) SQL = await initSqlJs({ wasmBinary: loadWasm() })
 
   const file = dbPath()
-  db = fs.existsSync(file) ? new SQL.Database(fs.readFileSync(file)) : new SQL.Database()
+  const isNew = !fs.existsSync(file)
+  db = isNew ? new SQL.Database() : new SQL.Database(fs.readFileSync(file))
 
-  migrate(db)
-  seedIfEmpty(db)
-  persist()
+  const migrated = migrate(db)
+  const seeded = seedIfEmpty(db)
+
+  // 바뀐 것이 없으면 다시 쓰지 않는다. 공문 원문이 쌓이면 이 한 번이
+  // 수십 MB 를 통째로 다시 쓰는 일이 되어, 켤 때마다 그대로 느려진다.
+  if (isNew || migrated || seeded) persist()
 }
 
 function need(): Database {

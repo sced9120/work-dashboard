@@ -100,17 +100,22 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
     const map = new Map<string, number>()
     if (!keepOriginal) return map
 
-    for (const f of files) {
-      if (f.state !== '읽음' || !f.doc?.text) continue
-      const id = await window.api.docs.add({
+    const ready = files.filter((f) => f.state === '읽음' && f.doc?.text)
+    if (!ready.length) return map
+
+    const payload = await Promise.all(
+      ready.map(async (f) => ({
         filename: f.name,
         doc_kind: kind,
-        doc_date: await window.api.docs.guessDate(f.doc.text),
+        doc_date: await window.api.docs.guessDate(f.doc!.text),
         added_at: '',
-        content: f.doc.text
-      })
-      map.set(f.name, id)
-    }
+        content: f.doc!.text
+      }))
+    )
+
+    // 한 번에 넘긴다. 건마다 넘기면 그때마다 DB 전체가 다시 쓰인다.
+    const ids = await window.api.docs.addMany(payload)
+    ready.forEach((f, i) => map.set(f.name, ids[i]))
     return map
   }
 
@@ -122,8 +127,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
     }
     const docIds = await storeOriginals()
 
-    for (const d of chosen) {
-      await window.api.tasks.add({
+    await window.api.tasks.addMany(
+      chosen.map((d) => ({
         title: d.title,
         task_date_display: d.task_date_display,
         task_date_raw: d.task_date_raw,
@@ -134,8 +139,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         filename: d.filename,
         is_completed: 0,
         document_id: docIds.get(d.filename) ?? 0
-      })
-    }
+      }))
+    )
     setDrafts([])
     setFiles([])
     toast(
@@ -183,15 +188,16 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
       toast('먼저 읽을 수 있는 문서를 올려 주세요.', 'err')
       return
     }
-    for (const f of ready) {
-      await window.api.docs.add({
+    const payload = await Promise.all(
+      ready.map(async (f) => ({
         filename: f.name,
         doc_kind: kind,
         doc_date: await window.api.docs.guessDate(f.doc!.text),
         added_at: '',
         content: f.doc!.text
-      })
-    }
+      }))
+    )
+    await window.api.docs.addMany(payload)
     setFiles([])
     toast(`${ready.length}건을 보관했습니다. [통합 검색]에서 찾을 수 있습니다.`, 'ok')
     onGo('검색')

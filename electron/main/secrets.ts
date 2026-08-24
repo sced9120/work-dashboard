@@ -123,7 +123,25 @@ function decrypt(value: string | undefined): string {
   }
 }
 
+/**
+ * 마지막으로 읽어 둔 설정.
+ *
+ * 이 함수는 한 번 저장할 때마다 네 번 넘게 불린다(저장 → 반영 → 트레이 → 알림).
+ * 그때마다 파일을 읽고 키 3개를 복호화하면 모델을 고르는 것만으로도 눈에 띄게 느리다.
+ * settings.json 을 쓰는 것은 이 프로그램뿐이므로 읽은 값을 그대로 들고 있어도 된다.
+ * 저장할 때 비우고, 다음 읽기에서 한 번만 다시 만든다.
+ *
+ * 돌려주는 객체는 읽기 전용으로 다뤄야 한다. 고치려면 복사해서 saveLocalSettings 로 넘긴다.
+ */
+let cached: LocalSettings | null = null
+
 export function loadLocalSettings(): LocalSettings {
+  if (cached) return cached
+  cached = readLocalSettings()
+  return cached
+}
+
+function readLocalSettings(): LocalSettings {
   const raw = read()
   const useEnc = encryptionAvailable()
 
@@ -185,4 +203,8 @@ export function saveLocalSettings(next: LocalSettings): void {
   const tmp = `${target}.tmp`
   fs.writeFileSync(tmp, JSON.stringify(out, null, 2), { mode: 0o600 })
   fs.renameSync(tmp, target)
+
+  // 저장한 값은 기본값 보정을 거쳐야 하므로, 그대로 캐시에 넣지 않고 비우기만 한다.
+  // 다음 읽기에서 파일 기준으로 한 번만 다시 만든다.
+  cached = null
 }
