@@ -35,7 +35,13 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
     void (async () => {
       await refreshCount()
       const s = await window.api.local.load()
-      setHasKey(s.provider === 'openai' ? !!s.openai_key : !!s.gemini_key)
+      setHasKey(
+        s.provider === 'openai'
+          ? !!s.openai_key
+          : s.provider === 'claude'
+            ? !!s.claude_key
+            : !!s.gemini_key
+      )
     })()
   }, [refreshCount])
 

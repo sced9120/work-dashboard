@@ -538,6 +538,92 @@ export function searchAll(query: string, limit = 60): SearchHit[] {
   return hits.sort((a, b) => b.score - a.score).slice(0, limit)
 }
 
+/** 도우미가 질문과 관련 있는 자료를 고를 때 걸러 낼 흔한 낱말·조사 */
+const CHAT_STOPWORDS = new Set([
+  '그리고',
+  '그런데',
+  '하지만',
+  '어떻게',
+  '무엇',
+  '뭐야',
+  '뭔가',
+  '알려줘',
+  '알려',
+  '해줘',
+  '있나',
+  '있어',
+  '관련',
+  '대해',
+  '대한',
+  '경우',
+  '어떤',
+  '이거',
+  '저거',
+  '그거'
+])
+
+/**
+ * 업무 도우미용 근거 찾기.
+ * 통합 검색과 달리 낱말을 "모두" 포함할 필요는 없다(OR). 자연스러운 질문에서
+ * 관련 있어 보이는 공문·업무·일지를 점수 순으로 골라, 본문째로 돌려준다.
+ */
+export function retrieveForChat(query: string, limit = 6): { label: string; text: string }[] {
+  const terms = query
+    .toLowerCase()
+    .replace(/[?!.,·…"'`()[\]{}<>]/g, ' ')
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2 && !CHAT_STOPWORDS.has(t))
+  if (!terms.length) return []
+
+  type Scored = { label: string; text: string; score: number }
+  const scored: Scored[] = []
+
+  for (const t of listTasks()) {
+    const title = t.title ?? ''
+    const text = `${title}\n시기: ${t.task_date_display ?? ''}\n${t.draft_full ?? ''}\n${t.key_points ?? ''}\n${t.workflow ?? ''}`
+    const hay = text.toLowerCase()
+    const score = terms.reduce(
+      (s, term) => s + countOf(hay, term) + countOf(title.toLowerCase(), term) * 4,
+      0
+    )
+    if (score > 0) {
+      scored.push({ label: `업무: ${title || '(제목 없음)'} (${t.task_date_display || '수시'})`, text, score })
+    }
+  }
+
+  const docs = rows<{ filename: string; doc_kind: string; doc_date: string; content: string }>(
+    'SELECT filename, doc_kind, doc_date, content FROM documents'
+  )
+  for (const d of docs) {
+    const name = d.filename ?? ''
+    const content = d.content ?? ''
+    const hay = `${name}\n${content}`.toLowerCase()
+    const score = terms.reduce(
+      (s, term) => s + countOf(hay, term) + countOf(name.toLowerCase(), term) * 4,
+      0
+    )
+    if (score > 0) {
+      const when = d.doc_date ? ` (${d.doc_date} 접수)` : ''
+      scored.push({ label: `공문: ${name}${when}`, text: `${name}\n${content}`, score })
+    }
+  }
+
+  for (const j of listJournal()) {
+    const content = j.content ?? ''
+    const hay = content.toLowerCase()
+    const score = terms.reduce((s, term) => s + countOf(hay, term), 0)
+    if (score > 0) {
+      scored.push({ label: `업무 일지 (${j.entry_date})`, text: content, score })
+    }
+  }
+
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ label, text }) => ({ label, text }))
+}
+
 /* ---------- 백업 / 복구 ---------- */
 
 /**

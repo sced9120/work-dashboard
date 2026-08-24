@@ -3,6 +3,8 @@ import type {
   AliasPair,
   AnalyzeResult,
   CaseDetail,
+  ChatReply,
+  ChatTurn,
   Deadline,
   DeadlineInput,
   Doc,
@@ -126,6 +128,8 @@ const api = {
       query: string
       sources: { label: string; text: string }[]
     }): Promise<SearchAnswer> => ipcRenderer.invoke('ai:answer', args),
+    chat: (args: { jobTitle: string; history: ChatTurn[] }): Promise<ChatReply> =>
+      ipcRenderer.invoke('ai:chat', args),
     test: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('ai:test'),
     onProgress: (cb: (msg: string) => void): (() => void) => {
       const handler = (_e: unknown, msg: string): void => cb(msg)

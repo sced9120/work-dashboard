@@ -42,13 +42,17 @@ export interface DbSettings {
   school_name: string
 }
 
+export type Provider = 'openai' | 'gemini' | 'claude'
+
 /** 이 PC에만 남는 설정. 인수인계 DB에 포함되지 않는다. */
 export interface LocalSettings {
-  provider: 'openai' | 'gemini'
+  provider: Provider
   openai_key: string
   gemini_key: string
+  claude_key: string
   openai_model: string
   gemini_model: string
+  claude_model: string
   /** 기한이 다가오면 윈도우 알림을 띄운다 */
   notify_deadlines: boolean
   /** 며칠 전부터 알릴지 */
@@ -273,6 +277,23 @@ export interface PickedFile {
 
 export const OPENAI_MODELS = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini'] as const
 export const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'] as const
+export const CLAUDE_MODELS = ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5'] as const
+
+/* ---------- 업무 도우미 (문서 기반 챗봇) ---------- */
+
+/** 도우미와 주고받은 한 마디. user=사용자, assistant=도우미 */
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface ChatReply {
+  ok: boolean
+  answer: string
+  /** 답을 만들 때 근거로 삼은 자료의 이름들 */
+  sources: string[]
+  error?: string
+}
 
 export const SUPPORTED_EXTENSIONS = [
   'hwp',

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { LocalSettings } from '../../shared/types'
-import { GEMINI_MODELS, OPENAI_MODELS } from '../../shared/types'
+import type { LocalSettings, Provider } from '../../shared/types'
+import { CLAUDE_MODELS, GEMINI_MODELS, OPENAI_MODELS } from '../../shared/types'
 import { useToast } from '../lib/toast'
 
 interface Props {
@@ -11,12 +11,40 @@ const DEFAULT_LOCAL: LocalSettings = {
   provider: 'gemini',
   openai_key: '',
   gemini_key: '',
+  claude_key: '',
   openai_model: 'gpt-4.1',
   gemini_model: 'gemini-2.5-flash',
+  claude_model: 'claude-sonnet-5',
   notify_deadlines: false,
   notify_days: 3,
   keep_in_tray: false,
   open_at_login: false
+}
+
+/** 서비스별 이름·키 발급처·키 생김새 */
+const PROVIDERS: Record<
+  Provider,
+  { label: string; keyUrl: string; keyHint: string; placeholder: string }
+> = {
+  gemini: {
+    label: 'Google Gemini',
+    keyUrl: 'https://aistudio.google.com/apikey',
+    keyHint: 'Google AI Studio(aistudio.google.com/apikey)에서 무료로 키를 만들 수 있습니다.',
+    placeholder: 'AIza…'
+  },
+  openai: {
+    label: 'OpenAI',
+    keyUrl: 'https://platform.openai.com/api-keys',
+    keyHint: 'platform.openai.com/api-keys 에서 키를 만들 수 있습니다. 사용량만큼 과금됩니다.',
+    placeholder: 'sk-…'
+  },
+  claude: {
+    label: 'Claude (Anthropic)',
+    keyUrl: 'https://console.anthropic.com/settings/keys',
+    keyHint:
+      'console.anthropic.com/settings/keys 에서 키를 만들 수 있습니다. 사용량만큼 과금됩니다.',
+    placeholder: 'sk-ant-…'
+  }
 }
 
 export default function Settings({ onProfileChanged }: Props): JSX.Element {
@@ -61,13 +89,44 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     setTesting(false)
   }
 
-  const models = local.provider === 'openai' ? OPENAI_MODELS : GEMINI_MODELS
-  const currentModel = local.provider === 'openai' ? local.openai_model : local.gemini_model
+  const models =
+    local.provider === 'openai'
+      ? OPENAI_MODELS
+      : local.provider === 'claude'
+        ? CLAUDE_MODELS
+        : GEMINI_MODELS
+  const currentModel =
+    local.provider === 'openai'
+      ? local.openai_model
+      : local.provider === 'claude'
+        ? local.claude_model
+        : local.gemini_model
 
   const setModel = (value: string): void =>
     setLocal((l) =>
-      l.provider === 'openai' ? { ...l, openai_model: value } : { ...l, gemini_model: value }
+      l.provider === 'openai'
+        ? { ...l, openai_model: value }
+        : l.provider === 'claude'
+          ? { ...l, claude_model: value }
+          : { ...l, gemini_model: value }
     )
+
+  const setKey = (value: string): void =>
+    setLocal((l) =>
+      l.provider === 'openai'
+        ? { ...l, openai_key: value }
+        : l.provider === 'claude'
+          ? { ...l, claude_key: value }
+          : { ...l, gemini_key: value }
+    )
+
+  const currentKey =
+    local.provider === 'openai'
+      ? local.openai_key
+      : local.provider === 'claude'
+        ? local.claude_key
+        : local.gemini_key
+  const providerInfo = PROVIDERS[local.provider]
 
   return (
     <>
@@ -110,56 +169,33 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
         <div className="field">
           <label>사용할 서비스</label>
           <div className="row">
-            {(['gemini', 'openai'] as const).map((p) => (
+            {(['gemini', 'openai', 'claude'] as const).map((p) => (
               <button
                 key={p}
                 className={`btn ${local.provider === p ? 'btn-primary' : ''}`}
                 onClick={() => setLocal({ ...local, provider: p })}
               >
-                {p === 'gemini' ? 'Google Gemini' : 'OpenAI'}
+                {PROVIDERS[p].label}
               </button>
             ))}
           </div>
           <div className="hint">
-            {local.provider === 'gemini'
-              ? 'Google AI Studio(aistudio.google.com/apikey)에서 무료로 키를 만들 수 있습니다.'
-              : 'platform.openai.com/api-keys 에서 키를 만들 수 있습니다. 사용량만큼 과금됩니다.'}{' '}
-            <button
-              className="link"
-              onClick={() =>
-                void window.api.shell.open(
-                  local.provider === 'gemini'
-                    ? 'https://aistudio.google.com/apikey'
-                    : 'https://platform.openai.com/api-keys'
-                )
-              }
-            >
+            {providerInfo.keyHint}{' '}
+            <button className="link" onClick={() => void window.api.shell.open(providerInfo.keyUrl)}>
               키 발급 페이지 열기
             </button>
           </div>
         </div>
 
-        {local.provider === 'gemini' ? (
-          <div className="field">
-            <label>Gemini API 키</label>
-            <input
-              type="password"
-              value={local.gemini_key}
-              onChange={(e) => setLocal({ ...local, gemini_key: e.target.value })}
-              placeholder="AIza…"
-            />
-          </div>
-        ) : (
-          <div className="field">
-            <label>OpenAI API 키</label>
-            <input
-              type="password"
-              value={local.openai_key}
-              onChange={(e) => setLocal({ ...local, openai_key: e.target.value })}
-              placeholder="sk-…"
-            />
-          </div>
-        )}
+        <div className="field">
+          <label>{providerInfo.label} API 키</label>
+          <input
+            type="password"
+            value={currentKey}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder={providerInfo.placeholder}
+          />
+        </div>
 
         <div className="field">
           <label>모델</label>

@@ -13,7 +13,13 @@ import path from 'node:path'
 import * as db from './db'
 import { encryptionAvailable, loadLocalSettings, saveLocalSettings } from './secrets'
 import { extractFile } from './extract'
-import { analyzeDocument, answerFromSources, generateScenario, testConnection } from './ai'
+import {
+  analyzeDocument,
+  answerFromSources,
+  chatAnswer,
+  generateScenario,
+  testConnection
+} from './ai'
 import { buildAliases, findNameCandidates, maskText } from './anonymize'
 import { checkForUpdate } from './update'
 import { downloadUpdate, installUpdate, wireAutoUpdate } from './autoupdate'
@@ -22,6 +28,7 @@ import fs from 'node:fs'
 import type {
   AliasPair,
   CaseDetail,
+  ChatTurn,
   DeadlineInput,
   DocInput,
   DocKind,
@@ -283,6 +290,15 @@ function registerIpc(): void {
     ) => answerFromSources(loadLocalSettings(), args.jobTitle, args.query, args.sources)
   )
   ipcMain.handle('ai:test', () => testConnection(loadLocalSettings()))
+  ipcMain.handle(
+    'ai:chat',
+    async (_e, args: { jobTitle: string; history: ChatTurn[] }) => {
+      // 가장 최근 질문을 근거로 관련 자료를 골라 함께 넘긴다.
+      const lastUser = [...args.history].reverse().find((t) => t.role === 'user')
+      const sources = lastUser ? db.retrieveForChat(lastUser.content) : []
+      return chatAnswer(loadLocalSettings(), args.jobTitle, args.history, sources)
+    }
+  )
 
   /* ---------- 백업 / 복구 ---------- */
   ipcMain.handle('data:info', () => db.dbInfo())

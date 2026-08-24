@@ -2,6 +2,8 @@ import type {
   AliasPair,
   AnalyzeResult,
   CaseDetail,
+  ChatReply,
+  ChatTurn,
   DocKind,
   LocalSettings,
   ScenarioResult,
@@ -114,12 +116,31 @@ function parseTasks(raw: string, filename: string): TaskDraft[] {
     .filter((t) => t.title !== '(제목 없음)' || t.draft_full.length > 0)
 }
 
-async function callOpenAI(
+/** 한 번에 받을 답의 최대 토큰 수. Claude 는 이 값을 반드시 요구한다. */
+const MAX_OUTPUT_TOKENS = 4096
+
+/**
+ * JSON 모드일 때 시스템 지시에 "json" 이라는 낱말이 반드시 들어가게 만든다.
+ * OpenAI 는 response_format=json_object 를 쓰면서 메시지 어디에도 'json' 이
+ * 없으면 400 으로 거절한다. (Gemini·Claude 는 이 제약이 없지만 지시가 있어도 무해하다.)
+ */
+function jsonSystem(system: string): string {
+  const rule = '반드시 유효한 JSON(json) 객체 하나만 출력하세요. 설명이나 코드블록 표시를 붙이지 마세요.'
+  return system ? `${system}\n\n${rule}` : rule
+}
+
+async function openaiChat(
   key: string,
   model: string,
-  prompt: string,
-  json = true
+  system: string,
+  turns: ChatTurn[],
+  json: boolean
 ): Promise<string> {
+  const messages: { role: string; content: string }[] = []
+  const sys = json ? jsonSystem(system) : system
+  if (sys) messages.push({ role: 'system', content: sys })
+  for (const t of turns) messages.push({ role: t.role, content: t.content })
+
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -128,7 +149,7 @@ async function callOpenAI(
     },
     body: JSON.stringify({
       model,
-      messages: [{ role: 'user', content: prompt }],
+      messages,
       ...(json ? { response_format: { type: 'json_object' } } : {}),
       temperature: 0.2
     })
@@ -141,18 +162,24 @@ async function callOpenAI(
   return text
 }
 
-async function callGemini(
+async function geminiChat(
   key: string,
   model: string,
-  prompt: string,
-  json = true
+  system: string,
+  turns: ChatTurn[],
+  json: boolean
 ): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
+      ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+      // Gemini 는 도우미 차례를 'model' 로 부른다.
+      contents: turns.map((t) => ({
+        role: t.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: t.content }]
+      })),
       generationConfig: {
         ...(json ? { responseMimeType: 'application/json' } : {}),
         temperature: 0.2
@@ -166,6 +193,40 @@ async function callGemini(
   }
   const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('')
   if (!text) throw new Error('Gemini가 빈 응답을 보냈습니다.')
+  return text
+}
+
+async function claudeChat(
+  key: string,
+  model: string,
+  system: string,
+  turns: ChatTurn[],
+  json: boolean
+): Promise<string> {
+  const sys = json ? jsonSystem(system) : system
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: MAX_OUTPUT_TOKENS,
+      ...(sys ? { system: sys } : {}),
+      messages: turns.map((t) => ({ role: t.role, content: t.content })),
+      temperature: 0.2
+    })
+  })
+
+  if (!res.ok) throw new Error(await describeHttpError(res, 'Claude'))
+  const data = (await res.json()) as { content?: { type: string; text?: string }[] }
+  const text = (data.content ?? [])
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text ?? '')
+    .join('')
+  if (!text) throw new Error('Claude가 빈 응답을 보냈습니다.')
   return text
 }
 
@@ -190,13 +251,34 @@ async function describeHttpError(res: Response, who: string): Promise<string> {
   }
 }
 
-async function callModel(settings: LocalSettings, prompt: string, json = true): Promise<string> {
+/** 지금 고른 서비스의 모델 이름. 안내 문구에 쓴다. */
+function activeModel(settings: LocalSettings): string {
+  if (settings.provider === 'openai') return settings.openai_model
+  if (settings.provider === 'claude') return settings.claude_model
+  return settings.gemini_model
+}
+
+/** 고른 서비스로 여러 차례의 대화를 보낸다. 단발 요청은 turns 를 한 개만 넣으면 된다. */
+async function chatModel(
+  settings: LocalSettings,
+  system: string,
+  turns: ChatTurn[],
+  json: boolean
+): Promise<string> {
   if (settings.provider === 'openai') {
     if (!settings.openai_key) throw new Error('OpenAI API 키가 설정되지 않았습니다.')
-    return callOpenAI(settings.openai_key, settings.openai_model, prompt, json)
+    return openaiChat(settings.openai_key, settings.openai_model, system, turns, json)
+  }
+  if (settings.provider === 'claude') {
+    if (!settings.claude_key) throw new Error('Claude API 키가 설정되지 않았습니다.')
+    return claudeChat(settings.claude_key, settings.claude_model, system, turns, json)
   }
   if (!settings.gemini_key) throw new Error('Gemini API 키가 설정되지 않았습니다.')
-  return callGemini(settings.gemini_key, settings.gemini_model, prompt, json)
+  return geminiChat(settings.gemini_key, settings.gemini_model, system, turns, json)
+}
+
+async function callModel(settings: LocalSettings, prompt: string, json = true): Promise<string> {
+  return chatModel(settings, '', [{ role: 'user', content: prompt }], json)
 }
 
 export async function analyzeDocument(
@@ -419,6 +501,67 @@ export async function generateScenario(
   }
 }
 
+/* ---------- 업무 도우미 (보관 문서 기반 챗봇) ---------- */
+
+/** 대화에 함께 실어 보내는 근거 글의 총량 상한 */
+const CHAT_BUDGET = 20000
+/** 도우미가 기억하는 최근 대화 수. 너무 길면 느리고 비싸다. */
+const CHAT_HISTORY = 12
+
+/**
+ * 보관해 둔 공문·업무·일지를 근거로, 담당자의 질문에 대화식으로 답한다.
+ * 근거(sources)는 메인 쪽에서 질문과 관련 있는 것만 골라 넘겨준다.
+ */
+export async function chatAnswer(
+  settings: LocalSettings,
+  jobTitle: string,
+  history: ChatTurn[],
+  sources: SourceItem[]
+): Promise<ChatReply> {
+  const turns = history.slice(-CHAT_HISTORY).filter((t) => t.content.trim())
+  // Claude·Gemini 는 첫 메시지가 반드시 user 여야 한다. 잘려서 assistant 로 시작하면 앞을 버린다.
+  while (turns.length && turns[0].role !== 'user') turns.shift()
+  if (!turns.length || turns[turns.length - 1].role !== 'user') {
+    return { ok: false, answer: '', sources: [], error: '보낼 질문이 없습니다.' }
+  }
+
+  // 근거를 예산 안에서 담고, 실제로 담긴 것만 출처로 남긴다.
+  let used = 0
+  const blocks: string[] = []
+  const usedLabels: string[] = []
+  for (let i = 0; i < sources.length; i++) {
+    if (used >= CHAT_BUDGET) break
+    const room = Math.min(CHAT_BUDGET - used, 5000)
+    const body = sources[i].text.slice(0, room)
+    blocks.push(`[${usedLabels.length + 1}] ${sources[i].label}\n${body}`)
+    usedLabels.push(sources[i].label)
+    used += body.length
+  }
+
+  const refs = blocks.length
+    ? `--- 참고 자료 ---\n${blocks.join('\n\n')}`
+    : '(이번 질문과 맞아떨어지는 보관 자료를 찾지 못했습니다. 일반적인 안내로 돕되, 보관 자료에는 없다는 점을 밝히세요.)'
+
+  const system = `당신은 대한민국 학교의 '${jobTitle}' 업무를 돕는 성실한 도우미입니다.
+아래 [참고 자료]는 이 담당자가 프로그램에 보관해 둔 공문·업무·일지 중 지금 질문과 관련 있어 보이는 것들입니다.
+
+답변 규칙:
+- 참고 자료에 근거가 있으면 그 내용을 우선으로 삼고, 문장 끝에 [1] [2] 처럼 근거 번호를 답니다.
+- 참고 자료에 없는 내용이면 일반적인 학교 행정 상식으로 도울 수 있습니다. 단, 그때는 "보관된 자료에는 없고 일반적인 안내입니다"라고 밝히세요.
+- 확실하지 않으면 모른다고 말하고, 어디를 확인하면 되는지 알려 주세요.
+- 학생 실명·주민번호·연락처 같은 개인정보를 새로 지어내지 마세요.
+- 한국어로, 담당자가 바로 활용할 수 있도록 간결하고 실무적으로 답하세요.
+
+${refs}`
+
+  try {
+    const raw = await chatModel(settings, system, turns, false)
+    return { ok: true, answer: raw.trim(), sources: usedLabels }
+  } catch (e) {
+    return { ok: false, answer: '', sources: [], error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export async function testConnection(
   settings: LocalSettings
 ): Promise<{ ok: boolean; message: string }> {
@@ -429,7 +572,7 @@ export async function testConnection(
     )
     return {
       ok: true,
-      message: `연결에 성공했습니다. (${settings.provider === 'openai' ? settings.openai_model : settings.gemini_model}) 응답: ${reply.trim().slice(0, 60)}`
+      message: `연결에 성공했습니다. (${activeModel(settings)}) 응답: ${reply.trim().slice(0, 60)}`
     }
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) }

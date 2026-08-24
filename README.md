@@ -43,6 +43,15 @@
 
 ---
 
+## 1.1.1 에서 새로 들어간 것
+
+| 기능 | 설명 |
+|---|---|
+| **업무 도우미 (AI 챗봇)** | 보관해 둔 공문·업무·일지를 근거로 대화하듯 묻고 답합니다. 질문과 관련된 자료를 자동으로 찾아 함께 넣고, 답 아래에 **근거 자료 이름**을 보여 줍니다. 없는 내용은 지어내지 않고 "보관 자료에는 없다"고 밝힙니다 |
+| **Claude(Anthropic) 지원** | 설정의 [사용할 서비스]에 **Claude** 가 추가됐습니다. Gemini·OpenAI 와 같은 방식으로 키만 넣으면 됩니다. 기본 모델은 `claude-sonnet-5` (설정에서 `claude-opus-5`·`claude-haiku-4-5` 로 바꿀 수 있습니다) |
+| **OpenAI 연결 오류 수정** | OpenAI 로 문서 분석·연결 테스트를 할 때 `'messages' must contain the word 'json'` (400) 오류가 나던 문제를 고쳤습니다. JSON 형식을 요구하는 요청에 항상 그 조건을 채워 보냅니다 |
+| **자료 폴더 안내 수정** | 자료·백업·설정이 실제로 저장되는 폴더를 `%APPDATA%\work-dashboard\` 로 바로잡았습니다 (예전 문서는 폴더 이름을 잘못 적어 두었습니다) |
+
 ## 1.1.0 에서 새로 들어간 것
 
 | 기능 | 설명 |
@@ -195,11 +204,11 @@ scripts/make-icon.mjs  아이콘 생성 (외부 도구 없이 픽셀을 직접 �
 
 | | 경로 |
 |---|---|
-| 업무·공지 자료 | `%APPDATA%\업무 인수인계 대시보드\work-dashboard.db` |
-| 자동 백업 | `%APPDATA%\업무 인수인계 대시보드\backups\` |
-| API 키 | `%APPDATA%\업무 인수인계 대시보드\settings.json` (Windows DPAPI로 암호화) |
+| 업무·공지 자료 | `%APPDATA%\work-dashboard\work-dashboard.db` |
+| 자동 백업 | `%APPDATA%\work-dashboard\backups\` |
+| API 키 | `%APPDATA%\work-dashboard\settings.json` (Windows DPAPI로 암호화) |
 
-> 경로를 여는 법: `Windows 키 + R` → `%APPDATA%\업무 인수인계 대시보드` 입력 → Enter
+> 경로를 여는 법: `Windows 키 + R` → `%APPDATA%\work-dashboard` 입력 → Enter
 
 자료 파일은 평범한 SQLite 파일이라 필요하면 DB 뷰어로도 열립니다.
 예전 Streamlit 버전에서 쓰던 `school_admin_v25_final.db` 도 그대로 불러올 수 있습니다.

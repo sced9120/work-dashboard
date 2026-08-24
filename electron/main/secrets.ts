@@ -13,8 +13,10 @@ const DEFAULTS: LocalSettings = {
   provider: 'gemini',
   openai_key: '',
   gemini_key: '',
+  claude_key: '',
   openai_model: 'gpt-4.1',
   gemini_model: 'gemini-2.5-flash',
+  claude_model: 'claude-sonnet-5',
   // 알림·트레이·자동실행은 기본으로 꺼 둔다.
   // 학교 PC에서 모르는 사이에 뭔가 상주하고 있으면 당황스럽기 때문이다.
   notify_deadlines: false,
@@ -27,14 +29,19 @@ interface StoredShape {
   provider?: string
   openai_model?: string
   gemini_model?: string
+  claude_model?: string
   notify_deadlines?: boolean
   notify_days?: number
   keep_in_tray?: boolean
   open_at_login?: boolean
   /** base64로 인코딩된 암호문 */
-  enc?: { openai_key?: string; gemini_key?: string }
+  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string }
   /** 암호화를 못 쓰는 환경일 때만 사용 */
-  plain?: { openai_key?: string; gemini_key?: string }
+  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string }
+}
+
+function coerceProvider(p: string | undefined): LocalSettings['provider'] {
+  return p === 'openai' || p === 'claude' ? p : 'gemini'
 }
 
 function filePath(): string {
@@ -72,13 +79,16 @@ export function loadLocalSettings(): LocalSettings {
 
   const openai_key = useEnc ? decrypt(raw.enc?.openai_key) : (raw.plain?.openai_key ?? '')
   const gemini_key = useEnc ? decrypt(raw.enc?.gemini_key) : (raw.plain?.gemini_key ?? '')
+  const claude_key = useEnc ? decrypt(raw.enc?.claude_key) : (raw.plain?.claude_key ?? '')
 
   return {
-    provider: raw.provider === 'openai' ? 'openai' : 'gemini',
+    provider: coerceProvider(raw.provider),
     openai_key,
     gemini_key,
+    claude_key,
     openai_model: raw.openai_model || DEFAULTS.openai_model,
     gemini_model: raw.gemini_model || DEFAULTS.gemini_model,
+    claude_model: raw.claude_model || DEFAULTS.claude_model,
     notify_deadlines: raw.notify_deadlines ?? DEFAULTS.notify_deadlines,
     notify_days: raw.notify_days ?? DEFAULTS.notify_days,
     keep_in_tray: raw.keep_in_tray ?? DEFAULTS.keep_in_tray,
@@ -92,21 +102,27 @@ export function saveLocalSettings(next: LocalSettings): void {
     provider: next.provider,
     openai_model: next.openai_model || DEFAULTS.openai_model,
     gemini_model: next.gemini_model || DEFAULTS.gemini_model,
+    claude_model: next.claude_model || DEFAULTS.claude_model,
     notify_deadlines: next.notify_deadlines,
     notify_days: next.notify_days || DEFAULTS.notify_days,
     keep_in_tray: next.keep_in_tray,
     open_at_login: next.open_at_login
   }
 
+  const enc = (v: string): string => (v ? safeStorage.encryptString(v).toString('base64') : '')
+
   if (useEnc) {
     out.enc = {
-      openai_key: next.openai_key
-        ? safeStorage.encryptString(next.openai_key).toString('base64')
-        : '',
-      gemini_key: next.gemini_key ? safeStorage.encryptString(next.gemini_key).toString('base64') : ''
+      openai_key: enc(next.openai_key),
+      gemini_key: enc(next.gemini_key),
+      claude_key: enc(next.claude_key)
     }
   } else {
-    out.plain = { openai_key: next.openai_key, gemini_key: next.gemini_key }
+    out.plain = {
+      openai_key: next.openai_key,
+      gemini_key: next.gemini_key,
+      claude_key: next.claude_key
+    }
   }
 
   const target = filePath()

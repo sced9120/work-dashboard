@@ -7,6 +7,7 @@ import Roadmap from './pages/Roadmap'
 import Guide from './pages/Guide'
 import Learn from './pages/Learn'
 import Search from './pages/Search'
+import Chat from './pages/Chat'
 import Committee from './pages/Committee'
 import Deadlines from './pages/Deadlines'
 import Journal from './pages/Journal'
@@ -19,6 +20,7 @@ export type PageId =
   | '가이드'
   | '학습'
   | '검색'
+  | '도우미'
   | '위원회'
   | '기한'
   | '일지'
@@ -30,6 +32,7 @@ const NAV: { id: PageId; icon: string; label: string }[] = [
   { id: '로드맵', icon: '🗓', label: '연간 업무 로드맵' },
   { id: '가이드', icon: '📋', label: '업무 상세 가이드' },
   { id: '검색', icon: '🔎', label: '통합 검색' },
+  { id: '도우미', icon: '💬', label: '업무 도우미 (AI)' },
   { id: '학습', icon: '📥', label: '문서로 업무 만들기' },
   { id: '위원회', icon: '⚖️', label: '선도위원회 자료' },
   { id: '기한', icon: '⏰', label: '절차 기한' },
@@ -192,6 +195,7 @@ function Shell(): JSX.Element {
         {page === '로드맵' && <Roadmap />}
         {page === '가이드' && <Guide />}
         {page === '검색' && <Search jobTitle={jobTitle} onGo={setPage} />}
+        {page === '도우미' && <Chat jobTitle={jobTitle} onGo={setPage} />}
         {page === '학습' && <Learn jobTitle={jobTitle} onGo={setPage} />}
         {page === '위원회' && <Committee onGo={setPage} />}
         {page === '기한' && <Deadlines />}
