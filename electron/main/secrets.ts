@@ -1,7 +1,14 @@
 import { app, safeStorage } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { AiFeature, FeatureModels, LocalSettings, ModelChoice, Provider } from '../../shared/types'
+import type {
+  AiFeature,
+  CustomModels,
+  FeatureModels,
+  LocalSettings,
+  ModelChoice,
+  Provider
+} from '../../shared/types'
 
 /**
  * API 키는 인수인계 DB가 아니라 이 PC에만 저장한다.
@@ -18,6 +25,7 @@ const DEFAULTS: LocalSettings = {
   gemini_model: 'gemini-2.5-flash',
   claude_model: 'claude-sonnet-5',
   feature_models: {},
+  custom_models: {},
   // 알림·트레이·자동실행은 기본으로 꺼 둔다.
   // 학교 PC에서 모르는 사이에 뭔가 상주하고 있으면 당황스럽기 때문이다.
   notify_deadlines: false,
@@ -32,6 +40,7 @@ interface StoredShape {
   gemini_model?: string
   claude_model?: string
   feature_models?: Record<string, { provider?: string; model?: string }>
+  custom_models?: Record<string, unknown>
   notify_deadlines?: boolean
   notify_days?: number
   keep_in_tray?: boolean
@@ -57,6 +66,24 @@ function coerceFeatureModels(raw: StoredShape['feature_models']): FeatureModels 
       const choice: ModelChoice = { provider: coerceProvider(v.provider), model: v.model.trim() }
       out[k] = choice
     }
+  }
+  return out
+}
+
+/** 서비스별 문자열 배열만 남긴다. 빈 값·중복은 버리고, 지나치게 길면 자른다. */
+function coerceCustomModels(raw: StoredShape['custom_models']): CustomModels {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: CustomModels = {}
+  for (const p of ['gemini', 'openai', 'claude'] as Provider[]) {
+    const list = raw[p]
+    if (!Array.isArray(list)) continue
+    const names: string[] = []
+    for (const item of list) {
+      if (typeof item !== 'string') continue
+      const m = item.trim().slice(0, 100)
+      if (m && !names.includes(m)) names.push(m)
+    }
+    if (names.length) out[p] = names.slice(0, 50)
   }
   return out
 }
@@ -107,6 +134,7 @@ export function loadLocalSettings(): LocalSettings {
     gemini_model: raw.gemini_model || DEFAULTS.gemini_model,
     claude_model: raw.claude_model || DEFAULTS.claude_model,
     feature_models: coerceFeatureModels(raw.feature_models),
+    custom_models: coerceCustomModels(raw.custom_models),
     notify_deadlines: raw.notify_deadlines ?? DEFAULTS.notify_deadlines,
     notify_days: raw.notify_days ?? DEFAULTS.notify_days,
     keep_in_tray: raw.keep_in_tray ?? DEFAULTS.keep_in_tray,
@@ -122,6 +150,7 @@ export function saveLocalSettings(next: LocalSettings): void {
     gemini_model: next.gemini_model || DEFAULTS.gemini_model,
     claude_model: next.claude_model || DEFAULTS.claude_model,
     feature_models: next.feature_models ?? {},
+    custom_models: next.custom_models ?? {},
     notify_deadlines: next.notify_deadlines,
     notify_days: next.notify_days || DEFAULTS.notify_days,
     keep_in_tray: next.keep_in_tray,

@@ -5,7 +5,7 @@ import type {
   ModelChoice,
   Provider
 } from '../../shared/types'
-import { CLAUDE_MODELS, GEMINI_MODELS, OPENAI_MODELS } from '../../shared/types'
+import { modelsFor, withCustomModel } from '../../shared/types'
 
 interface Props {
   feature: AiFeature
@@ -21,12 +21,6 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   gemini: 'Google Gemini',
   openai: 'OpenAI',
   claude: 'Claude (Anthropic)'
-}
-
-const PROVIDER_MODELS: Record<Provider, readonly string[]> = {
-  gemini: GEMINI_MODELS,
-  openai: OPENAI_MODELS,
-  claude: CLAUDE_MODELS
 }
 
 /** 서비스에 키가 있는지 */
@@ -76,11 +70,6 @@ export default function ModelPicker({
       const c = initialChoice(s, feature)
       setChoice(c)
       onReady?.(c)
-      // 저장된 모델이 그 서비스의 기본 목록에 없으면 직접 입력 상태로 시작한다.
-      if (!PROVIDER_MODELS[c.provider].includes(c.model)) {
-        setCustom(c.model)
-        setCustomOpen(true)
-      }
     })()
     // feature 은 마운트당 한 번만 읽는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,14 +80,20 @@ export default function ModelPicker({
     return (['gemini', 'openai', 'claude'] as Provider[]).filter((p) => hasKey(settings, p))
   }, [settings])
 
-  const applyChoice = async (next: ModelChoice): Promise<void> => {
+  const applyChoice = async (
+    next: ModelChoice,
+    customModels?: LocalSettings['custom_models']
+  ): Promise<void> => {
     if (!settings) return
     setChoice(next)
     onChange?.(next)
     onReady?.(next)
+    // 다른 화면에서 그 사이 바뀌었을 수 있으니, 저장 직전 최신값 위에 얹는다.
+    const latest = await window.api.local.load()
     const merged: LocalSettings = {
-      ...settings,
-      feature_models: { ...(settings.feature_models ?? {}), [feature]: next }
+      ...latest,
+      custom_models: customModels ?? latest.custom_models,
+      feature_models: { ...(latest.feature_models ?? {}), [feature]: next }
     }
     setSettings(merged)
     await window.api.local.save(merged)
@@ -117,10 +112,13 @@ export default function ModelPicker({
     void applyChoice({ provider, model })
   }
 
+  /** 직접 입력한 모델은 목록에도 넣어 둔다. 다음부터는 드롭다운에서 바로 고른다. */
   const commitCustom = (): void => {
     const m = custom.trim()
-    if (!m || !choice) return
-    void applyChoice({ provider: choice.provider, model: m })
+    if (!m || !choice || !settings) return
+    const nextCustom = withCustomModel(settings.custom_models ?? {}, choice.provider, m)
+    setSettings({ ...settings, custom_models: nextCustom })
+    void applyChoice({ provider: choice.provider, model: m }, nextCustom)
     setCustomOpen(false)
   }
 
@@ -135,10 +133,10 @@ export default function ModelPicker({
   }
 
   const selectValue = `${choice.provider}${OPT_SEP}${choice.model}`
-  const modelsForCurrent = PROVIDER_MODELS[choice.provider]
-  const currentIsListed = modelsForCurrent.includes(choice.model)
   // 현재 모델이 목록에 없으면 select 에 표시할 임시 옵션을 넣어 준다.
-  const extraOption = !currentIsListed ? choice.model : null
+  const extraOption = !modelsFor(choice.provider, settings.custom_models).includes(choice.model)
+    ? choice.model
+    : null
 
   return (
     <div className="model-picker">
@@ -153,7 +151,7 @@ export default function ModelPicker({
             const enabled = availableProviders.includes(p)
             return (
               <optgroup key={p} label={`${PROVIDER_LABEL[p]}${enabled ? '' : ' (키 없음)'}`}>
-                {PROVIDER_MODELS[p].map((m) => (
+                {modelsFor(p, settings.custom_models).map((m) => (
                   <option key={m} value={`${p}${OPT_SEP}${m}`} disabled={!enabled}>
                     {m}
                   </option>

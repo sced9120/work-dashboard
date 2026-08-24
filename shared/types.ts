@@ -57,6 +57,9 @@ export interface ModelChoice {
 
 export type FeatureModels = Partial<Record<AiFeature, ModelChoice>>
 
+/** 사용자가 설정에서 직접 추가한 모델 이름들 (서비스별) */
+export type CustomModels = Partial<Record<Provider, string[]>>
+
 /** 이 PC에만 남는 설정. 인수인계 DB에 포함되지 않는다. */
 export interface LocalSettings {
   /** 기능별 지정이 없을 때 쓸 기본 서비스 */
@@ -70,6 +73,8 @@ export interface LocalSettings {
   claude_model: string
   /** 기능별 개별 선택. 비어 있으면 위의 기본값을 쓴다. */
   feature_models: FeatureModels
+  /** 설정에서 추가한 모델 이름. 기본 목록과 합쳐 드롭다운에 나온다. */
+  custom_models: CustomModels
   /** 기한이 다가오면 윈도우 알림을 띄운다 */
   notify_deadlines: boolean
   /** 며칠 전부터 알릴지 */
@@ -295,6 +300,40 @@ export interface PickedFile {
 export const OPENAI_MODELS = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini'] as const
 export const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'] as const
 export const CLAUDE_MODELS = ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5'] as const
+
+/** 프로그램이 기본으로 아는 모델 목록. 여기 있는 것은 지울 수 없다. */
+export const BUILTIN_MODELS: Record<Provider, readonly string[]> = {
+  gemini: GEMINI_MODELS,
+  openai: OPENAI_MODELS,
+  claude: CLAUDE_MODELS
+}
+
+/** 기본 목록 + 설정에서 추가한 목록. 중복은 없앤다. */
+export function modelsFor(p: Provider, custom?: CustomModels): string[] {
+  const out = [...BUILTIN_MODELS[p]]
+  for (const m of custom?.[p] ?? []) {
+    if (m && !out.includes(m)) out.push(m)
+  }
+  return out
+}
+
+/** 기본 제공 모델인지 (지우기 버튼을 감추는 데 쓴다) */
+export function isBuiltinModel(p: Provider, model: string): boolean {
+  return (BUILTIN_MODELS[p] as readonly string[]).includes(model)
+}
+
+/** custom_models 에 모델 하나를 더한 새 객체를 돌려준다. */
+export function withCustomModel(
+  custom: CustomModels,
+  p: Provider,
+  model: string
+): CustomModels {
+  const m = model.trim()
+  if (!m || isBuiltinModel(p, m)) return custom
+  const list = custom[p] ?? []
+  if (list.includes(m)) return custom
+  return { ...custom, [p]: [...list, m] }
+}
 
 /* ---------- 업무 도우미 (문서 기반 챗봇) ---------- */
 

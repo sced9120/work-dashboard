@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { LocalSettings, Provider } from '../../shared/types'
-import { CLAUDE_MODELS, GEMINI_MODELS, OPENAI_MODELS } from '../../shared/types'
+import { isBuiltinModel, modelsFor, withCustomModel } from '../../shared/types'
 import { useToast } from '../lib/toast'
 
 interface Props {
@@ -16,6 +16,7 @@ const DEFAULT_LOCAL: LocalSettings = {
   gemini_model: 'gemini-2.5-flash',
   claude_model: 'claude-sonnet-5',
   feature_models: {},
+  custom_models: {},
   notify_deadlines: false,
   notify_days: 3,
   keep_in_tray: false,
@@ -56,6 +57,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
   const [encrypted, setEncrypted] = useState(true)
   const [testing, setTesting] = useState(false)
   const [testMsg, setTestMsg] = useState<{ ok: boolean; message: string } | null>(null)
+  const [newModel, setNewModel] = useState('')
 
   useEffect(() => {
     void (async () => {
@@ -96,12 +98,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     setTesting(false)
   }
 
-  const models =
-    local.provider === 'openai'
-      ? OPENAI_MODELS
-      : local.provider === 'claude'
-        ? CLAUDE_MODELS
-        : GEMINI_MODELS
+  const models = modelsFor(local.provider, local.custom_models)
   const currentModel =
     local.provider === 'openai'
       ? local.openai_model
@@ -134,6 +131,47 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
         ? local.claude_key
         : local.gemini_key
   const providerInfo = PROVIDERS[local.provider]
+
+  /** 목록에 모델 이름을 더한다. 저장까지 바로 해서 다른 화면에 즉시 반영된다. */
+  const addModel = async (): Promise<void> => {
+    const name = newModel.trim()
+    if (!name) return
+    if (models.includes(name)) {
+      toast('이미 목록에 있는 모델입니다.', 'err')
+      setNewModel('')
+      return
+    }
+    const next: LocalSettings = {
+      ...local,
+      custom_models: withCustomModel(local.custom_models ?? {}, local.provider, name)
+    }
+    setLocal(next)
+    setNewModel('')
+    const latest = await window.api.local.load()
+    await window.api.local.save({ ...next, feature_models: latest.feature_models })
+    toast(`'${name}' 을(를) 목록에 넣었습니다.`, 'ok')
+  }
+
+  /** 추가했던 모델을 목록에서 뺀다. 기본 제공 모델은 지울 수 없다. */
+  const removeModel = async (name: string): Promise<void> => {
+    const list = (local.custom_models?.[local.provider] ?? []).filter((m) => m !== name)
+    const nextCustom = { ...(local.custom_models ?? {}), [local.provider]: list }
+
+    // 지운 모델을 쓰고 있었다면 남은 것 중 첫 번째로 되돌린다.
+    const remaining = modelsFor(local.provider, nextCustom)
+    const fallback = remaining[0] ?? ''
+    const next: LocalSettings = { ...local, custom_models: nextCustom }
+    if (currentModel === name) {
+      if (local.provider === 'openai') next.openai_model = fallback
+      else if (local.provider === 'claude') next.claude_model = fallback
+      else next.gemini_model = fallback
+    }
+
+    setLocal(next)
+    const latest = await window.api.local.load()
+    await window.api.local.save({ ...next, feature_models: latest.feature_models })
+    toast(`'${name}' 을(를) 목록에서 뺐습니다.`)
+  }
 
   return (
     <>
@@ -205,20 +243,67 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
         </div>
 
         <div className="field">
-          <label>모델</label>
-          <input
-            type="text"
-            value={currentModel}
-            onChange={(e) => setModel(e.target.value)}
-            list="model-list"
-          />
-          <datalist id="model-list">
+          <label>기본 모델</label>
+          <select value={currentModel} onChange={(e) => setModel(e.target.value)}>
             {models.map((m) => (
-              <option key={m} value={m} />
+              <option key={m} value={m}>
+                {m}
+                {isBuiltinModel(local.provider, m) ? '' : '  (직접 추가)'}
+              </option>
             ))}
-          </datalist>
+            {/* 목록에 없는 값이 저장돼 있으면 그것도 보여 준다 */}
+            {currentModel && !models.includes(currentModel) && (
+              <option value={currentModel}>{currentModel}</option>
+            )}
+          </select>
           <div className="hint">
-            목록에서 고르거나 직접 입력할 수 있습니다. 새 모델이 나오면 이름만 바꿔 넣으면 됩니다.
+            각 AI 화면에서 따로 고르지 않았을 때 쓰는 모델입니다. 화면마다 다른 모델을 쓰고 싶으면
+            그 화면 위쪽의 [모델] 고르개에서 바꾸면 됩니다.
+          </div>
+        </div>
+
+        <div className="field">
+          <label>모델 목록 관리 — {providerInfo.label}</label>
+          <div className="row">
+            <input
+              type="text"
+              value={newModel}
+              onChange={(e) => setNewModel(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void addModel()
+              }}
+              placeholder="새 모델 이름 (예: gpt-5.6-luna)"
+              style={{ flex: 1, minWidth: 200 }}
+            />
+            <button className="btn" onClick={() => void addModel()} disabled={!newModel.trim()}>
+              ＋ 목록에 추가
+            </button>
+          </div>
+
+          <div className="model-chips">
+            {models.map((m) => {
+              const builtin = isBuiltinModel(local.provider, m)
+              return (
+                <span key={m} className={`model-chip ${builtin ? '' : 'custom'}`}>
+                  {m}
+                  {!builtin && (
+                    <button
+                      className="model-chip-x"
+                      title="목록에서 빼기"
+                      onClick={() => void removeModel(m)}
+                    >
+                      ×
+                    </button>
+                  )}
+                </span>
+              )
+            })}
+          </div>
+
+          <div className="hint">
+            여기에 추가한 이름은 <b>모든 AI 화면의 모델 고르개</b>에 함께 나옵니다. 새 모델이
+            나오면 이름만 넣어 두면 됩니다. 기본 제공 모델은 지울 수 없고, 직접 추가한 것만 × 로
+            뺍니다.
           </div>
         </div>
 
