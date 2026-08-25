@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AliasPair,
   AnalyzeResult,
+  CalEvent,
+  CalEventInput,
   CaseDetail,
   ChatReply,
   ChatTurn,
@@ -55,6 +57,15 @@ const api = {
   },
   search: {
     run: (query: string): Promise<SearchHit[]> => ipcRenderer.invoke('search:run', query)
+  },
+  events: {
+    list: (): Promise<CalEvent[]> => ipcRenderer.invoke('events:list'),
+    between: (from: string, to: string): Promise<CalEvent[]> =>
+      ipcRenderer.invoke('events:between', from, to),
+    add: (v: CalEventInput): Promise<number> => ipcRenderer.invoke('events:add', v),
+    update: (id: number, patch: Partial<CalEventInput>): Promise<void> =>
+      ipcRenderer.invoke('events:update', id, patch),
+    remove: (id: number): Promise<void> => ipcRenderer.invoke('events:delete', id)
   },
   journal: {
     list: (): Promise<JournalEntry[]> => ipcRenderer.invoke('journal:list'),

@@ -27,6 +27,7 @@ import { applyLocalSettings, checkDeadlinesNow, stopDeadlineWatch } from './noti
 import fs from 'node:fs'
 import type {
   AliasPair,
+  CalEventInput,
   CaseDetail,
   ChatTurn,
   DeadlineInput,
@@ -181,6 +182,17 @@ function registerIpc(): void {
   ipcMain.handle('journal:add', (_e, j: JournalInput) => db.addJournal(j))
   ipcMain.handle('journal:update', (_e, id: number, j: JournalInput) => db.updateJournal(id, j))
   ipcMain.handle('journal:delete', (_e, id: number) => db.deleteJournal(id))
+
+  /* ---------- 달력 일정 ---------- */
+  ipcMain.handle('events:list', () => db.listEvents())
+  ipcMain.handle('events:between', (_e, from: string, to: string) =>
+    db.listEventsBetween(from, to)
+  )
+  ipcMain.handle('events:add', (_e, v: CalEventInput) => db.addEvent(v))
+  ipcMain.handle('events:update', (_e, id: number, patch: Partial<CalEventInput>) =>
+    db.updateEvent(id, patch)
+  )
+  ipcMain.handle('events:delete', (_e, id: number) => db.deleteEvent(id))
 
   /* ---------- 알림 ---------- */
   ipcMain.handle('notify:checkNow', () => checkDeadlinesNow())

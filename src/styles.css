@@ -978,3 +978,645 @@ textarea {
   opacity: 1;
   color: var(--danger);
 }
+
+/* ---------- 보기 전환 (목록 · 달력 · 인포그래픽) ---------- */
+
+.viewswitch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.viewswitch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.viewswitch-btn:hover {
+  color: var(--text);
+}
+
+.viewswitch-btn.active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.viewswitch-icon {
+  font-size: 15px;
+}
+
+/* ---------- 달력 ---------- */
+
+.cal-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cal-nav {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.cal-nav:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.cal-title {
+  font-size: 17px;
+  min-width: 120px;
+  text-align: center;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.cal-head {
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  margin-bottom: 1px;
+}
+
+.cal-dow {
+  background: var(--surface-2);
+  text-align: center;
+  padding: 7px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.cal-dow.sun {
+  color: var(--danger);
+}
+
+.cal-dow.sat {
+  color: var(--accent);
+}
+
+.cal-cell {
+  background: var(--surface);
+  border: 0;
+  min-height: 96px;
+  padding: 5px 5px 4px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font: inherit;
+  color: inherit;
+  transition: background 0.1s;
+}
+
+.cal-cell:hover {
+  background: var(--surface-2);
+}
+
+.cal-cell.out {
+  background: var(--surface-2);
+  opacity: 0.55;
+}
+
+.cal-cell.sel {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.cal-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  width: 21px;
+  height: 21px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex: none;
+}
+
+.cal-num.sun {
+  color: var(--danger);
+}
+
+.cal-num.sat {
+  color: var(--accent);
+}
+
+.cal-cell.today .cal-num {
+  background: var(--accent);
+  color: #fff;
+}
+
+.cal-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cal-chip {
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-left: 3px solid transparent;
+}
+
+.cal-chip.done {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.cal-chip.deadline {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-left-color: var(--warn);
+  font-weight: 600;
+}
+
+.cal-more {
+  font-size: 10px;
+  color: var(--muted);
+  padding-left: 5px;
+}
+
+/* 일정 색 — 칩·점·고르개가 같은 값을 쓴다 */
+.cal-chip.c-blue,
+.cal-dot.c-blue,
+.cal-swatch.c-blue {
+  background: #e8f0fe;
+  color: #1a56c4;
+  border-left-color: #2563eb;
+}
+.cal-chip.c-green,
+.cal-dot.c-green,
+.cal-swatch.c-green {
+  background: #e6f6ec;
+  color: #146c35;
+  border-left-color: #15803d;
+}
+.cal-chip.c-orange,
+.cal-dot.c-orange,
+.cal-swatch.c-orange {
+  background: #fef3e2;
+  color: #9a5b09;
+  border-left-color: #d97706;
+}
+.cal-chip.c-red,
+.cal-dot.c-red,
+.cal-swatch.c-red {
+  background: #fdeaea;
+  color: #a92222;
+  border-left-color: #dc2626;
+}
+.cal-chip.c-purple,
+.cal-dot.c-purple,
+.cal-swatch.c-purple {
+  background: #f1ebfd;
+  color: #6127c4;
+  border-left-color: #7c3aed;
+}
+.cal-chip.c-gray,
+.cal-dot.c-gray,
+.cal-swatch.c-gray {
+  background: #eef0f3;
+  color: #4a5261;
+  border-left-color: #6b7280;
+}
+
+.cal-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border-left: 0;
+  vertical-align: baseline;
+}
+
+.cal-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  border-left-width: 2px;
+}
+
+.cal-swatch.on {
+  border-color: var(--text);
+  transform: scale(1.12);
+}
+
+.cal-day {
+  margin-top: 14px;
+}
+
+.cal-tasklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ---------- 넣기 시트 (갤럭시 달력식) ---------- */
+
+.sheet-back {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.42);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 60;
+  animation: sheet-fade 0.14s ease;
+}
+
+.sheet {
+  background: var(--surface);
+  width: min(560px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  border-radius: 18px 18px 0 0;
+  padding: 10px 20px 20px;
+  box-shadow: 0 -8px 30px rgba(16, 24, 40, 0.18);
+  animation: sheet-up 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+  }
+}
+
+.sheet-grip {
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  margin: 0 auto 12px;
+}
+
+.sheet-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+
+.sheet-input-title {
+  width: 100%;
+  border: 0;
+  border-bottom: 2px solid var(--border);
+  border-radius: 0;
+  padding: 8px 2px;
+  font-size: 17px;
+  font-weight: 600;
+  background: transparent;
+  margin-bottom: 14px;
+}
+
+.sheet-input-title:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.sheet-label {
+  width: 46px;
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.sheet-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sheet-memo {
+  width: 100%;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  line-height: 1.6;
+}
+
+.sheet-memo:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.sheet-foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+/* ---------- 인포그래픽 ---------- */
+
+.info-summary {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+
+.info-ring {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  flex: none;
+  background: conic-gradient(
+    var(--accent) calc(var(--pct) * 1%),
+    var(--border) 0
+  );
+  display: grid;
+  place-items: center;
+}
+
+.info-ring-in {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.info-ring-in b {
+  font-size: 21px;
+  display: block;
+}
+
+.info-ring-in span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.info-stats {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.info-stat b {
+  display: block;
+  font-size: 23px;
+  line-height: 1.25;
+}
+
+.info-stat span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.info-month {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 14px;
+}
+
+.info-spine {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+/* 달과 달을 잇는 세로선 */
+.info-spine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: -14px;
+  width: 2px;
+  background: var(--border);
+}
+
+.info-month:last-child .info-spine::before {
+  bottom: 50%;
+}
+
+.info-node {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+  color: var(--muted);
+  flex: none;
+}
+
+.info-node b {
+  font-size: 16px;
+}
+
+.info-node span {
+  font-size: 9px;
+}
+
+.info-month.sem1 .info-node {
+  border-color: #2563eb;
+  color: #1a56c4;
+}
+
+.info-month.sem2 .info-node {
+  border-color: #7c3aed;
+  color: #6127c4;
+}
+
+.info-month.now .info-node {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.info-body {
+  padding-bottom: 18px;
+  min-width: 0;
+}
+
+.info-month-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.info-season {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.info-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 0;
+}
+
+.info-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+  margin-bottom: 8px;
+  max-width: 320px;
+}
+
+.info-bar > div {
+  height: 100%;
+  background: var(--ok);
+  transition: width 0.25s;
+}
+
+.info-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.info-card {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  max-width: 100%;
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.info-card:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.info-card.done {
+  opacity: 0.55;
+}
+
+.info-card.done .info-card-title {
+  text-decoration: line-through;
+}
+
+.info-card-when {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  flex: none;
+}
+
+.info-card-title {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+
+.info-etc {
+  margin-top: 10px;
+  padding: 16px 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.info-etc-head {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 780px) {
+  .cal-cell {
+    min-height: 74px;
+  }
+  .info-summary {
+    gap: 18px;
+  }
+  .info-stats {
+    gap: 18px;
+  }
+}

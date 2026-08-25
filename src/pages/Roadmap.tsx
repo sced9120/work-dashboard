@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Task, TaskInput } from '../../shared/types'
 import TaskForm from '../components/TaskForm'
+import Calendar from '../components/Calendar'
+import RoadmapInfographic from '../components/RoadmapInfographic'
 import { useToast } from '../lib/toast'
 import { monthLabel, monthOf, schoolOrder, sortTasks } from '../lib/util'
+
+type ViewMode = '목록' | '달력' | '인포그래픽'
+
+const VIEWS: { id: ViewMode; icon: string; hint: string }[] = [
+  { id: '목록', icon: '☰', hint: '업무를 펼쳐 보고 고치는 곳' },
+  { id: '달력', icon: '🗓', hint: '날짜에 일정을 직접 넣는 곳' },
+  { id: '인포그래픽', icon: '📊', hint: '한 해 흐름을 한눈에' }
+]
 
 export default function Roadmap(): JSX.Element {
   const toast = useToast()
   const [tasks, setTasks] = useState<Task[]>([])
+  const [view, setView] = useState<ViewMode>('목록')
   const [tab, setTab] = useState<number | 'all'>('all')
   const [openId, setOpenId] = useState<number | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -69,6 +80,36 @@ export default function Roadmap(): JSX.Element {
         <p>3월부터 이듬해 2월까지, 학사 일정 순서로 정리됩니다.</p>
       </div>
 
+      <div className="viewswitch">
+        {VIEWS.map((v) => (
+          <button
+            key={v.id}
+            className={`viewswitch-btn ${view === v.id ? 'active' : ''}`}
+            onClick={() => setView(v.id)}
+            title={v.hint}
+          >
+            <span className="viewswitch-icon">{v.icon}</span>
+            {v.id}
+          </button>
+        ))}
+      </div>
+
+      {view === '달력' && <Calendar tasks={tasks} />}
+
+      {view === '인포그래픽' && (
+        <RoadmapInfographic
+          tasks={tasks}
+          onPick={(t) => {
+            setView('목록')
+            setTab('all')
+            setQuery('')
+            setOpenId(t.id)
+          }}
+        />
+      )}
+
+      {view === '목록' && (
+        <>
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="row">
           <input
@@ -191,6 +232,8 @@ export default function Roadmap(): JSX.Element {
             )
           })}
         </div>
+      )}
+        </>
       )}
     </>
   )

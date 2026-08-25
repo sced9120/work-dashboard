@@ -238,6 +238,53 @@ export interface JournalEntry {
 
 export type JournalInput = Omit<JournalEntry, 'id'>
 
+/* ---------- 달력 일정 ---------- */
+
+/**
+ * 달력에 직접 넣는 일정·할 일.
+ * 업무(tasks)가 "3월 1주" 같은 뭉뚱그린 시기라면, 이쪽은 실제 날짜를 가진다.
+ */
+export interface CalEvent {
+  id: number
+  /** 시작일 YYYY-MM-DD */
+  event_date: string
+  /** 종료일 YYYY-MM-DD. 하루짜리면 시작일과 같다. */
+  end_date: string
+  /** 시작 시각 HH:MM. 하루 종일이면 빈 문자열 */
+  start_time: string
+  title: string
+  content: string
+  /** 색 이름. EVENT_COLORS 중 하나 */
+  color: string
+  /** 기한으로 챙길지. 켜면 D-day 가 붙고 윈도우 알림 대상이 된다 */
+  remind: number
+  /** 완료 여부 (0/1) */
+  done: number
+}
+
+export type CalEventInput = Omit<CalEvent, 'id'>
+
+/** 달력에서 고를 수 있는 색. 갤럭시 달력처럼 일정 성격을 색으로 구분한다. */
+export const EVENT_COLORS = [
+  { id: 'blue', label: '파랑' },
+  { id: 'green', label: '초록' },
+  { id: 'orange', label: '주황' },
+  { id: 'red', label: '빨강' },
+  { id: 'purple', label: '보라' },
+  { id: 'gray', label: '회색' }
+] as const
+
+export const BLANK_EVENT: CalEventInput = {
+  event_date: '',
+  end_date: '',
+  start_time: '',
+  title: '',
+  content: '',
+  color: 'blue',
+  remind: 0,
+  done: 0
+}
+
 /* ---------- 업데이트 확인 ---------- */
 
 export interface UpdateInfo {

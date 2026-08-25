@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import initSqlJs, { type Database, type SqlJsStatic } from 'sql.js'
 import type {
+  CalEvent,
+  CalEventInput,
   Deadline,
   DeadlineInput,
   Doc,
@@ -53,7 +55,14 @@ const SCHEMA = [
   // 인수인계 파일에 함께 넘어간다.
   `CREATE TABLE IF NOT EXISTS journal (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
-     entry_date TEXT, content TEXT)`
+     entry_date TEXT, content TEXT)`,
+  // 달력에 직접 넣는 일정. 업무(tasks)의 "3월 1주" 와 달리 실제 날짜를 가진다.
+  // remind 를 켜면 기한처럼 D-day 가 붙고 윈도우 알림 대상이 된다.
+  `CREATE TABLE IF NOT EXISTS events (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     event_date TEXT, end_date TEXT, start_time TEXT,
+     title TEXT, content TEXT, color TEXT,
+     remind INTEGER DEFAULT 0, done INTEGER DEFAULT 0)`
 ]
 
 let SQL: SqlJsStatic | null = null
@@ -453,6 +462,72 @@ export function deleteJournal(id: number): void {
 }
 
 /** 기한이 다가온 것만 골라 낸다. 알림에 쓴다. */
+/* ---------- 달력 일정 ---------- */
+
+export function listEvents(): CalEvent[] {
+  return rows<CalEvent>(
+    `SELECT id, event_date, end_date, start_time, title, content, color, remind, done
+     FROM events ORDER BY event_date, start_time, id`
+  )
+}
+
+/** 달력 한 화면에 필요한 만큼만. from·to 는 YYYY-MM-DD (양 끝 포함). */
+export function listEventsBetween(from: string, to: string): CalEvent[] {
+  return rows<CalEvent>(
+    `SELECT id, event_date, end_date, start_time, title, content, color, remind, done
+     FROM events
+     WHERE event_date <= ? AND (CASE WHEN end_date = '' THEN event_date ELSE end_date END) >= ?
+     ORDER BY event_date, start_time, id`,
+    [to, from]
+  )
+}
+
+export function addEvent(e: CalEventInput): number {
+  run(
+    `INSERT INTO events (event_date, end_date, start_time, title, content, color, remind, done)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      e.event_date,
+      e.end_date || e.event_date,
+      e.start_time ?? '',
+      e.title,
+      e.content ?? '',
+      e.color || 'blue',
+      e.remind ? 1 : 0,
+      e.done ? 1 : 0
+    ]
+  )
+  return lastId()
+}
+
+export function updateEvent(id: number, patch: Partial<CalEventInput>): void {
+  const keys = Object.keys(patch) as (keyof CalEventInput)[]
+  if (!keys.length) return
+  const sets = keys.map((k) => `${k} = ?`).join(', ')
+  run(`UPDATE events SET ${sets} WHERE id = ?`, [...keys.map((k) => patch[k] ?? ''), id])
+}
+
+export function deleteEvent(id: number): void {
+  run('DELETE FROM events WHERE id = ?', [id])
+}
+
+/**
+ * 기한으로 챙기라고 해 둔 일정 중 곧 닥치는 것.
+ * 절차 기한과 같은 규칙으로 본다. 끝난 것과 알림을 끈 것은 뺀다.
+ */
+export function dueEvents(withinDays: number): CalEvent[] {
+  const now = new Date()
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return listEvents().filter((e) => {
+    if (e.done === 1 || e.remind !== 1 || !e.event_date) return false
+    // 여러 날짜에 걸친 일정은 끝나는 날을 기한으로 본다.
+    const target = new Date(`${e.end_date || e.event_date}T00:00:00`)
+    if (Number.isNaN(target.getTime())) return false
+    const left = Math.round((target.getTime() - midnight.getTime()) / 86400000)
+    return left <= withinDays
+  })
+}
+
 export function dueDeadlines(withinDays: number): Deadline[] {
   const now = new Date()
   const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -728,6 +803,7 @@ export function clearAll(): void {
   need().run('DELETE FROM notices')
   need().run('DELETE FROM documents')
   need().run('DELETE FROM journal')
+  need().run('DELETE FROM events')
   persist()
   seedIfEmpty(need())
   persist()

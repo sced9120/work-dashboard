@@ -33,6 +33,15 @@ function dayLabel(due: string): string {
   return `${left}일 남았습니다`
 }
 
+/** 알림 한 건으로 다룰 최소 정보. 절차 기한과 달력 일정을 같이 담는다. */
+interface DueItem {
+  /** 종류까지 넣어 id 가 겹치지 않게 한다 */
+  key: string
+  title: string
+  due: string
+  sub: string
+}
+
 /** 기한을 살펴보고 알림을 띄운다. 조건이 아니면 아무 것도 하지 않는다. */
 export function checkDeadlinesNow(): void {
   const s = loadLocalSettings()
@@ -40,30 +49,44 @@ export function checkDeadlinesNow(): void {
   if (!Notification.isSupported()) return
 
   const stamp = todayStamp()
-  let due: ReturnType<typeof db.dueDeadlines>
+  let items: DueItem[]
   try {
-    due = db.dueDeadlines(s.notify_days)
+    items = [
+      ...db.dueDeadlines(s.notify_days).map((d) => ({
+        key: `deadline-${d.id}`,
+        title: d.title,
+        due: d.due_date,
+        sub: d.case_ref
+      })),
+      // 달력에서 [기한으로 챙기기] 를 켜 둔 일정도 같이 알린다.
+      ...db.dueEvents(s.notify_days).map((e) => ({
+        key: `event-${e.id}`,
+        title: e.title,
+        due: e.end_date || e.event_date,
+        sub: e.start_time
+      }))
+    ]
   } catch {
     // 아직 DB가 열리지 않았거나 읽을 수 없는 상태. 다음 차례에 다시 본다.
     return
   }
 
-  const fresh = due.filter((d) => !alreadyNotified.has(`${d.id}-${stamp}`))
+  const fresh = items.filter((d) => !alreadyNotified.has(`${d.key}-${stamp}`))
   if (!fresh.length) return
 
-  for (const d of fresh) alreadyNotified.add(`${d.id}-${stamp}`)
+  for (const d of fresh) alreadyNotified.add(`${d.key}-${stamp}`)
 
   // 여러 건이면 알림을 쏟아붓지 않고 하나로 묶는다.
   if (fresh.length === 1) {
     const d = fresh[0]
     new Notification({
-      title: `기한 알림 — ${dayLabel(d.due_date)}`,
-      body: d.case_ref ? `${d.title}\n${d.case_ref}` : d.title
+      title: `기한 알림 — ${dayLabel(d.due)}`,
+      body: d.sub ? `${d.title}\n${d.sub}` : d.title
     }).show()
     return
   }
 
-  const lines = fresh.slice(0, 4).map((d) => `· ${d.title} (${dayLabel(d.due_date)})`)
+  const lines = fresh.slice(0, 4).map((d) => `· ${d.title} (${dayLabel(d.due)})`)
   if (fresh.length > 4) lines.push(`· 그 밖에 ${fresh.length - 4}건`)
 
   new Notification({
