@@ -11,10 +11,11 @@ import type { Task } from '../../shared/types'
  * 실제로 자주 겹치는 말을 찾아 주제로 삼는다.
  */
 
-/** 연도·학기·차수처럼 주제와 상관없는 수식 */
+/** 연도·학년·학기·차수처럼 주제와 상관없는 수식 */
 const NOISE = [
   /\d{4}\s*학년도/g,
   /\d{4}\s*년도?/g,
+  /\d\s*학년(?!도)/g,
   /\d\s*학기/g,
   /\d{1,2}\s*월/g,
   /\d{1,2}\s*주/g,
@@ -31,8 +32,27 @@ const GENERIC = new Set([
   '운영', '구성', '계획', '수립', '시행', '실시', '관리', '안내', '홍보',
   '제출', '신청', '보고', '점검', '확인', '추진', '지출', '구입', '정비',
   '작성', '활동', '결과', '자료', '명부', '관련', '현황', '요청', '및',
-  '등', '위한', '대한', '따른', '내용', '사항', '업무', '학교', '기타'
+  '등', '위한', '대한', '따른', '내용', '사항', '업무', '학교', '기타',
+  // 공문에 늘 붙지만 무슨 일인지는 알려 주지 않는 말들
+  '구성원', '경비', '예산', '집행', '정산', '대상', '개최', '배정', '지원',
+  '참석', '참여', '협조', '명단', '통보', '알림', '공지', '지침', '소요',
+  '산출', '변경', '연장', '완료', '준비', '개선', '강화', '수요', '조사표',
+  '결과보고', '계획서', '보고서', '실적'
 ])
+
+/**
+ * 주제로 쓰기에 너무 짧고 흔한 말인지.
+ *
+ * "지도"(급식 지도·생활지도…), "학생", "훈련" 처럼 두 글자짜리 낱말은
+ * 여기저기 다 들어 있어 빈도가 가장 높게 나오는데, 정작 그것만 보면
+ * 무슨 업무인지 알 수 없다. 낱말 하나짜리 주제는 세 글자 이상만 받는다.
+ */
+function tooThin(candidate: string): boolean {
+  const words = candidate.split(' ')
+  if (words.length === 1) return candidate.length < 3
+  // 여러 낱말이면 붙였을 때 세 글자는 넘어야 한다
+  return candidate.replace(/\s/g, '').length < 3
+}
 
 function tokenize(title: string): string[] {
   let s = title
@@ -56,6 +76,7 @@ function candidates(tokens: string[]): Map<string, boolean> {
       // 전부 일반 낱말이면 주제가 될 수 없다
       if (part.every((p) => GENERIC.has(p))) continue
       const key = part.join(' ')
+      if (tooThin(key)) continue
       if (!out.has(key)) out.set(key, i === 0)
     }
   }
@@ -63,9 +84,29 @@ function candidates(tokens: string[]): Map<string, boolean> {
 }
 
 export interface Topic {
-  /** 주제 이름 */
+  /** 화면에 보이는 주제 이름 (바꿔 놓았으면 바꾼 이름) */
   name: string
+  /** 프로그램이 자동으로 붙인 원래 이름. 이름 바꾸기의 열쇠가 된다. */
+  autoName: string
   tasks: Task[]
+}
+
+/** 자동으로 붙인 이름 → 사람이 고쳐 붙인 이름 */
+export type TopicRenames = Record<string, string>
+
+/** 설정에 저장된 이름표를 읽는다. 깨져 있으면 없는 셈 친다. */
+export function parseRenames(raw: string): TopicRenames {
+  try {
+    const v = JSON.parse(raw) as unknown
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
+    const out: TopicRenames = {}
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (typeof val === 'string' && val.trim()) out[k] = val.trim()
+    }
+    return out
+  } catch {
+    return {}
+  }
 }
 
 /**
@@ -78,7 +119,7 @@ export interface Topic {
  * 처럼 더 좁은 말이 뽑혀 같은 업무가 서너 조각으로 흩어진다. 빈도를 앞세우고
  * 비슷할 때만 제목 앞에 오는 말·긴 말을 택하도록 했다.
  */
-export function groupByTopic(tasks: Task[]): Topic[] {
+export function groupByTopic(tasks: Task[], renames: TopicRenames = {}): Topic[] {
   // 1) 후보가 몇 개의 제목에 걸치는지 센다
   const freq = new Map<string, number>()
   const perTask = new Map<number, Map<string, boolean>>()
@@ -114,9 +155,19 @@ export function groupByTopic(tasks: Task[]): Topic[] {
     buckets.get(best)!.push(t)
   }
 
-  return [...buckets.entries()]
-    .map(([name, list]) => ({ name, tasks: list }))
-    .sort((a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name, 'ko'))
+  // 3) 사람이 고쳐 붙인 이름을 입힌다.
+  //    두 주제를 같은 이름으로 바꾸면 하나로 합쳐진다 — 합치기가 따로 필요 없다.
+  const merged = new Map<string, Topic>()
+  for (const [autoName, list] of buckets) {
+    const name = renames[autoName] || autoName
+    const found = merged.get(name)
+    if (found) found.tasks.push(...list)
+    else merged.set(name, { name, autoName, tasks: [...list] })
+  }
+
+  return [...merged.values()].sort(
+    (a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name, 'ko')
+  )
 }
 
 /** "3월 1주" → 1, "수시" → 0 (주를 모르는 것) */

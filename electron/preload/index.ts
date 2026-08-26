@@ -53,7 +53,9 @@ const api = {
     addMany: (list: DocInput[]): Promise<number[]> => ipcRenderer.invoke('docs:addMany', list),
     remove: (id: number): Promise<void> => ipcRenderer.invoke('docs:delete', id),
     count: (): Promise<number> => ipcRenderer.invoke('docs:count'),
-    guessDate: (text: string): Promise<string> => ipcRenderer.invoke('docs:guessDate', text)
+    guessDate: (text: string): Promise<string> => ipcRenderer.invoke('docs:guessDate', text),
+    setDate: (id: number, date: string): Promise<void> =>
+      ipcRenderer.invoke('docs:setDate', id, date)
   },
   search: {
     run: (query: string): Promise<SearchHit[]> => ipcRenderer.invoke('search:run', query)

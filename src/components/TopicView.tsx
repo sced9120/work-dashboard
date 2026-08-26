@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DocFull, SearchHit, Task } from '../../shared/types'
 import { useToast } from '../lib/toast'
-import { groupByTopic } from '../lib/topics'
-import { monthOf, schoolOrder, weekOf } from '../lib/util'
+import { groupByTopic, type TopicRenames } from '../lib/topics'
+import { monthOf, schoolOrder, todayStr, weekOf } from '../lib/util'
 
 interface Props {
   tasks: Task[]
   /** 인포그래픽에서 넘어온 주제 */
   initial?: string | null
+  /** 사람이 고쳐 붙인 주제 이름 */
+  renames: TopicRenames
+  /** 이름을 바꿀 때. autoName 은 프로그램이 붙인 원래 이름 */
+  onRename: (autoName: string, next: string) => Promise<void>
   /** 낱낱의 업무를 목록에서 보고 싶을 때 */
   onOpenTask: (t: Task) => void
 }
@@ -56,9 +60,15 @@ function draftFlow(topic: string, list: Task[]): string {
   return lines.join('\n')
 }
 
-export default function TopicView({ tasks, initial, onOpenTask }: Props): JSX.Element {
+export default function TopicView({
+  tasks,
+  initial,
+  renames,
+  onRename,
+  onOpenTask
+}: Props): JSX.Element {
   const toast = useToast()
-  const topics = useMemo(() => groupByTopic(tasks), [tasks])
+  const topics = useMemo(() => groupByTopic(tasks, renames), [tasks, renames])
   const [picked, setPicked] = useState<string | null>(initial ?? null)
   const [query, setQuery] = useState('')
 
@@ -69,6 +79,11 @@ export default function TopicView({ tasks, initial, onOpenTask }: Props): JSX.El
   const [flow, setFlow] = useState('')
   const [flowOpen, setFlowOpen] = useState(false)
   const [editing, setEditing] = useState(false)
+
+  /** 이름 바꾸는 중이면 그 값 */
+  const [renaming, setRenaming] = useState<string | null>(null)
+  /** 날짜를 고치는 중인 공문 id */
+  const [dateEdit, setDateEdit] = useState<{ id: number; value: string } | null>(null)
 
   // 인포그래픽에서 주제를 눌러 들어오면 그 주제로 맞춘다
   useEffect(() => {
@@ -111,12 +126,49 @@ export default function TopicView({ tasks, initial, onOpenTask }: Props): JSX.El
     toast('흐름도를 저장했습니다. 인수인계 파일에 함께 넘어갑니다.', 'ok')
   }
 
+  /**
+   * 주제 이름을 바꾼다.
+   * 흐름도는 이름을 열쇠로 저장돼 있으므로 새 이름으로 함께 옮긴다.
+   * 옮기지 않으면 이름을 바꾸는 순간 정리해 둔 흐름도가 사라진 것처럼 보인다.
+   */
+  const applyRename = async (): Promise<void> => {
+    if (!current || renaming === null) return
+    const next = renaming.trim()
+    if (!next || next === current.name) {
+      setRenaming(null)
+      return
+    }
+
+    const old = await window.api.setting.get(flowKey(current.name), '')
+    if (old) {
+      const already = await window.api.setting.get(flowKey(next), '')
+      // 합치는 경우 이미 있는 흐름도를 덮지 않는다
+      if (!already) await window.api.setting.set(flowKey(next), old)
+      await window.api.setting.set(flowKey(current.name), '')
+    }
+
+    await onRename(current.autoName, next)
+    setPicked(next)
+    setRenaming(null)
+    toast(`'${next}' 로 바꿨습니다.`, 'ok')
+  }
+
   const makeDraft = (): void => {
     if (!current) return
     setFlow(draftFlow(current.name, current.tasks))
     setFlowOpen(true)
     setEditing(true)
     toast('등록된 업무로 초안을 짰습니다. 고쳐서 저장하세요.', 'ok')
+  }
+
+  /** 잘못 잡힌 공문 날짜를 고친다. 법령 인용 연도가 잡히는 일이 있다. */
+  const saveDate = async (): Promise<void> => {
+    if (!dateEdit || !picked) return
+    const { id, value } = dateEdit
+    setDateEdit(null)
+    await window.api.docs.setDate(id, value)
+    await loadDocs(picked)
+    toast(value ? `날짜를 ${value} 로 고쳤습니다.` : '날짜를 지웠습니다.', 'ok')
   }
 
   const showDoc = async (id: number): Promise<void> => {
@@ -223,12 +275,47 @@ export default function TopicView({ tasks, initial, onOpenTask }: Props): JSX.El
           <div className="empty">
             왼쪽에서 업무 주제를 고르면, 그 업무의 <b>공문과 진행 내용을 날짜순으로</b> 볼 수
             있습니다.
+            <div className="small muted" style={{ marginTop: 8 }}>
+              주제 이름이 어색하면 <b>[✎ 이름]</b> 으로 바꿀 수 있습니다. 두 주제를 같은 이름으로
+              바꾸면 하나로 합쳐집니다.
+            </div>
           </div>
         ) : (
           <>
             <div className="card" style={{ marginBottom: 14 }}>
               <div className="card-title">
-                <span>{current.name}</span>
+                {renaming === null ? (
+                  <>
+                    <span>{current.name}</span>
+                    <button
+                      className="btn btn-sm btn-ghost"
+                      title="이 주제의 이름을 바꿉니다"
+                      onClick={() => setRenaming(current.name)}
+                    >
+                      ✎ 이름
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      value={renaming}
+                      onChange={(e) => setRenaming(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void applyRename()
+                        if (e.key === 'Escape') setRenaming(null)
+                      }}
+                      className="topic-rename"
+                      autoFocus
+                    />
+                    <button className="btn btn-sm btn-primary" onClick={() => void applyRename()}>
+                      바꾸기
+                    </button>
+                    <button className="btn btn-sm btn-ghost" onClick={() => setRenaming(null)}>
+                      취소
+                    </button>
+                  </>
+                )}
                 <span className="badge badge-accent">업무 {current.tasks.length}건</span>
                 {docItems.length > 0 && <span className="badge">공문 {docItems.length}건</span>}
                 <span className="spacer" />
@@ -311,7 +398,32 @@ export default function TopicView({ tasks, initial, onOpenTask }: Props): JSX.El
                 <div className="tl">
                   {docItems.map((i) => (
                     <div className="tl-row" key={i.key}>
-                      <div className="tl-date">{i.date || '날짜 미상'}</div>
+                      <div className="tl-date">
+                        {dateEdit?.id === i.hit!.id ? (
+                          <input
+                            type="date"
+                            className="tl-date-edit"
+                            value={dateEdit.value}
+                            autoFocus
+                            onChange={(e) => setDateEdit({ id: i.hit!.id, value: e.target.value })}
+                            onBlur={() => void saveDate()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void saveDate()
+                              if (e.key === 'Escape') setDateEdit(null)
+                            }}
+                          />
+                        ) : (
+                          <button
+                            className="tl-date-btn"
+                            title="날짜가 잘못 잡혔으면 눌러서 고치세요"
+                            onClick={() =>
+                              setDateEdit({ id: i.hit!.id, value: i.date || todayStr() })
+                            }
+                          >
+                            {i.date || '날짜 미상'}
+                          </button>
+                        )}
+                      </div>
                       <div className="tl-dot" />
                       <div className="tl-body">
                         <button className="tl-title" onClick={() => void showDoc(i.hit!.id)}>

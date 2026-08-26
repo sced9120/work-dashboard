@@ -364,24 +364,62 @@ export function docCount(): number {
  * 공문에서 접수일자·시행일자를 찾아 YYYY-MM-DD 로 돌려준다.
  * 공문 서식마다 표기가 달라 완벽하지 않다. 못 찾으면 빈 문자열.
  */
+function asDate(y: string, mo: string, d: string): string {
+  const year = Number(y)
+  const month = Number(mo)
+  const day = Number(d)
+  if (year < 1990 || year > 2100) return ''
+  if (month < 1 || month > 12 || day < 1 || day > 31) return ''
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${year}-${p(month)}-${p(day)}`
+}
+
+/**
+ * 공문에서 그 문서의 날짜를 찾아낸다.
+ *
+ * 예전에는 앞부분에서 날짜처럼 보이는 것을 처음 하나 집었는데, 공문에는
+ * 근거 법령("학교폭력예방법 2016. 12. 20. 개정")이나 지난 공문 인용이 함께
+ * 실려 있어 엉뚱하게 2016년으로 잡히는 일이 있었다.
+ *
+ * 그래서 두 단계로 본다.
+ * 1) "시행 / 접수 / 기안" 처럼 **이름표가 붙은 날짜**가 있으면 그것이 답이다.
+ * 2) 없으면 앞부분의 날짜를 모두 모아, 아직 오지 않은 날짜를 뺀 뒤
+ *    **가장 최근 것**을 고른다. 인용된 법령·지난 공문은 대개 더 옛날이기 때문이다.
+ */
 export function guessDocDate(text: string): string {
-  const head = text.slice(0, 4000)
-  const patterns = [
-    /(?:접수|시행|기안)\s*(?:일자)?\s*[:：]?\s*(\d{4})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/,
-    /(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/
-  ]
-  for (const re of patterns) {
-    const m = head.match(re)
-    if (!m) continue
-    const [, y, mo, d] = m
-    const year = Number(y)
-    const month = Number(mo)
-    const day = Number(d)
-    if (year < 1990 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) continue
-    const p = (n: number): string => String(n).padStart(2, '0')
-    return `${year}-${p(month)}-${p(day)}`
+  const head = text.slice(0, 6000)
+
+  // 1) 이름표가 붙은 날짜
+  const labeled =
+    /(?:접수|시행|기안|생산|발신|작성)\s*(?:일자|일)?\s*[:：]?\s*(\d{4})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{1,2})/
+  const m = head.match(labeled)
+  if (m) {
+    const got = asDate(m[1], m[2], m[3])
+    if (got) return got
   }
-  return ''
+
+  // 2) 앞부분의 모든 날짜 중에서 고른다
+  const loose = /(\d{4})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{1,2})/g
+  const now = new Date()
+  // 며칠 뒤 날짜까지는 봐준다(발송 예정일 등). 그보다 먼 미래는 기한이지 문서 날짜가 아니다.
+  const limit = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 30)
+    .toISOString()
+    .slice(0, 10)
+
+  const found: string[] = []
+  for (const hit of head.matchAll(loose)) {
+    const got = asDate(hit[1], hit[2], hit[3])
+    if (got && got <= limit) found.push(got)
+  }
+  if (!found.length) return ''
+
+  // 가장 최근 것
+  return found.sort()[found.length - 1]
+}
+
+/** 잘못 잡힌 날짜를 사람이 고칠 수 있게 한다. */
+export function setDocDate(id: number, date: string): void {
+  run('UPDATE documents SET doc_date = ? WHERE id = ?', [date, id])
 }
 
 /* ---------- 대본 · 회의록 본보기 ---------- */

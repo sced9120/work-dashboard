@@ -1944,3 +1944,52 @@ textarea {
     left: 91px;
   }
 }
+
+/* ---------- 주제 이름 바꾸기 · 공문 날짜 고치기 ---------- */
+
+.topic-rename {
+  flex: 1;
+  min-width: 140px;
+  max-width: 320px;
+  padding: 5px 9px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.topic-rename:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.tl-date-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 1px dashed transparent;
+}
+
+.tl-date-btn:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.tl-date-edit {
+  width: 100%;
+  padding: 2px 4px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 11px;
+}
+
+.tl-date-edit:focus {
+  outline: none;
+}

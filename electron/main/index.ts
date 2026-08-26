@@ -176,6 +176,7 @@ function registerIpc(): void {
     db.batched(() => list.map((d) => db.addDoc(d)))
   )
   ipcMain.handle('docs:guessDate', (_e, text: string) => db.guessDocDate(text))
+  ipcMain.handle('docs:setDate', (_e, id: number, date: string) => db.setDocDate(id, date))
 
   /* ---------- 업무 일지 ---------- */
   ipcMain.handle('journal:list', () => db.listJournal())

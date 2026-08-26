@@ -6,6 +6,10 @@ import RoadmapInfographic from '../components/RoadmapInfographic'
 import TopicView from '../components/TopicView'
 import { useToast } from '../lib/toast'
 import { monthLabel, monthOf, schoolOrder, sortTasks } from '../lib/util'
+import { parseRenames, type TopicRenames } from '../lib/topics'
+
+/** 주제 이름표는 DB 설정에 담아 인수인계 파일과 함께 넘어가게 한다. */
+const RENAME_KEY = 'topic_renames'
 
 type ViewMode = '인포그래픽' | '업무별' | '달력' | '목록'
 
@@ -21,6 +25,7 @@ export default function Roadmap(): JSX.Element {
   const [tasks, setTasks] = useState<Task[]>([])
   const [view, setView] = useState<ViewMode>('인포그래픽')
   const [topic, setTopic] = useState<string | null>(null)
+  const [renames, setRenames] = useState<TopicRenames>({})
   const [tab, setTab] = useState<number | 'all'>('all')
   const [openId, setOpenId] = useState<number | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -28,8 +33,27 @@ export default function Roadmap(): JSX.Element {
   const [query, setQuery] = useState('')
 
   const load = useCallback(async () => {
-    setTasks(await window.api.tasks.list())
+    const [list, raw] = await Promise.all([
+      window.api.tasks.list(),
+      window.api.setting.get(RENAME_KEY, '')
+    ])
+    setTasks(list)
+    setRenames(parseRenames(raw))
   }, [])
+
+  /** 자동으로 붙은 이름을 사람이 고친 이름으로 바꿔 둔다. */
+  const renameTopic = useCallback(
+    async (autoName: string, next: string): Promise<void> => {
+      const trimmed = next.trim()
+      const merged = { ...renames }
+      // 원래 이름으로 되돌리면 이름표를 지운다
+      if (!trimmed || trimmed === autoName) delete merged[autoName]
+      else merged[autoName] = trimmed
+      setRenames(merged)
+      await window.api.setting.set(RENAME_KEY, JSON.stringify(merged))
+    },
+    [renames]
+  )
 
   useEffect(() => {
     void load()
@@ -102,6 +126,7 @@ export default function Roadmap(): JSX.Element {
       {view === '인포그래픽' && (
         <RoadmapInfographic
           tasks={tasks}
+          renames={renames}
           onPickTopic={(name) => {
             setTopic(name)
             setView('업무별')
@@ -113,6 +138,8 @@ export default function Roadmap(): JSX.Element {
         <TopicView
           tasks={tasks}
           initial={topic}
+          renames={renames}
+          onRename={renameTopic}
           onOpenTask={(t) => {
             setView('목록')
             setTab('all')

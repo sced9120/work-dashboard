@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
 import type { Task } from '../../shared/types'
 import { monthOf } from '../lib/util'
-import { groupByTopic, weekLabel, weekNum } from '../lib/topics'
+import { groupByTopic, weekLabel, weekNum, type TopicRenames } from '../lib/topics'
 
 interface Props {
   tasks: Task[]
+  /** 사람이 고쳐 붙인 주제 이름 */
+  renames: TopicRenames
   /** 주제를 누르면 업무별 보기로 넘긴다 */
   onPickTopic: (topic: string) => void
 }
@@ -39,15 +41,19 @@ interface WeekRow {
   total: number
 }
 
-export default function RoadmapInfographic({ tasks, onPickTopic }: Props): JSX.Element {
+export default function RoadmapInfographic({
+  tasks,
+  renames,
+  onPickTopic
+}: Props): JSX.Element {
   /** 업무 id → 주제 이름 */
   const topicOf = useMemo(() => {
     const map = new Map<number, string>()
-    for (const t of groupByTopic(tasks)) {
+    for (const t of groupByTopic(tasks, renames)) {
       for (const task of t.tasks) map.set(task.id, t.name)
     }
     return map
-  }, [tasks])
+  }, [tasks, renames])
 
   /** 달 → 주 → 주제별 묶음 */
   const byMonth = useMemo(() => {
