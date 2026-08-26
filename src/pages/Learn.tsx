@@ -3,6 +3,7 @@ import type { DocKind, ExtractedDoc, ModelChoice, TaskDraft } from '../../shared
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
 import ModelPicker from '../components/ModelPicker'
+import StoredDocsLearn from '../components/StoredDocsLearn'
 
 interface Props {
   jobTitle: string
@@ -28,6 +29,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   const [preview, setPreview] = useState<string | null>(null)
   const [keepOriginal, setKeepOriginal] = useState(true)
   const [model, setModel] = useState<ModelChoice | null>(null)
+  /** 파일을 새로 올릴지, 이미 보관한 공문을 학습할지 */
+  const [source, setSource] = useState<'파일' | '보관함'>('파일')
 
   useEffect(() => {
     void (async () => {
@@ -138,7 +141,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         key_points: d.key_points,
         filename: d.filename,
         is_completed: 0,
-        document_id: docIds.get(d.filename) ?? 0
+        // 보관함에서 뽑은 것은 이미 문서 id 를 달고 온다
+        document_id: d.document_id ?? docIds.get(d.filename) ?? 0
       }))
     )
     setDrafts([])
@@ -225,6 +229,22 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         </div>
       )}
 
+      <div className="viewswitch" style={{ marginBottom: 14 }}>
+        <button
+          className={`viewswitch-btn ${source === '파일' ? 'active' : ''}`}
+          onClick={() => setSource('파일')}
+        >
+          <span className="viewswitch-icon">📁</span> 파일 올리기
+        </button>
+        <button
+          className={`viewswitch-btn ${source === '보관함' ? 'active' : ''}`}
+          onClick={() => setSource('보관함')}
+          title="이미 보관해 둔 공문을 파일 고르기 없이 학습시킵니다"
+        >
+          <span className="viewswitch-icon">🗄</span> 저장된 문서 학습
+        </button>
+      </div>
+
       <div className="card">
         <div className="card-title">1. 문서 종류 고르기</div>
         <div className="row">
@@ -245,116 +265,135 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         </p>
       </div>
 
-      <div className="card">
-        <div className="card-title">
-          <span>2. 파일 올리기</span>
-          <button className="btn btn-sm" onClick={() => void pick()} disabled={busy}>
-            ＋ 파일 선택
-          </button>
-        </div>
-        <p className="hint" style={{ marginTop: 0 }}>
-          PDF · 한글(hwp, hwpx) · 엑셀(xlsx) · 워드(docx) · 텍스트를 지원합니다. PDF가 가장
-          정확합니다.
-        </p>
+      {source === '파일' ? (
+        <>
+        <div className="card">
+          <div className="card-title">
+            <span>2. 파일 올리기</span>
+            <button className="btn btn-sm" onClick={() => void pick()} disabled={busy}>
+              ＋ 파일 선택
+            </button>
+          </div>
+          <p className="hint" style={{ marginTop: 0 }}>
+            PDF · 한글(hwp, hwpx) · 엑셀(xlsx) · 워드(docx) · 텍스트를 지원합니다. PDF가 가장
+            정확합니다.
+          </p>
 
-        <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 10 }}>
-          <input
-            type="checkbox"
-            checked={keepOriginal}
-            onChange={(e) => setKeepOriginal(e.target.checked)}
-            style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
-          />
-          <span className="small">
-            공문 원문도 함께 보관하기 <span className="muted">— [통합 검색]에서 찾을 수 있습니다</span>
-          </span>
-        </label>
+          <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 10 }}>
+            <input
+              type="checkbox"
+              checked={keepOriginal}
+              onChange={(e) => setKeepOriginal(e.target.checked)}
+              style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+            />
+            <span className="small">
+              공문 원문도 함께 보관하기 <span className="muted">— [통합 검색]에서 찾을 수 있습니다</span>
+            </span>
+          </label>
 
-        {files.length === 0 ? (
-          <div className="empty">아직 올린 파일이 없습니다.</div>
-        ) : (
-          <div className="list">
-            {files.map((f) => (
-              <div className="item" key={f.path}>
-                <div className="item-head">
-                  <div>
-                    <div className="item-title">{f.name}</div>
-                    <div className="item-meta">
-                      {f.state === '읽음' && `${f.doc?.chars.toLocaleString()}자 읽음`}
-                      {f.state === '읽는 중' && '읽는 중…'}
-                      {f.state === '대기' && '대기 중'}
-                      {f.state === '실패' && '읽기 실패'}
+          {files.length === 0 ? (
+            <div className="empty">아직 올린 파일이 없습니다.</div>
+          ) : (
+            <div className="list">
+              {files.map((f) => (
+                <div className="item" key={f.path}>
+                  <div className="item-head">
+                    <div>
+                      <div className="item-title">{f.name}</div>
+                      <div className="item-meta">
+                        {f.state === '읽음' && `${f.doc?.chars.toLocaleString()}자 읽음`}
+                        {f.state === '읽는 중' && '읽는 중…'}
+                        {f.state === '대기' && '대기 중'}
+                        {f.state === '실패' && '읽기 실패'}
+                      </div>
                     </div>
-                  </div>
-                  <div className="row">
-                    {f.doc?.text && (
+                    <div className="row">
+                      {f.doc?.text && (
+                        <button
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => setPreview(preview === f.path ? null : f.path)}
+                        >
+                          {preview === f.path ? '내용 닫기' : '내용 보기'}
+                        </button>
+                      )}
+                      {f.state === '읽음' && (
+                        <button className="btn btn-sm btn-ghost" onClick={() => void saveRawAsTask(f)}>
+                          그대로 등록
+                        </button>
+                      )}
                       <button
                         className="btn btn-sm btn-ghost"
-                        onClick={() => setPreview(preview === f.path ? null : f.path)}
+                        onClick={() => setFiles((prev) => prev.filter((x) => x.path !== f.path))}
+                        disabled={busy}
                       >
-                        {preview === f.path ? '내용 닫기' : '내용 보기'}
+                        제거
                       </button>
-                    )}
-                    {f.state === '읽음' && (
-                      <button className="btn btn-sm btn-ghost" onClick={() => void saveRawAsTask(f)}>
-                        그대로 등록
-                      </button>
-                    )}
-                    <button
-                      className="btn btn-sm btn-ghost"
-                      onClick={() => setFiles((prev) => prev.filter((x) => x.path !== f.path))}
-                      disabled={busy}
-                    >
-                      제거
-                    </button>
+                    </div>
                   </div>
+                  {f.doc?.error && (
+                    <div className="note note-danger" style={{ marginTop: 8 }}>
+                      {f.doc.error}
+                    </div>
+                  )}
+                  {preview === f.path && f.doc?.text && (
+                    <div className="scroll-box" style={{ marginTop: 8 }}>
+                      {f.doc.text.slice(0, 4000)}
+                      {f.doc.text.length > 4000 ? '\n\n… (이하 생략)' : ''}
+                    </div>
+                  )}
                 </div>
-                {f.doc?.error && (
-                  <div className="note note-danger" style={{ marginTop: 8 }}>
-                    {f.doc.error}
-                  </div>
-                )}
-                {preview === f.path && f.doc?.text && (
-                  <div className="scroll-box" style={{ marginTop: 8 }}>
-                    {f.doc.text.slice(0, 4000)}
-                    {f.doc.text.length > 4000 ? '\n\n… (이하 생략)' : ''}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="card">
-        <div className="card-title">3. AI로 정리하기</div>
-        {hasKey && <ModelPicker feature="analyze" label="문서 분석에 쓸 모델" onReady={setModel} onChange={setModel} />}
-        <div className="row">
-          <button
-            className="btn btn-primary"
-            onClick={() => void analyze()}
-            disabled={busy || !hasKey || readyCount === 0}
-          >
-            {busy ? '분석 중…' : `${readyCount}개 문서 분석 시작`}
-          </button>
-          <button
-            className="btn"
-            onClick={() => void archiveOnly()}
-            disabled={busy || readyCount === 0}
-          >
-            📁 AI 없이 원문만 보관
-          </button>
-          {busy && <span className="muted small">{progress}</span>}
+              ))}
+            </div>
+          )}
         </div>
-        <p className="hint" style={{ marginTop: 8 }}>
-          지난 공문을 검색용으로 쌓아두기만 할 때는 “원문만 보관”을 쓰세요. AI 사용료가 들지 않고
-          훨씬 빠릅니다.
-        </p>
-        {busy && (
-          <div className="progress" style={{ marginTop: 12 }}>
-            <div style={{ width: `${readyCount ? (done / readyCount) * 100 : 0}%` }} />
+
+        <div className="card">
+          <div className="card-title">3. AI로 정리하기</div>
+          {hasKey && <ModelPicker feature="analyze" label="문서 분석에 쓸 모델" onReady={setModel} onChange={setModel} />}
+          <div className="row">
+            <button
+              className="btn btn-primary"
+              onClick={() => void analyze()}
+              disabled={busy || !hasKey || readyCount === 0}
+            >
+              {busy ? '분석 중…' : `${readyCount}개 문서 분석 시작`}
+            </button>
+            <button
+              className="btn"
+              onClick={() => void archiveOnly()}
+              disabled={busy || readyCount === 0}
+            >
+              📁 AI 없이 원문만 보관
+            </button>
+            {busy && <span className="muted small">{progress}</span>}
           </div>
-        )}
-      </div>
+          <p className="hint" style={{ marginTop: 8 }}>
+            지난 공문을 검색용으로 쌓아두기만 할 때는 “원문만 보관”을 쓰세요. AI 사용료가 들지 않고
+            훨씬 빠릅니다.
+          </p>
+          {busy && (
+            <div className="progress" style={{ marginTop: 12 }}>
+              <div style={{ width: `${readyCount ? (done / readyCount) * 100 : 0}%` }} />
+            </div>
+          )}
+        </div>
+        </>
+      ) : (
+        <div className="card">
+          <div className="card-title">
+            <span>2. 저장된 문서 학습하기</span>
+          </div>
+          {hasKey && (
+            <ModelPicker feature="analyze" label="문서 분석에 쓸 모델" onReady={setModel} onChange={setModel} />
+          )}
+          <StoredDocsLearn
+            jobTitle={jobTitle}
+            kind={kind}
+            model={model}
+            onDrafts={(list) => setDrafts((prev) => [...prev, ...list])}
+          />
+        </div>
+      )}
 
       {drafts.length > 0 && (
         <div className="card">

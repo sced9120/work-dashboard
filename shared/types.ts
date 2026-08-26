@@ -112,6 +112,11 @@ export interface TaskDraft {
   filename: string
   /** 등록 대상으로 선택되었는지 */
   selected: boolean
+  /**
+   * 이미 보관된 공문에서 뽑은 것이면 그 문서 id.
+   * 보관함을 다시 학습시킬 때 원문을 두 번 넣지 않으려고 들고 다닌다.
+   */
+  document_id?: number
 }
 
 export type DocKind = '길라잡이/매뉴얼' | '개별 공문'
