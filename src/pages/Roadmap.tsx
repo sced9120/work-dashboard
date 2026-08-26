@@ -3,21 +3,24 @@ import type { Task, TaskInput } from '../../shared/types'
 import TaskForm from '../components/TaskForm'
 import Calendar from '../components/Calendar'
 import RoadmapInfographic from '../components/RoadmapInfographic'
+import TopicView from '../components/TopicView'
 import { useToast } from '../lib/toast'
 import { monthLabel, monthOf, schoolOrder, sortTasks } from '../lib/util'
 
-type ViewMode = '목록' | '달력' | '인포그래픽'
+type ViewMode = '인포그래픽' | '업무별' | '달력' | '목록'
 
 const VIEWS: { id: ViewMode; icon: string; hint: string }[] = [
-  { id: '목록', icon: '☰', hint: '업무를 펼쳐 보고 고치는 곳' },
+  { id: '인포그래픽', icon: '📊', hint: '한 해 흐름을 주제로 묶어 한눈에' },
+  { id: '업무별', icon: '🗂', hint: '한 업무의 공문·진행을 날짜순으로' },
   { id: '달력', icon: '🗓', hint: '날짜에 일정을 직접 넣는 곳' },
-  { id: '인포그래픽', icon: '📊', hint: '한 해 흐름을 한눈에' }
+  { id: '목록', icon: '☰', hint: '업무 하나하나를 펼쳐 보고 고치는 곳' }
 ]
 
 export default function Roadmap(): JSX.Element {
   const toast = useToast()
   const [tasks, setTasks] = useState<Task[]>([])
-  const [view, setView] = useState<ViewMode>('목록')
+  const [view, setView] = useState<ViewMode>('인포그래픽')
+  const [topic, setTopic] = useState<string | null>(null)
   const [tab, setTab] = useState<number | 'all'>('all')
   const [openId, setOpenId] = useState<number | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -99,7 +102,18 @@ export default function Roadmap(): JSX.Element {
       {view === '인포그래픽' && (
         <RoadmapInfographic
           tasks={tasks}
-          onPick={(t) => {
+          onPickTopic={(name) => {
+            setTopic(name)
+            setView('업무별')
+          }}
+        />
+      )}
+
+      {view === '업무별' && (
+        <TopicView
+          tasks={tasks}
+          initial={topic}
+          onOpenTask={(t) => {
             setView('목록')
             setTab('all')
             setQuery('')
