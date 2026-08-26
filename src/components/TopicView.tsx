@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { DocFull, SearchHit, Task } from '../../shared/types'
+import type { DocFull, SearchHit, Task, Workflow } from '../../shared/types'
+import { BLANK_WORKFLOW } from '../../shared/types'
+import WorkflowEditor, { draftWorkflow } from './WorkflowEditor'
 import { useToast } from '../lib/toast'
 import { groupByTopic, type TopicRenames } from '../lib/topics'
 import { monthOf, schoolOrder, todayStr, weekOf } from '../lib/util'
@@ -19,6 +21,21 @@ interface Props {
 /** 흐름도는 DB 설정에 담아 인수인계 파일과 함께 넘어가게 한다. */
 function flowKey(topic: string): string {
   return `flow:${topic}`
+}
+
+/** 그림 워크플로우도 같은 방식으로 담는다. 값은 JSON. */
+function wfKey(topic: string): string {
+  return `wf:${topic}`
+}
+
+function parseWorkflow(raw: string): Workflow {
+  try {
+    const v = JSON.parse(raw) as Workflow
+    if (!v || !Array.isArray(v.nodes) || !Array.isArray(v.edges)) return BLANK_WORKFLOW
+    return v
+  } catch {
+    return BLANK_WORKFLOW
+  }
 }
 
 /** 이 주제의 업무들로 흐름도 초안을 짠다. AI 없이 있는 자료만 쓴다. */
@@ -80,6 +97,11 @@ export default function TopicView({
   const [flowOpen, setFlowOpen] = useState(false)
   const [editing, setEditing] = useState(false)
 
+  /** 그림 워크플로우 */
+  const [wf, setWf] = useState<Workflow>(BLANK_WORKFLOW)
+  const [wfOpen, setWfOpen] = useState(false)
+  const [wfDirty, setWfDirty] = useState(false)
+
   /** 이름 바꾸는 중이면 그 값 */
   const [renaming, setRenaming] = useState<string | null>(null)
   /** 날짜를 고치는 중인 공문 id */
@@ -108,7 +130,13 @@ export default function TopicView({
   }, [])
 
   const loadFlow = useCallback(async (topic: string) => {
-    setFlow(await window.api.setting.get(flowKey(topic), ''))
+    const [text, raw] = await Promise.all([
+      window.api.setting.get(flowKey(topic), ''),
+      window.api.setting.get(wfKey(topic), '')
+    ])
+    setFlow(text)
+    setWf(parseWorkflow(raw))
+    setWfDirty(false)
     setEditing(false)
   }, [])
 
@@ -117,6 +145,7 @@ export default function TopicView({
     void loadDocs(picked)
     void loadFlow(picked)
     setFlowOpen(false)
+    setWfOpen(false)
   }, [picked, loadDocs, loadFlow])
 
   const saveFlow = async (): Promise<void> => {
@@ -124,6 +153,25 @@ export default function TopicView({
     await window.api.setting.set(flowKey(picked), flow)
     setEditing(false)
     toast('흐름도를 저장했습니다. 인수인계 파일에 함께 넘어갑니다.', 'ok')
+  }
+
+  const saveWf = async (): Promise<void> => {
+    if (!picked) return
+    // 빈 그림은 값을 지워 둔다. 그래야 "아직 안 그림" 과 구분된다.
+    const has = wf.nodes.length > 0
+    await window.api.setting.set(wfKey(picked), has ? JSON.stringify(wf) : '')
+    setWfDirty(false)
+    toast(
+      has
+        ? '워크플로우를 저장했습니다. 인수인계 파일에 함께 넘어갑니다.'
+        : '워크플로우를 비웠습니다.',
+      'ok'
+    )
+  }
+
+  const changeWf = (next: Workflow): void => {
+    setWf(next)
+    setWfDirty(true)
   }
 
   /**
@@ -139,12 +187,14 @@ export default function TopicView({
       return
     }
 
-    const old = await window.api.setting.get(flowKey(current.name), '')
-    if (old) {
-      const already = await window.api.setting.get(flowKey(next), '')
-      // 합치는 경우 이미 있는 흐름도를 덮지 않는다
-      if (!already) await window.api.setting.set(flowKey(next), old)
-      await window.api.setting.set(flowKey(current.name), '')
+    // 글 흐름도와 그림 워크플로우 둘 다 새 이름으로 옮긴다
+    for (const key of [flowKey, wfKey]) {
+      const old = await window.api.setting.get(key(current.name), '')
+      if (!old) continue
+      const already = await window.api.setting.get(key(next), '')
+      // 합치는 경우 이미 있는 것을 덮지 않는다
+      if (!already) await window.api.setting.set(key(next), old)
+      await window.api.setting.set(key(current.name), '')
     }
 
     await onRename(current.autoName, next)
@@ -319,13 +369,52 @@ export default function TopicView({
                 <span className="badge badge-accent">업무 {current.tasks.length}건</span>
                 {docItems.length > 0 && <span className="badge">공문 {docItems.length}건</span>}
                 <span className="spacer" />
+                <button className="btn btn-sm" onClick={() => setFlowOpen((v) => !v)}>
+                  🗺 글 흐름도
+                </button>
                 <button
-                  className="btn btn-sm btn-primary"
-                  onClick={() => setFlowOpen((v) => !v)}
+                  className={`btn btn-sm ${wf.nodes.length ? 'btn-primary' : ''}`}
+                  onClick={() => setWfOpen((v) => !v)}
+                  title="상자와 화살표로 그리는 워크플로우"
                 >
-                  🗺 업무 흐름도
+                  🧩 워크플로우 그리기
+                  {wf.nodes.length > 0 && ` (${wf.nodes.length})`}
                 </button>
               </div>
+
+              {wfOpen && (
+                <div className="flow-panel">
+                  {wf.nodes.length === 0 && (
+                    <div className="note note-info" style={{ marginBottom: 10 }}>
+                      상자를 놓아 업무 흐름을 그립니다. <b>[✍ 업무로 자동 배치]</b> 를 누르면
+                      등록된 업무 {current.tasks.length}건을 시기 순으로 세워 첫 그림을 만들어
+                      줍니다. 거기서 옮기고 고치시면 됩니다.
+                    </div>
+                  )}
+
+                  <WorkflowEditor
+                    topic={current.name}
+                    value={wf}
+                    onChange={changeWf}
+                    tasks={current.tasks}
+                  />
+
+                  <div className="row row-end" style={{ marginTop: 10 }}>
+                    {wfDirty && <span className="badge badge-warn">저장 안 된 변경</span>}
+                    <span className="spacer" />
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => void loadFlow(current.name)}
+                      disabled={!wfDirty}
+                    >
+                      되돌리기
+                    </button>
+                    <button className="btn btn-sm btn-primary" onClick={() => void saveWf()}>
+                      저장
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {flowOpen && (
                 <div className="flow-panel">

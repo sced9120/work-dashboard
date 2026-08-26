@@ -4,6 +4,7 @@ import { ToastProvider } from './lib/toast'
 import Onboarding from './pages/Onboarding'
 import Home from './pages/Home'
 import Roadmap from './pages/Roadmap'
+import CalendarPage from './pages/CalendarPage'
 import Guide from './pages/Guide'
 import Learn from './pages/Learn'
 import Search from './pages/Search'
@@ -16,6 +17,7 @@ import Settings from './pages/Settings'
 
 export type PageId =
   | '홈'
+  | '달력'
   | '로드맵'
   | '가이드'
   | '학습'
@@ -27,18 +29,43 @@ export type PageId =
   | '데이터'
   | '설정'
 
-const NAV: { id: PageId; icon: string; label: string }[] = [
-  { id: '홈', icon: '🏠', label: '홈' },
-  { id: '로드맵', icon: '🗓', label: '연간 업무 로드맵' },
-  { id: '가이드', icon: '📋', label: '업무 상세 가이드' },
-  { id: '검색', icon: '🔎', label: '통합 검색' },
-  { id: '도우미', icon: '💬', label: '업무 도우미 (AI)' },
-  { id: '학습', icon: '📥', label: '문서로 업무 만들기' },
-  { id: '위원회', icon: '⚖️', label: '선도위원회 자료' },
-  { id: '기한', icon: '⏰', label: '절차 기한' },
-  { id: '일지', icon: '✍️', label: '업무 일지' },
-  { id: '데이터', icon: '💾', label: '인수인계 · 백업' },
-  { id: '설정', icon: '⚙️', label: '설정' }
+/**
+ * 메뉴가 열한 개를 넘어서면서 한 줄로 늘어놓으니 무엇이 무엇인지 찾기 어려웠다.
+ * 하는 일에 따라 네 묶음으로 나눈다.
+ */
+const NAV: { section: string; items: { id: PageId; icon: string; label: string }[] }[] = [
+  {
+    section: '오늘',
+    items: [
+      { id: '홈', icon: '🏠', label: '홈' },
+      { id: '달력', icon: '🗓', label: '달력' },
+      { id: '기한', icon: '⏰', label: '절차 기한' },
+      { id: '일지', icon: '✍️', label: '업무 일지' }
+    ]
+  },
+  {
+    section: '업무 살펴보기',
+    items: [
+      { id: '로드맵', icon: '📊', label: '연간 업무 로드맵' },
+      { id: '검색', icon: '🔎', label: '통합 검색' },
+      { id: '도우미', icon: '💬', label: '업무 도우미 (AI)' },
+      { id: '가이드', icon: '📋', label: '업무 상세 가이드' }
+    ]
+  },
+  {
+    section: '자료 만들기',
+    items: [
+      { id: '학습', icon: '📥', label: '문서로 업무 만들기' },
+      { id: '위원회', icon: '⚖️', label: '선도위원회 자료' }
+    ]
+  },
+  {
+    section: '관리',
+    items: [
+      { id: '데이터', icon: '💾', label: '인수인계 · 백업' },
+      { id: '설정', icon: '⚙️', label: '설정' }
+    ]
+  }
 ]
 
 function Shell(): JSX.Element {
@@ -107,15 +134,20 @@ function Shell(): JSX.Element {
           <div className="brand-sub">{schoolName || '업무 인수인계 대시보드'}</div>
         </div>
 
-        {NAV.map((n) => (
-          <button
-            key={n.id}
-            className={`nav-btn ${page === n.id ? 'active' : ''}`}
-            onClick={() => setPage(n.id)}
-          >
-            <span className="nav-icon">{n.icon}</span>
-            <span>{n.label}</span>
-          </button>
+        {NAV.map((group) => (
+          <div className="nav-group" key={group.section}>
+            <div className="nav-section">{group.section}</div>
+            {group.items.map((n) => (
+              <button
+                key={n.id}
+                className={`nav-btn ${page === n.id ? 'active' : ''}`}
+                onClick={() => setPage(n.id)}
+              >
+                <span className="nav-icon">{n.icon}</span>
+                <span>{n.label}</span>
+              </button>
+            ))}
+          </div>
         ))}
 
         <div className="sidebar-foot">버전 {version}</div>
@@ -192,6 +224,7 @@ function Shell(): JSX.Element {
         )}
 
         {page === '홈' && <Home jobTitle={jobTitle} onGo={setPage} />}
+        {page === '달력' && <CalendarPage />}
         {page === '로드맵' && <Roadmap />}
         {page === '가이드' && <Guide />}
         {page === '검색' && <Search jobTitle={jobTitle} onGo={setPage} />}

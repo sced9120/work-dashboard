@@ -1993,3 +1993,235 @@ textarea {
 .tl-date-edit:focus {
   outline: none;
 }
+
+/* ---------- 사이드바 묶음 ---------- */
+
+.nav-group {
+  margin-bottom: 10px;
+}
+
+.nav-section {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #6b7a8d;
+  padding: 8px 11px 4px;
+  text-transform: none;
+}
+
+/* ---------- 달력 크기 ---------- */
+
+.cal-big .cal-cell {
+  min-height: 128px;
+}
+
+.cal-big .cal-chip {
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+.cal-big .cal-num {
+  font-size: 13px;
+  width: 24px;
+  height: 24px;
+}
+
+.cal-compact .cal-cell {
+  min-height: 62px;
+  padding: 3px;
+}
+
+.cal-compact .cal-chip {
+  font-size: 10px;
+  line-height: 1.35;
+  padding: 0 4px;
+}
+
+.cal-compact .cal-num {
+  font-size: 11px;
+  width: 18px;
+  height: 18px;
+}
+
+.cal-compact .cal-day {
+  margin-top: 10px;
+}
+
+.cal-compact .cal-bar {
+  margin-bottom: 8px;
+}
+
+/* ---------- 워크플로우 판 ---------- */
+
+.wf-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.wf-hint {
+  margin-bottom: 8px;
+}
+
+.wf-canvas-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(90deg, var(--border) 1px, transparent 1px) 0 0 / 20px 20px,
+    linear-gradient(var(--border) 1px, transparent 1px) 0 0 / 20px 20px,
+    var(--surface-2);
+  background-blend-mode: normal;
+  overflow: auto;
+  max-height: 620px;
+  position: relative;
+}
+
+.wf-ro .wf-canvas-wrap {
+  max-height: none;
+}
+
+.wf-canvas {
+  position: relative;
+}
+
+.wf-svg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wf-edge-hit {
+  fill: transparent;
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.wf-edge-hit:hover {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+}
+
+.wf-edge-label {
+  font-size: 11px;
+  fill: var(--muted);
+  paint-order: stroke;
+  stroke: var(--surface-2);
+  stroke-width: 4px;
+  font-weight: 600;
+}
+
+.wf-node {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 14px 12px;
+  border-radius: 10px;
+  border: 2px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.45;
+  user-select: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.wf-node:active {
+  cursor: grabbing;
+}
+
+.wf-ro .wf-node {
+  cursor: default;
+}
+
+.wf-node.sel {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.wf-node.linking {
+  border-color: var(--warn);
+  box-shadow: 0 0 0 3px var(--warn-soft);
+}
+
+.wf-node-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wf-node-edit {
+  width: 100%;
+  min-height: 100%;
+  border: 0;
+  background: transparent;
+  resize: none;
+  font: inherit;
+  text-align: center;
+  outline: none;
+  cursor: text;
+}
+
+/* 상자 종류 */
+.wf-node.k-start {
+  border-radius: 999px;
+  border-color: var(--ok);
+  background: var(--ok-soft);
+  color: #0f5c2b;
+  font-weight: 700;
+}
+
+.wf-node.k-end {
+  border-radius: 999px;
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: #96201f;
+  font-weight: 700;
+}
+
+.wf-node.k-decision {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: #7c4a06;
+  transform: none;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.wf-node.k-decision::before {
+  content: '◆';
+  position: absolute;
+  top: -9px;
+  left: 8px;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.wf-node.k-step {
+  border-color: #b9c6d8;
+}
+
+.wf-foot {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  min-height: 42px;
+}
+
+.wf-foot select {
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  font-size: 12px;
+}

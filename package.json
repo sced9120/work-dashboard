@@ -1,6 +1,6 @@
 {
   "name": "work-dashboard",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "학교 업무 인수인계 대시보드",
   "main": "./out/main/index.js",
   "author": "정현서",

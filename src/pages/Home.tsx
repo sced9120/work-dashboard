@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Notice, Task } from '../../shared/types'
 import type { PageId } from '../App'
+import Calendar from '../components/Calendar'
 import { useToast } from '../lib/toast'
 import { monthOf, sortTasks, todayStr } from '../lib/util'
 
@@ -81,6 +82,14 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
         <p>
           등록된 업무 {tasks.length}건 · 완료 {doneCount}건 · 공지 {notices.length}건
         </p>
+      </div>
+
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="card-title">
+          <span>이 달 일정</span>
+          <span className="muted small">날짜를 두 번 누르면 바로 넣을 수 있습니다</span>
+        </div>
+        <Calendar tasks={tasks} compact onOpenFull={() => onGo('달력')} />
       </div>
 
       <div className="cols cols-2">

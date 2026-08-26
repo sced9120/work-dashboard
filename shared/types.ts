@@ -285,6 +285,45 @@ export const BLANK_EVENT: CalEventInput = {
   done: 0
 }
 
+/* ---------- 업무 워크플로우 (그림으로 그리는 흐름도) ---------- */
+
+/** 흐름도의 상자 하나 */
+export interface WfNode {
+  id: string
+  /** 판 위의 자리 */
+  x: number
+  y: number
+  /** 상자 너비. 높이는 글자 수에 따라 늘어난다 */
+  w: number
+  text: string
+  /** 시작·일반 단계·판단(마름모)·끝 */
+  kind: 'start' | 'step' | 'decision' | 'end'
+}
+
+/** 상자와 상자를 잇는 화살표 */
+export interface WfEdge {
+  id: string
+  from: string
+  to: string
+  /** 화살표에 붙는 말. 판단 뒤의 "예 / 아니오" 같은 것 */
+  label: string
+}
+
+export interface Workflow {
+  nodes: WfNode[]
+  edges: WfEdge[]
+}
+
+export const BLANK_WORKFLOW: Workflow = { nodes: [], edges: [] }
+
+/** 상자 종류별 이름과 기본 크기 */
+export const WF_KINDS: { id: WfNode['kind']; label: string }[] = [
+  { id: 'start', label: '시작' },
+  { id: 'step', label: '단계' },
+  { id: 'decision', label: '판단' },
+  { id: 'end', label: '끝' }
+]
+
 /* ---------- 업데이트 확인 ---------- */
 
 export interface UpdateInfo {

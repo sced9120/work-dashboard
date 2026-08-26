@@ -6,6 +6,12 @@ import { monthOf, todayStr, weekOf } from '../lib/util'
 
 interface Props {
   tasks: Task[]
+  /** 달력 전용 화면에서 칸을 크게 쓴다 */
+  big?: boolean
+  /** 홈에 얹을 때. 이 달 일정만 간추려 보여 준다 */
+  compact?: boolean
+  /** 홈에서 [크게 보기] 를 눌렀을 때 */
+  onOpenFull?: () => void
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
@@ -42,7 +48,7 @@ function ddayLabel(due: string): string {
   return `D-${d}`
 }
 
-export default function Calendar({ tasks }: Props): JSX.Element {
+export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JSX.Element {
   const toast = useToast()
   const today = todayStr()
 
@@ -183,7 +189,7 @@ export default function Calendar({ tasks }: Props): JSX.Element {
   const selectedDeadlines = deadlinesOn(selected)
 
   return (
-    <div className="cal">
+    <div className={`cal ${big ? "cal-big" : ""} ${compact ? "cal-compact" : ""}`}>
       {/* ── 달 이동 ── */}
       <div className="cal-bar">
         <button className="cal-nav" onClick={() => move(-1)} title="이전 달">
@@ -199,8 +205,13 @@ export default function Calendar({ tasks }: Props): JSX.Element {
         <button className="btn btn-sm" onClick={goToday}>
           오늘
         </button>
+        {compact && onOpenFull && (
+          <button className="btn btn-sm" onClick={onOpenFull} title="달력 화면으로 크게 보기">
+            ⛶ 크게
+          </button>
+        )}
         <button className="btn btn-sm btn-primary" onClick={() => openNew(selected || today)}>
-          ＋ 일정 넣기
+          ＋ 일정
         </button>
       </div>
 
@@ -336,7 +347,7 @@ export default function Calendar({ tasks }: Props): JSX.Element {
       </div>
 
       {/* ── 이 달의 업무 (뭉뚱그린 시기라 날짜 칸에는 못 올린다) ── */}
-      {monthTasks.length > 0 && (
+      {!compact && monthTasks.length > 0 && (
         <div className="card">
           <div className="card-title">
             <span>{cursor.month}월 업무</span>
