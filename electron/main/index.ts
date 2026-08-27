@@ -272,6 +272,7 @@ function registerIpc(): void {
   /* ---------- DB에 저장되는 설정 ---------- */
   ipcMain.handle('setting:get', (_e, key: string, fallback: string) => db.getSetting(key, fallback))
   ipcMain.handle('setting:set', (_e, key: string, value: string) => db.setSetting(key, value))
+  ipcMain.handle('setting:byPrefix', (_e, prefix: string) => db.settingsByPrefix(prefix))
 
   /* ---------- 이 PC에만 저장되는 설정 ---------- */
   ipcMain.handle('local:load', () => loadLocalSettings())

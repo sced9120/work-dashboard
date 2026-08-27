@@ -121,7 +121,9 @@ const api = {
     get: (key: string, fallback = ''): Promise<string> =>
       ipcRenderer.invoke('setting:get', key, fallback),
     set: (key: string, value: string): Promise<void> =>
-      ipcRenderer.invoke('setting:set', key, value)
+      ipcRenderer.invoke('setting:set', key, value),
+    byPrefix: (prefix: string): Promise<{ key: string; value: string }[]> =>
+      ipcRenderer.invoke('setting:byPrefix', prefix)
   },
   local: {
     load: (): Promise<LocalSettings> => ipcRenderer.invoke('local:load'),

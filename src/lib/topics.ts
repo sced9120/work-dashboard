@@ -170,6 +170,39 @@ export function groupByTopic(tasks: Task[], renames: TopicRenames = {}): Topic[]
   )
 }
 
+/* ---------- 업무분장표와 맞춰 보기 ---------- */
+
+/**
+ * 업무분장표에 적힌 일인지 가려낸다.
+ *
+ * 전임자에게서 넘어온 공문에는 지금 담당자의 분장에 없는 것이 섞여 있다.
+ * (부서가 바뀌었거나, 전임자가 겸했던 일이거나) 그것을 갈라 두면
+ * "내가 맡은 일" 과 "참고로 남은 자료" 를 구분해 볼 수 있다.
+ *
+ * 분장표는 표를 붙여넣거나 파일에서 뽑은 글이라 형식이 제각각이다.
+ * 그래서 낱말 단위로만 본다 — 주제의 낱말이 분장표에 나오면 내 일로 친다.
+ */
+export function rosterMatcher(roster: string): (topicName: string) => boolean {
+  const hay = roster.toLowerCase().replace(/\s+/g, '')
+  if (!hay) return () => true // 분장표를 안 적었으면 가르지 않는다
+
+  return (topicName: string) => {
+    const tokens = tokenize(topicName).filter((t) => !GENERIC.has(t))
+    if (!tokens.length) return false
+    // 낱말 하나라도 분장표에 있으면 내 일로 본다.
+    //
+    // 전부 맞추길 요구하면 안 된다 — 분장표는 "학교폭력 예방" 처럼 줄여 적는데
+    // 공문에서 뽑은 주제는 "학교폭력 예방교육" 처럼 길어서 다 걸러진다.
+    //
+    // 대신 느슨한 만큼 헛짚기도 한다. "학교문화 책임규약" 은 분장표의
+    // "학교문화지킴이" 와 '학교문화' 를 나눠 가져 내 일로 잡힌다. 이쪽으로
+    // 틀리는 편을 골랐다 — 반대로 틀리면 내가 맡은 일이 '분장 밖' 으로
+    // 숨어 버리기 때문이다. 갈라 놓은 것은 보기 편하라고 하는 것이지
+    // 딱 잘라 나누는 것이 아니다.
+    return tokens.some((t) => hay.includes(t.toLowerCase()))
+  }
+}
+
 /** "3월 1주" → 1, "수시" → 0 (주를 모르는 것) */
 export function weekNum(display: string): number {
   const m = /(\d{1,2})\s*주/.exec(display ?? '')

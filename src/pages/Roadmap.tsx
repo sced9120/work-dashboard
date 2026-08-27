@@ -136,6 +136,7 @@ export default function Roadmap(): JSX.Element {
           initial={topic}
           renames={renames}
           onRename={renameTopic}
+          onChanged={load}
           onOpenTask={(t) => {
             setView('목록')
             setTab('all')

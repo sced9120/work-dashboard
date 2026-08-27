@@ -5,6 +5,7 @@ import Onboarding from './pages/Onboarding'
 import Home from './pages/Home'
 import Roadmap from './pages/Roadmap'
 import CalendarPage from './pages/CalendarPage'
+import Workflows from './pages/Workflows'
 import Guide from './pages/Guide'
 import Learn from './pages/Learn'
 import Search from './pages/Search'
@@ -19,6 +20,7 @@ export type PageId =
   | '홈'
   | '달력'
   | '로드맵'
+  | '워크플로우'
   | '가이드'
   | '학습'
   | '검색'
@@ -47,6 +49,7 @@ const NAV: { section: string; items: { id: PageId; icon: string; label: string }
     section: '업무 살펴보기',
     items: [
       { id: '로드맵', icon: '📊', label: '연간 업무 로드맵' },
+      { id: '워크플로우', icon: '🧩', label: '업무 워크플로우' },
       { id: '검색', icon: '🔎', label: '통합 검색' },
       { id: '도우미', icon: '💬', label: '업무 도우미 (AI)' },
       { id: '가이드', icon: '📋', label: '업무 상세 가이드' }
@@ -226,6 +229,7 @@ function Shell(): JSX.Element {
         {page === '홈' && <Home jobTitle={jobTitle} onGo={setPage} />}
         {page === '달력' && <CalendarPage />}
         {page === '로드맵' && <Roadmap />}
+        {page === '워크플로우' && <Workflows onGo={setPage} />}
         {page === '가이드' && <Guide />}
         {page === '검색' && <Search jobTitle={jobTitle} onGo={setPage} />}
         {page === '도우미' && <Chat jobTitle={jobTitle} onGo={setPage} />}

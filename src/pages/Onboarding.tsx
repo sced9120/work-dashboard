@@ -9,6 +9,8 @@ export default function Onboarding({ onDone }: Props): JSX.Element {
   const toast = useToast()
   const [job, setJob] = useState('')
   const [school, setSchool] = useState('')
+  const [roster, setRoster] = useState('')
+  const [reading, setReading] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const start = async (): Promise<void> => {
@@ -19,7 +21,29 @@ export default function Onboarding({ onDone }: Props): JSX.Element {
     setBusy(true)
     await window.api.setting.set('job_title', job.trim())
     await window.api.setting.set('school_name', school.trim())
+    await window.api.setting.set('duty_roster', roster.trim())
     await onDone()
+  }
+
+  /** 업무분장표 파일에서 글을 뽑아 칸에 채운다. */
+  const pickRoster = async (): Promise<void> => {
+    const picked = await window.api.files.pick()
+    if (!picked.length) return
+    setReading(true)
+    try {
+      const parts: string[] = []
+      for (const p of picked) {
+        const doc = await window.api.files.extract(p.path)
+        if (doc.error) toast(`${p.name}: ${doc.error}`, 'err')
+        else if (doc.text.trim()) parts.push(doc.text)
+      }
+      if (parts.length) {
+        setRoster((prev) => [prev, ...parts].filter(Boolean).join('\n\n'))
+        toast(`${parts.length}개 문서에서 읽어 왔습니다.`, 'ok')
+      }
+    } finally {
+      setReading(false)
+    }
   }
 
   const restore = async (): Promise<void> => {
@@ -70,6 +94,40 @@ export default function Onboarding({ onDone }: Props): JSX.Element {
               placeholder="예: ○○고등학교"
             />
           </div>
+          <div className="field">
+            <label htmlFor="roster">
+              업무분장표 (선택) <span className="muted">— 나중에 [설정]에서 넣어도 됩니다</span>
+            </label>
+            <div className="row" style={{ marginBottom: 6 }}>
+              <button className="btn btn-sm" onClick={() => void pickRoster()} disabled={reading}>
+                {reading ? '읽는 중…' : '📄 파일에서 불러오기'}
+              </button>
+              <span className="muted small">한글·엑셀·PDF 에서 글을 뽑아 옵니다</span>
+              {roster && (
+                <>
+                  <span className="spacer" />
+                  <button className="btn btn-sm btn-ghost" onClick={() => setRoster('')}>
+                    비우기
+                  </button>
+                </>
+              )}
+            </div>
+            <textarea
+              id="roster"
+              value={roster}
+              onChange={(e) => setRoster(e.target.value)}
+              placeholder={
+                '맡은 일을 줄바꿈으로 적거나, 분장표를 그대로 붙여넣으세요.\n\n' +
+                '예)\n학교폭력 예방 및 사안처리\n학생선도위원회 운영\n배움터지킴이 관리\n급식 지도'
+              }
+              rows={6}
+            />
+            <div className="hint">
+              적어 두면 전임자가 남긴 자료 중 <b>내 분장에 없는 것을 갈라서</b> 보여 줍니다. 부서가
+              바뀌었거나 전임자가 겸했던 일이 섞여 있을 때 구분이 됩니다.
+            </div>
+          </div>
+
           <div className="row row-end">
             <button className="btn btn-primary" onClick={() => void start()} disabled={busy}>
               시작하기

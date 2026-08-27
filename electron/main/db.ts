@@ -309,6 +309,17 @@ export function setSetting(key: string, value: string): void {
   run('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)', [key, value])
 }
 
+/**
+ * 같은 앞머리를 가진 설정을 한꺼번에 읽는다.
+ * 주제별로 흩어 저장한 흐름도(`wf:○○`)를 한자리에 모아 보여 주는 데 쓴다.
+ */
+export function settingsByPrefix(prefix: string): { key: string; value: string }[] {
+  return rows<{ key: string; value: string }>(
+    "SELECT key, value FROM settings WHERE key LIKE ? AND value <> '' ORDER BY key",
+    [`${prefix}%`]
+  )
+}
+
 /* ---------- 보관 문서 (공문 원문) ---------- */
 
 /** 목록에서는 본문을 빼고 읽는다. 본문까지 다 읽으면 수십 MB가 오간다. */

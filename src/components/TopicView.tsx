@@ -3,7 +3,7 @@ import type { DocFull, SearchHit, Task, Workflow } from '../../shared/types'
 import { BLANK_WORKFLOW } from '../../shared/types'
 import WorkflowEditor, { draftWorkflow } from './WorkflowEditor'
 import { useToast } from '../lib/toast'
-import { groupByTopic, type TopicRenames } from '../lib/topics'
+import { groupByTopic, rosterMatcher, type TopicRenames } from '../lib/topics'
 import { monthOf, schoolOrder, todayStr, weekOf } from '../lib/util'
 
 interface Props {
@@ -16,6 +16,8 @@ interface Props {
   onRename: (autoName: string, next: string) => Promise<void>
   /** 낱낱의 업무를 목록에서 보고 싶을 때 */
   onOpenTask: (t: Task) => void
+  /** 주제를 통째로 지운 뒤 목록을 다시 읽게 한다 */
+  onChanged: () => Promise<void>
 }
 
 /** 흐름도는 DB 설정에 담아 인수인계 파일과 함께 넘어가게 한다. */
@@ -82,7 +84,8 @@ export default function TopicView({
   initial,
   renames,
   onRename,
-  onOpenTask
+  onOpenTask,
+  onChanged
 }: Props): JSX.Element {
   const toast = useToast()
   const topics = useMemo(() => groupByTopic(tasks, renames), [tasks, renames])
@@ -106,6 +109,13 @@ export default function TopicView({
   const [renaming, setRenaming] = useState<string | null>(null)
   /** 날짜를 고치는 중인 공문 id */
   const [dateEdit, setDateEdit] = useState<{ id: number; value: string } | null>(null)
+
+  /** 업무분장표. 내 일과 전임자가 남긴 것을 가르는 데 쓴다 */
+  const [roster, setRoster] = useState('')
+
+  useEffect(() => {
+    void (async () => setRoster(await window.api.setting.get('duty_roster')))()
+  }, [])
 
   // 인포그래픽에서 주제를 눌러 들어오면 그 주제로 맞춘다
   useEffect(() => {
@@ -229,11 +239,53 @@ export default function TopicView({
     setOpenDoc(await window.api.docs.get(id))
   }
 
+  /**
+   * 주제를 통째로 지운다.
+   * 공문에서 뽑다 보면 "대상자", "자녀를" 처럼 업무가 아닌 것이 주제로 서기도 한다.
+   * 그런 것은 딸린 업무까지 지워야 목록에서 사라진다. 공문 원문은 건드리지 않는다.
+   */
+  const removeTopic = async (): Promise<void> => {
+    if (!current) return
+    const n = current.tasks.length
+    const ok = confirm(
+      `'${current.name}' 주제를 지웁니다.\n\n` +
+        `이 주제에 딸린 업무 ${n}건이 함께 지워집니다.\n` +
+        `보관된 공문 원문은 지워지지 않습니다.\n\n계속할까요?`
+    )
+    if (!ok) return
+
+    for (const t of current.tasks) await window.api.tasks.remove(t.id)
+
+    // 이 주제에 붙여 둔 흐름도·워크플로우·이름표도 함께 치운다
+    await window.api.setting.set(flowKey(current.name), '')
+    await window.api.setting.set(wfKey(current.name), '')
+    if (renames[current.autoName]) await onRename(current.autoName, '')
+
+    setPicked(null)
+    await onChanged()
+    toast(`'${current.name}' 주제와 업무 ${n}건을 지웠습니다.`)
+  }
+
+  /** 업무분장표와 맞춰 보는 잣대 */
+  const inRoster = useMemo(() => rosterMatcher(roster), [roster])
+  const splitting = roster.trim().length > 0
+
   const shownTopics = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return topics
     return topics.filter((t) => t.name.toLowerCase().includes(q))
   }, [topics, query])
+
+  /** 분장표가 있으면 내 일과 그 밖의 것으로 가른다 */
+  const groups = useMemo(() => {
+    if (!splitting) return [{ label: '', items: shownTopics }]
+    const mine = shownTopics.filter((t) => inRoster(t.name))
+    const rest = shownTopics.filter((t) => !inRoster(t.name))
+    return [
+      { label: `내 업무분장 (${mine.length})`, items: mine },
+      { label: `분장 밖 · 전임자 자료 (${rest.length})`, items: rest }
+    ].filter((g) => g.items.length > 0)
+  }, [shownTopics, inRoster, splitting])
 
   /** 업무 + 공문을 날짜순으로 하나의 흐름에 늘어놓는다 */
   const timeline = useMemo(() => {
@@ -295,28 +347,47 @@ export default function TopicView({
           className="topic-search"
         />
         <div className="topic-list">
-          {shownTopics.map((t) => {
-            const done = t.tasks.filter((x) => x.is_completed === 1).length
-            return (
-              <button
-                key={t.name}
-                className={`topic-item ${picked === t.name ? 'on' : ''}`}
-                onClick={() => setPicked(t.name)}
-              >
-                <span className="topic-item-name">{t.name}</span>
-                <span className="topic-item-n">
-                  {done > 0 && <b>{done}/</b>}
-                  {t.tasks.length}
-                </span>
-              </button>
-            )
-          })}
+          {groups.map((g) => (
+            <div key={g.label || 'all'}>
+              {g.label && <div className="topic-group">{g.label}</div>}
+              {g.items.map((t) => {
+                const done = t.tasks.filter((x) => x.is_completed === 1).length
+                return (
+                  <button
+                    key={t.name}
+                    className={`topic-item ${picked === t.name ? 'on' : ''}`}
+                    onClick={() => setPicked(t.name)}
+                  >
+                    <span className="topic-item-name">{t.name}</span>
+                    <span className="topic-item-n">
+                      {done > 0 && <b>{done}/</b>}
+                      {t.tasks.length}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          ))}
           {shownTopics.length === 0 && (
             <p className="muted small" style={{ padding: '8px 4px' }}>
               찾는 주제가 없습니다.
             </p>
           )}
         </div>
+
+        <p className="hint" style={{ marginTop: 8, marginBottom: 0 }}>
+          {splitting ? (
+            <>
+              분장표의 낱말로 맞춰 본 것이라 <b>더러 헛짚습니다.</b> 보기 편하라고 갈라 둔 것이니,
+              어긋나면 [설정]의 분장표에 그 말을 보태거나 주제 이름을 고치세요.
+            </>
+          ) : (
+            <>
+              [설정]에 <b>업무분장표</b>를 넣어 두면, 내 일과 전임자가 남긴 자료를 갈라서 보여
+              줍니다.
+            </>
+          )}
+        </p>
       </div>
 
       {/* ── 고른 주제 ── */}
@@ -368,6 +439,18 @@ export default function TopicView({
                 )}
                 <span className="badge badge-accent">업무 {current.tasks.length}건</span>
                 {docItems.length > 0 && <span className="badge">공문 {docItems.length}건</span>}
+                {splitting && !inRoster(current.name) && (
+                  <span className="badge badge-warn" title="업무분장표에서 찾지 못했습니다">
+                    분장 밖
+                  </span>
+                )}
+                <button
+                  className="btn btn-sm btn-danger"
+                  title="이 주제와 딸린 업무를 지웁니다 (공문 원문은 남습니다)"
+                  onClick={() => void removeTopic()}
+                >
+                  🗑 주제 지우기
+                </button>
                 <span className="spacer" />
                 <button className="btn btn-sm" onClick={() => setFlowOpen((v) => !v)}>
                   🗺 글 흐름도

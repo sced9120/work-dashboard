@@ -65,11 +65,14 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
   const [testing, setTesting] = useState(false)
   const [testMsg, setTestMsg] = useState<{ ok: boolean; message: string } | null>(null)
   const [newModel, setNewModel] = useState('')
+  const [roster, setRoster] = useState('')
+  const [reading, setReading] = useState(false)
 
   useEffect(() => {
     void (async () => {
       setJob(await window.api.setting.get('job_title'))
       setSchool(await window.api.setting.get('school_name'))
+      setRoster(await window.api.setting.get('duty_roster'))
       setLocal(await window.api.local.load())
       setEncrypted(await window.api.local.encrypted())
     })()
@@ -82,8 +85,30 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     }
     await window.api.setting.set('job_title', job.trim())
     await window.api.setting.set('school_name', school.trim())
+    await window.api.setting.set('duty_roster', roster.trim())
     await onProfileChanged()
     toast('저장했습니다.', 'ok')
+  }
+
+  /** 업무분장표 파일에서 글을 뽑아 칸에 채운다. */
+  const pickRoster = async (): Promise<void> => {
+    const picked = await window.api.files.pick()
+    if (!picked.length) return
+    setReading(true)
+    try {
+      const parts: string[] = []
+      for (const p of picked) {
+        const doc = await window.api.files.extract(p.path)
+        if (doc.error) toast(`${p.name}: ${doc.error}`, 'err')
+        else if (doc.text.trim()) parts.push(doc.text)
+      }
+      if (parts.length) {
+        setRoster((prev) => [prev, ...parts].filter(Boolean).join('\n\n'))
+        toast(`${parts.length}개 문서에서 읽어 왔습니다.`, 'ok')
+      }
+    } finally {
+      setReading(false)
+    }
   }
 
   const saveLocal = async (): Promise<void> => {
@@ -210,6 +235,35 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
           <label>학교명</label>
           <input type="text" value={school} onChange={(e) => setSchool(e.target.value)} />
         </div>
+
+        <div className="field">
+          <label>업무분장표</label>
+          <div className="row" style={{ marginBottom: 6 }}>
+            <button className="btn btn-sm" onClick={() => void pickRoster()} disabled={reading}>
+              {reading ? '읽는 중…' : '📄 파일에서 불러오기'}
+            </button>
+            <span className="muted small">한글·엑셀·PDF 에서 글을 뽑아 옵니다</span>
+            {roster && (
+              <>
+                <span className="spacer" />
+                <button className="btn btn-sm btn-ghost" onClick={() => setRoster('')}>
+                  비우기
+                </button>
+              </>
+            )}
+          </div>
+          <textarea
+            value={roster}
+            onChange={(e) => setRoster(e.target.value)}
+            placeholder={'맡은 일을 줄바꿈으로 적거나, 분장표를 그대로 붙여넣으세요.'}
+            rows={6}
+          />
+          <div className="hint">
+            [로드맵] → [업무별] 에서 <b>내 분장에 있는 일</b> 과 <b>전임자가 남긴 그 밖의 자료</b> 를
+            갈라 보여 주는 데 씁니다. 비워 두면 가르지 않습니다.
+          </div>
+        </div>
+
         <div className="row row-end">
           <button className="btn btn-primary" onClick={() => void saveProfile()}>
             저장
