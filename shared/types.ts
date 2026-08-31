@@ -1,5 +1,7 @@
 /** 메인 프로세스와 렌더러가 함께 쓰는 타입 정의 */
 
+import type { DocForm } from './docforms'
+
 export interface Task {
   id: number
   /** 업무명 */
@@ -169,7 +171,19 @@ export interface SearchAnswer {
   error?: string
 }
 
-/* ---------- 위원회 대본 · 회의록 ---------- */
+/* ---------- 개인정보 가리기 ---------- */
+
+/** 싹 가리기로 무엇을 몇 군데 지웠는지 */
+export interface ScrubHit {
+  label: string
+  n: number
+}
+
+export interface ScrubResult {
+  /** 개인정보를 ○ 로 덮은 글 */
+  text: string
+  hits: ScrubHit[]
+}
 
 /** 실명과 가명의 짝. 이 PC 밖으로 나가지 않는다. */
 export interface AliasPair {
@@ -193,14 +207,27 @@ export interface Template {
 
 export type TemplateInput = Omit<Template, 'id'>
 
-/** 화면에서 채운 문서 입력. 실명이 들어 있을 수 있다. */
+/**
+ * 화면에서 채운 문서 입력. 실명이 들어 있을 수 있다.
+ *
+ * 서식 전체를 실어 보낸다. 쓰는 사람이 직접 만든 서식은 메인 쪽 목록에
+ * 없어서 id 만으로는 찾을 수 없기 때문이다.
+ */
 export interface DocDraftInput {
-  /** 문서 서식의 id */
-  formId: string
+  form: DocForm
   /** 칸 이름 → 적은 내용 */
   values: Record<string, string>
   /** 본보기로 함께 보낼 예시의 id */
   exampleIds: number[]
+}
+
+/** 예시 하나를 읽고 AI 가 뽑아낸 서식 얼개 */
+export interface FormSketch {
+  ok: boolean
+  outline: string[]
+  fields: { key: string; label: string; lines?: number; required?: boolean }[]
+  guide: string
+  error?: string
 }
 
 export interface DocDraftResult {
@@ -358,15 +385,21 @@ export const BLANK_DEADLINE: DeadlineInput = {
   done: 0
 }
 
-/** 자주 쓰는 기한 항목. 날짜만 채우면 되도록 이름을 미리 준비해 둔다. */
+/**
+ * 자주 쓰는 기한 항목. 날짜만 채우면 되도록 이름을 미리 준비해 둔다.
+ * 부서를 가리지 않는 것부터 두었다. 여기 없는 것은 직접 적으면 된다.
+ */
 export const DEADLINE_PRESETS = [
-  '선도위원회 개최 통보',
-  '보호자 출석 통지',
+  '공문 제출 기한',
+  '결재 상신',
+  '보호자 안내 발송',
+  '신청 마감',
+  '예산 집행 마감',
+  '결과 보고 제출',
+  '위원회 개최 통보',
   '심의 결과 통지',
   '재심 청구 기간 만료',
-  '처분 이행 시작',
-  '처분 이행 완료',
-  '조치 결과 보고'
+  '조치 이행 완료'
 ] as const
 
 export interface AnalyzeResult {

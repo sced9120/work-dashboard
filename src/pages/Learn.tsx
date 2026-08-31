@@ -28,6 +28,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   const [hasKey, setHasKey] = useState(true)
   const [preview, setPreview] = useState<string | null>(null)
   const [keepOriginal, setKeepOriginal] = useState(true)
+  /** AI 에 보내기 전에 이름·연락처를 ○○○ 으로 덮을지 */
+  const [scrub, setScrub] = useState(false)
   const [model, setModel] = useState<ModelChoice | null>(null)
   /** 파일을 새로 올릴지, 이미 보관한 공문을 학습할지 */
   const [source, setSource] = useState<'파일' | '보관함'>('파일')
@@ -73,9 +75,12 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
     for (let i = 0; i < ready.length; i++) {
       const f = ready[i]
       setProgress(`${f.name} 분석 중`)
+      // 켜 두면 개인정보를 가린 글을 보낸다. 보관하는 원문은 그대로 둔다 —
+      // 학교 안에서는 원문이 필요하고, 밖으로 나가는 것만 가리면 되기 때문이다.
+      const text = scrub ? (await window.api.privacy.scrub(f.doc!.text)).text : f.doc!.text
       const res = await window.api.ai.analyze({
         filename: f.name,
-        text: f.doc!.text,
+        text,
         kind,
         jobTitle,
         model: model ?? undefined
@@ -279,7 +284,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             정확합니다.
           </p>
 
-          <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 10 }}>
+          <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 6 }}>
             <input
               type="checkbox"
               checked={keepOriginal}
@@ -288,6 +293,22 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             />
             <span className="small">
               공문 원문도 함께 보관하기 <span className="muted">— [통합 검색]에서 찾을 수 있습니다</span>
+            </span>
+          </label>
+
+          <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 10 }}>
+            <input
+              type="checkbox"
+              checked={scrub}
+              onChange={(e) => setScrub(e.target.checked)}
+              style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+            />
+            <span className="small">
+              🧹 개인정보를 가리고 AI에 보내기{' '}
+              <span className="muted">
+                — 이름·연락처·주민등록번호·학번·주소를 ○○○ 으로 덮어 보냅니다. 보관하는 원문은
+                그대로 남습니다
+              </span>
             </span>
           </label>
 

@@ -144,7 +144,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
             onKeyDown={(e) => {
               if (e.key === 'Enter') void run()
             }}
-            placeholder="예: 학교폭력 심의, 방과후 강사 채용, 급식 만족도"
+            placeholder="예: 방과후 강사 채용, 예산 집행, 만족도 조사"
             style={{ flex: 1, minWidth: 220 }}
           />
           <button

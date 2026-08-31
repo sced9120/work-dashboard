@@ -118,7 +118,7 @@ export default function Onboarding({ onDone }: Props): JSX.Element {
               onChange={(e) => setRoster(e.target.value)}
               placeholder={
                 '맡은 일을 줄바꿈으로 적거나, 분장표를 그대로 붙여넣으세요.\n\n' +
-                '예)\n학교폭력 예방 및 사안처리\n학생선도위원회 운영\n배움터지킴이 관리\n급식 지도'
+                '예)\n방과후학교 운영\n교육과정 편성·운영\n학교폭력 예방 및 사안처리\n과학실 안전 관리'
               }
               rows={6}
             />

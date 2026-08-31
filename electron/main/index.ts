@@ -17,11 +17,11 @@ import {
   analyzeDocument,
   answerFromSources,
   chatAnswer,
+  extractDocForm,
   generateDocDraft,
   testConnection
 } from './ai'
-import { buildAliases, findNameCandidates, maskText } from './anonymize'
-import { formById } from '../../shared/docforms'
+import { buildAliases, findNameCandidates, maskText, scrubPersonal } from './anonymize'
 import { checkForUpdate } from './update'
 import { downloadUpdate, installUpdate, wireAutoUpdate } from './autoupdate'
 import { applyLocalSettings, checkDeadlinesNow, stopDeadlineWatch } from './notify'
@@ -222,26 +222,36 @@ function registerIpc(): void {
     buildAliases(entries)
   )
   ipcMain.handle('privacy:mask', (_e, text: string, pairs: AliasPair[]) => maskText(text, pairs))
+  // 되돌릴 수 없게 싹 가린다. 예시나 학습용 원문처럼 누가 누구인지가
+  // 필요 없는 글에 쓴다.
+  ipcMain.handle('privacy:scrub', (_e, text: string) => scrubPersonal(text))
 
   /* ---------- 학교 문서 만들기 ---------- */
   ipcMain.handle(
     'docdraft:generate',
     async (_e, args: DocDraftInput & { aliases: AliasPair[]; model?: ModelChoice }) => {
-      const form = formById(args.formId)
-      if (!form) {
-        return { ok: false, text: '', sentToAi: '', error: '모르는 문서 종류입니다.' }
+      if (!args.form?.name) {
+        return { ok: false, text: '', sentToAi: '', error: '문서 종류를 고르지 않았습니다.' }
       }
       const picked = db.listTemplates().filter((t) => args.exampleIds.includes(t.id))
       return generateDocDraft(
         loadLocalSettings(),
         db.getSetting('school_name', ''),
-        form,
+        db.getSetting('job_title', ''),
+        args.form,
         args.values,
         picked,
         args.aliases,
         args.model
       )
     }
+  )
+
+  // 예시 문서 하나를 뜯어 "직접 만든 서식" 의 얼개를 뽑아 준다
+  ipcMain.handle(
+    'docform:extract',
+    (_e, args: { name: string; sample: string; model?: ModelChoice }) =>
+      extractDocForm(loadLocalSettings(), args.name, args.sample, args.model)
   )
 
   ipcMain.handle('scenario:save', async (_e, args: { name: string; text: string }) => {

@@ -42,7 +42,8 @@ const SCHEMA = [
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      filename TEXT, doc_kind TEXT, doc_date TEXT,
      added_at TEXT, content TEXT)`,
-  // 위원회 대본·회의록의 본보기. 사안 내용이 아니라 '형식'을 담아 두는 곳이다.
+  // 문서를 만들 때 본보기로 삼는 예시. 내용이 아니라 '형식'을 담아 두는 곳이다.
+  // kind 에는 문서 서식의 id 가 들어간다 (shared/docforms.ts).
   `CREATE TABLE IF NOT EXISTS templates (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      name TEXT, kind TEXT, content TEXT, added_at TEXT)`,

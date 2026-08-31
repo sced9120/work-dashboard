@@ -85,7 +85,7 @@ export default function Journal(): JSX.Element {
 
       <div className="note note-warn" style={{ marginBottom: 14 }}>
         일지는 <b>인수인계 파일에 함께 넘어갑니다.</b> 다음 담당자가 볼 것을 생각해서,
-        학생 실명이나 민감한 사안 내용은 적지 마세요. “2학년 흡연 건 선도위 개최” 처럼
+        학생 실명이나 민감한 사안 내용은 적지 마세요. “2학년 관련 위원회 개최” 처럼
         업무 흐름만 남기시면 충분합니다.
       </div>
 
@@ -105,7 +105,7 @@ export default function Journal(): JSX.Element {
                 // Ctrl+Enter 로 바로 저장. 매일 쓰는 화면이라 손이 덜 가게.
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void add()
               }}
-              placeholder={'예: 제3회 선도위 개최, 보호자 통지 발송\n급식 만족도 조사 취합 시작'}
+              placeholder={'예: 제3회 위원회 개최, 보호자 안내 발송\n만족도 조사 취합 시작'}
               style={{ minHeight: 80 }}
             />
             <div className="hint">Ctrl + Enter 로 바로 저장됩니다.</div>

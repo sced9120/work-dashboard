@@ -156,7 +156,7 @@ export default function Deadlines(): JSX.Element {
                   type="text"
                   value={form.case_ref}
                   onChange={(e) => setForm({ ...form, case_ref: e.target.value })}
-                  placeholder="예: 제3회 선도위 흡연 건"
+                  placeholder="예: 2학기 방과후 강사 위촉 / 제3회 위원회"
                 />
               </div>
             </div>

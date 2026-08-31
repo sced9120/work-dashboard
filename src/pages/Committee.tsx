@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { DocForm } from '../../shared/docforms'
-import { DOC_FORMS, DOC_GROUPS, SLOT_KIND, formById } from '../../shared/docforms'
+import type { DocField, DocForm } from '../../shared/docforms'
+import {
+  CUSTOM_PREFIX,
+  DOC_FORMS,
+  DOC_GROUPS,
+  SLOT_KIND,
+  customId,
+  isCustom,
+  parseCustomForm
+} from '../../shared/docforms'
 import type { AliasPair, ModelChoice, Template, TemplateInput } from '../../shared/types'
 import { ROLES } from '../../shared/types'
 import type { PageId } from '../App'
@@ -21,10 +29,70 @@ type Mode = '만들기' | '서식' | '예시'
 
 const BLANK_TEMPLATE: TemplateInput = { name: '', kind: '', content: '', added_at: '' }
 
-/** templates 표의 kind 로 문서 이름을 찾는다. 모르는 kind 면 kind 를 그대로 보여 준다. */
-function kindLabel(kind: string): string {
-  if (kind === SLOT_KIND) return '빈칸 채우기 서식'
-  return formById(kind)?.name ?? kind
+/** 직접 만드는 서식을 화면에서 편집할 때 담아 두는 값 */
+interface FormEditor {
+  /** 고치는 중이면 원래 id. 새로 만드는 중이면 빈 문자열 */
+  originalId: string
+  name: string
+  group: string
+  summary: string
+  icon: string
+  outlineText: string
+  fieldText: string
+  guide: string
+  personal: boolean
+  /** 서식을 뽑아낼 예시 원문 */
+  sample: string
+}
+
+const BLANK_FORM_EDITOR: FormEditor = {
+  originalId: '',
+  name: '',
+  group: '직접 만든 서식',
+  summary: '',
+  icon: '📃',
+  outlineText: '',
+  fieldText: '',
+  guide: '',
+  personal: false,
+  sample: ''
+}
+
+/**
+ * "칸 이름" 을 한 줄에 하나씩 적은 글을 입력칸 목록으로 바꾼다.
+ * 이름 뒤의 `*` 는 반드시 채울 칸, `...` 은 여러 줄을 적는 넓은 칸을 뜻한다.
+ */
+function parseFieldLines(text: string): DocField[] {
+  const out: DocField[] = []
+  for (const raw of text.split('\n')) {
+    let s = raw.trim()
+    let required = false
+    let long = false
+    // 표시가 어느 차례로 붙어 있어도 떼어 낸다
+    for (;;) {
+      if (s.endsWith('*')) {
+        required = true
+        s = s.slice(0, -1).trim()
+        continue
+      }
+      if (/(\.{3}|…)$/.test(s)) {
+        long = true
+        s = s.replace(/(\.{3}|…)$/, '').trim()
+        continue
+      }
+      break
+    }
+    if (!s || out.some((f) => f.key === s)) continue
+    out.push({ key: s, label: s, ...(long ? { lines: 110 } : {}), ...(required ? { required: true } : {}) })
+  }
+  return out
+}
+
+/** 위의 반대. 고칠 때 다시 글로 펴 준다. */
+function fieldLines(fields: DocField[]): string {
+  return fields
+    .map((f) => `${f.label}${f.required ? ' *' : ''}${f.lines ? ' ...' : ''}`)
+    .join('\n')
 }
 
 export default function Committee({ onGo }: Props): JSX.Element {
@@ -58,7 +126,27 @@ export default function Committee({ onGo }: Props): JSX.Element {
   const [slotTemplateId, setSlotTemplateId] = useState<number | null>(null)
   const [slots, setSlots] = useState<Record<string, string>>({})
 
-  const form: DocForm | null = formById(formId)
+  /* 직접 만든 서식 */
+  const [customForms, setCustomForms] = useState<DocForm[]>([])
+  const [formEditor, setFormEditor] = useState<FormEditor | null>(null)
+  const [sketching, setSketching] = useState(false)
+
+  /** 미리 넣어 둔 서식과 직접 만든 서식을 함께 다룬다 */
+  const allForms = useMemo(() => [...DOC_FORMS, ...customForms], [customForms])
+  const form: DocForm | null = allForms.find((f) => f.id === formId) ?? null
+
+  /** 화면에 보일 묶음. 직접 만든 서식이 새 묶음을 만들 수도 있다. */
+  const groups = useMemo(() => {
+    const out: string[] = [...DOC_GROUPS]
+    for (const f of customForms) if (!out.includes(f.group)) out.push(f.group)
+    return out
+  }, [customForms])
+
+  /** templates 표의 kind 로 문서 이름을 찾는다. 모르는 kind 면 그대로 보여 준다. */
+  const kindLabel = (kind: string): string => {
+    if (kind === SLOT_KIND) return '빈칸 채우기 서식'
+    return allForms.find((f) => f.id === kind)?.name ?? kind
+  }
 
   const loadTemplates = useCallback(async () => {
     const list = await window.api.templates.list()
@@ -66,13 +154,24 @@ export default function Committee({ onGo }: Props): JSX.Element {
     setExampleIds((prev) => prev.filter((id) => list.some((t) => t.id === id)))
   }, [])
 
+  const loadCustomForms = useCallback(async () => {
+    const rows = await window.api.setting.byPrefix(CUSTOM_PREFIX)
+    const parsed: DocForm[] = []
+    for (const r of rows) {
+      const f = parseCustomForm(r.key, r.value)
+      if (f) parsed.push(f)
+    }
+    setCustomForms(parsed)
+  }, [])
+
   useEffect(() => {
     void (async () => {
       await loadTemplates()
+      await loadCustomForms()
       const s = await window.api.local.load()
       setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key))
     })()
-  }, [loadTemplates])
+  }, [loadTemplates, loadCustomForms])
 
   // 이름 목록이 바뀌면 가명을 다시 매긴다.
   useEffect(() => {
@@ -138,7 +237,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
     setResult('')
     try {
       const res = await window.api.docdraft.generate({
-        formId: form.id,
+        form,
         values,
         exampleIds,
         aliases,
@@ -241,6 +340,166 @@ export default function Committee({ onGo }: Props): JSX.Element {
     await loadTemplates()
   }
 
+  /**
+   * 예시에서 개인정보를 싹 가린다.
+   *
+   * 예시는 **형식**을 보여 주려고 넣는 것이라 이름·연락처가 필요 없다.
+   * 되돌리지 않고 아예 ○○○ 으로 덮으므로, 실명이 든 문서도 안심하고
+   * 넣어 둘 수 있다. (예시는 인수인계 파일에 함께 넘어간다)
+   */
+  const scrubExample = async (): Promise<void> => {
+    if (!editing?.content.trim()) {
+      toast('먼저 내용을 붙여넣어 주세요.', 'err')
+      return
+    }
+    const res = await window.api.privacy.scrub(editing.content)
+    setEditing({ ...editing, content: res.text })
+    if (!res.hits.length) {
+      toast('가릴 개인정보를 찾지 못했습니다. 눈으로 한 번 더 확인해 주세요.')
+      return
+    }
+    toast(`${res.hits.map((h) => `${h.label} ${h.n}`).join(', ')} 을(를) 가렸습니다.`, 'ok')
+  }
+
+  /* ---------- 직접 만든 서식 ---------- */
+
+  const openFormEditor = (base?: DocForm): void => {
+    if (!base) {
+      setFormEditor({ ...BLANK_FORM_EDITOR })
+      return
+    }
+    setFormEditor({
+      originalId: base.id,
+      name: base.name,
+      group: base.group,
+      summary: base.summary,
+      icon: base.icon,
+      outlineText: base.outline.join('\n'),
+      fieldText: fieldLines(base.fields),
+      guide: base.guide,
+      personal: !!base.personal,
+      sample: ''
+    })
+  }
+
+  /** 붙여넣은 예시를 AI 에 보내 항목과 칸을 뽑아낸다 */
+  const sketchFromSample = async (): Promise<void> => {
+    if (!formEditor) return
+    if (!formEditor.sample.trim()) {
+      toast('먼저 예시 문서를 붙여넣어 주세요.', 'err')
+      return
+    }
+    setSketching(true)
+    try {
+      const res = await window.api.docdraft.extractForm({
+        name: formEditor.name,
+        sample: formEditor.sample,
+        model: model ?? undefined
+      })
+      if (!res.ok) {
+        toast(res.error ?? '서식을 뽑아내지 못했습니다.', 'err')
+        return
+      }
+      setFormEditor((e) =>
+        e
+          ? {
+              ...e,
+              outlineText: res.outline.join('\n') || e.outlineText,
+              fieldText: fieldLines(res.fields) || e.fieldText,
+              guide: res.guide || e.guide
+            }
+          : e
+      )
+      toast(`항목 ${res.outline.length}개, 칸 ${res.fields.length}개를 뽑았습니다. 고쳐서 저장하세요.`, 'ok')
+    } finally {
+      setSketching(false)
+    }
+  }
+
+  const pickSampleFile = async (): Promise<void> => {
+    if (!formEditor) return
+    const picked = await window.api.files.pick()
+    if (!picked.length) return
+    setReading(true)
+    try {
+      const doc = await window.api.files.extract(picked[0].path)
+      if (doc.error) toast(`${picked[0].name}: ${doc.error}`, 'err')
+      else
+        setFormEditor((e) =>
+          e
+            ? {
+                ...e,
+                sample: doc.text,
+                name: e.name || picked[0].name.replace(/\.[^.]+$/, '')
+              }
+            : e
+        )
+    } finally {
+      setReading(false)
+    }
+  }
+
+  const saveCustomForm = async (): Promise<void> => {
+    if (!formEditor) return
+    const name = formEditor.name.trim()
+    if (!name) {
+      toast('문서 이름을 적어 주세요.', 'err')
+      return
+    }
+    const outline = formEditor.outlineText
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const fields = parseFieldLines(formEditor.fieldText)
+    if (!outline.length) {
+      toast('들어갈 항목을 한 줄에 하나씩 적어 주세요.', 'err')
+      return
+    }
+    if (!fields.length) {
+      toast('물어볼 칸을 한 줄에 하나씩 적어 주세요.', 'err')
+      return
+    }
+
+    const id = customId(name)
+    if (DOC_FORMS.some((f) => f.id === id)) {
+      toast('프로그램에 이미 있는 문서 이름입니다. 다른 이름으로 지어 주세요.', 'err')
+      return
+    }
+
+    await window.api.setting.set(
+      `${CUSTOM_PREFIX}${id}`,
+      JSON.stringify({
+        name,
+        group: formEditor.group.trim() || '직접 만든 서식',
+        icon: formEditor.icon || '📃',
+        summary: formEditor.summary.trim(),
+        outline,
+        guide: formEditor.guide.trim(),
+        fields,
+        personal: formEditor.personal
+      })
+    )
+    // 이름을 바꿔 저장했으면 예전 것은 지운다
+    if (formEditor.originalId && formEditor.originalId !== id) {
+      await window.api.setting.set(`${CUSTOM_PREFIX}${formEditor.originalId}`, '')
+    }
+
+    setFormEditor(null)
+    await loadCustomForms()
+    setFormId(id)
+    setValues({})
+    setResult('')
+    toast('서식을 만들었습니다.', 'ok')
+  }
+
+  const removeCustomForm = async (f: DocForm): Promise<void> => {
+    if (!window.confirm(`'${f.name}' 서식을 지울까요?\n이 서식으로 만들어 둔 문서 파일은 그대로 남습니다.`)) return
+    await window.api.setting.set(`${CUSTOM_PREFIX}${f.id}`, '')
+    if (formId === f.id) setFormId('')
+    await loadCustomForms()
+    toast(`'${f.name}' 서식을 지웠습니다.`)
+  }
+
   /* ---------- 빈칸 채우기 서식 ---------- */
 
   const slotTemplate = templates.find((t) => t.id === slotTemplateId) ?? null
@@ -270,7 +529,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
             type="text"
             value={editing.name}
             onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-            placeholder="예: 2025학년도 선도위 표준 대본"
+            placeholder="예: 2025학년도 우리 학교 표준 서식"
           />
         </div>
         <div className="field" style={{ flex: 1, minWidth: 170 }}>
@@ -280,7 +539,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
             onChange={(e) => setEditing({ ...editing, kind: e.target.value })}
           >
             <option value="">— 고르세요 —</option>
-            {DOC_FORMS.map((f) => (
+            {allForms.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
               </option>
@@ -294,7 +553,21 @@ export default function Committee({ onGo }: Props): JSX.Element {
         <button className="btn btn-sm" onClick={() => void pickExampleFile()} disabled={reading}>
           {reading ? '읽는 중…' : '📄 파일에서 불러오기'}
         </button>
+        <button
+          className="btn btn-sm btn-primary"
+          onClick={() => void scrubExample()}
+          disabled={!editing.content.trim()}
+          title="이름·연락처·주민등록번호·학번·주소를 ○○○ 으로 덮습니다"
+        >
+          🧹 개인정보 가리기
+        </button>
         <span className="muted small">한글·워드·PDF·엑셀에서 글을 뽑아 옵니다</span>
+      </div>
+
+      <div className="note note-info" style={{ marginBottom: 10 }}>
+        예시는 <b>형식만</b> 쓰이므로 이름이 없어도 됩니다. <b>[🧹 개인정보 가리기]</b> 를 누르면
+        이름 · 연락처 · 주민등록번호 · 학번 · 주소를 <code>○○○</code> 으로 덮습니다. 되돌릴 수
+        없으니 덮은 뒤 눈으로 한 번 확인하세요 — 완벽하지 않습니다.
       </div>
 
       <div className="field">
@@ -357,29 +630,200 @@ export default function Committee({ onGo }: Props): JSX.Element {
             <b>예시가 없어도 됩니다.</b> 문서마다 들어갈 항목을 프로그램이 알고 있어서, 내용만
             채우면 바로 나옵니다. 우리 학교 서식이 따로 있으면 <b>[📚 예시 보관함]</b> 에 한 번
             넣어 두세요. 그 뒤로는 그 형식을 그대로 따릅니다.
+            <div style={{ marginTop: 6 }}>
+              맡으신 업무에 필요한 문서가 없다면 맨 아래 <b>[＋ 문서 종류 직접 만들기]</b> 로
+              만들어 쓰실 수 있습니다.
+            </div>
           </div>
 
-          {DOC_GROUPS.map((g) => (
-            <div className="card" key={g}>
-              <div className="card-title">{g}</div>
-              <div className="pickgrid">
-                {DOC_FORMS.filter((f) => f.group === g).map((f) => {
-                  const n = templates.filter((t) => t.kind === f.id).length
-                  return (
-                    <button key={f.id} className="pickcard" onClick={() => chooseForm(f)}>
-                      <span className="pickcard-icon">{f.icon}</span>
-                      <span className="pickcard-body">
-                        <span className="pickcard-name">{f.name}</span>
-                        <span className="pickcard-sum">{f.summary}</span>
-                      </span>
-                      {n > 0 && <span className="badge badge-accent">예시 {n}</span>}
-                    </button>
-                  )
-                })}
+          {groups.map((g) => {
+            const list = allForms.filter((f) => f.group === g)
+            if (!list.length) return null
+            return (
+              <div className="card" key={g}>
+                <div className="card-title">{g}</div>
+                <div className="pickgrid">
+                  {list.map((f) => {
+                    const n = templates.filter((t) => t.kind === f.id).length
+                    return (
+                      <button key={f.id} className="pickcard" onClick={() => chooseForm(f)}>
+                        <span className="pickcard-icon">{f.icon}</span>
+                        <span className="pickcard-body">
+                          <span className="pickcard-name">{f.name}</span>
+                          <span className="pickcard-sum">{f.summary || '직접 만든 서식'}</span>
+                        </span>
+                        {isCustom(f) && <span className="badge">내가 만든</span>}
+                        {n > 0 && <span className="badge badge-accent">예시 {n}</span>}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
+            )
+          })}
+
+          <div className="card">
+            <div className="card-title">
+              <span>맡으신 업무에 필요한 문서가 없나요?</span>
+              <button className="btn btn-sm btn-primary" onClick={() => openFormEditor()}>
+                ＋ 문서 종류 직접 만들기
+              </button>
             </div>
-          ))}
+            <p className="hint" style={{ margin: 0 }}>
+              학교 업무는 부서마다, 학교마다 다릅니다. 위에 없는 문서는 <b>쓰시던 문서를
+              붙여넣으면 항목을 뽑아</b> 서식으로 만들어 드립니다. 만든 서식은{' '}
+              <b>인수인계 파일에 함께 넘어가</b> 다음 담당자도 그대로 씁니다.
+            </p>
+          </div>
         </>
+      )}
+
+      {/* ── 문서 종류 만들기 · 고치기 ── */}
+      {mode === '만들기' && formEditor && (
+        <div className="card">
+          <div className="card-title">
+            <span>{formEditor.originalId ? '문서 서식 고치기' : '문서 종류 직접 만들기'}</span>
+            <button className="btn btn-sm btn-ghost" onClick={() => setFormEditor(null)}>
+              닫기
+            </button>
+          </div>
+
+          <div className="row" style={{ gap: 12 }}>
+            <div className="field" style={{ flex: 2, minWidth: 200 }}>
+              <label>
+                문서 이름 <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <input
+                type="text"
+                value={formEditor.name}
+                onChange={(e) => setFormEditor({ ...formEditor, name: e.target.value })}
+                placeholder="예: 방과후학교 강사 위촉 계획"
+              />
+            </div>
+            <div className="field" style={{ flex: 1, minWidth: 150 }}>
+              <label>묶음</label>
+              <input
+                type="text"
+                list="docform-groups"
+                value={formEditor.group}
+                onChange={(e) => setFormEditor({ ...formEditor, group: e.target.value })}
+              />
+              <datalist id="docform-groups">
+                {groups.map((g) => (
+                  <option key={g} value={g} />
+                ))}
+              </datalist>
+            </div>
+            <div className="field" style={{ width: 90 }}>
+              <label>아이콘</label>
+              <input
+                type="text"
+                value={formEditor.icon}
+                onChange={(e) => setFormEditor({ ...formEditor, icon: e.target.value })}
+                maxLength={4}
+              />
+            </div>
+          </div>
+
+          <div className="field">
+            <label>한 줄 설명</label>
+            <input
+              type="text"
+              value={formEditor.summary}
+              onChange={(e) => setFormEditor({ ...formEditor, summary: e.target.value })}
+              placeholder="예: 방과후 강사를 새로 뽑을 때 올리는 계획 기안"
+            />
+          </div>
+
+          <div className="note note-ok" style={{ margin: '4px 0 12px' }}>
+            <b>쓰시던 문서가 있으면 여기 붙여넣으세요.</b> 항목과 물어볼 칸을 뽑아 아래를 채워
+            드립니다. 붙여넣은 글은 서식을 뽑는 데만 쓰이고 저장되지 않습니다.
+          </div>
+
+          <div className="field">
+            <label>예시 문서 (선택)</label>
+            <div className="row" style={{ marginBottom: 6 }}>
+              <button className="btn btn-sm" onClick={() => void pickSampleFile()} disabled={reading}>
+                {reading ? '읽는 중…' : '📄 파일에서 불러오기'}
+              </button>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => void sketchFromSample()}
+                disabled={sketching || !hasKey || !formEditor.sample.trim()}
+              >
+                {sketching ? '뽑는 중…' : '✨ 예시에서 서식 뽑기'}
+              </button>
+              {!hasKey && <span className="muted small">API 키가 있어야 뽑아낼 수 있습니다</span>}
+            </div>
+            <textarea
+              value={formEditor.sample}
+              onChange={(e) => setFormEditor({ ...formEditor, sample: e.target.value })}
+              style={{ minHeight: 110 }}
+              placeholder="한글에서 복사해 붙여넣으세요. 없으면 아래를 직접 적으셔도 됩니다."
+            />
+          </div>
+
+          <div className="field">
+            <label>
+              들어갈 항목 <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
+            <textarea
+              value={formEditor.outlineText}
+              onChange={(e) => setFormEditor({ ...formEditor, outlineText: e.target.value })}
+              style={{ minHeight: 130 }}
+              placeholder={'한 줄에 하나씩 적으세요.\n예)\n목적\n근거\n선발 방법\n소요 예산\n행정 사항'}
+            />
+            <div className="hint">문서를 이 차례로 씁니다.</div>
+          </div>
+
+          <div className="field">
+            <label>
+              물어볼 칸 <span style={{ color: 'var(--danger)' }}>*</span>
+            </label>
+            <textarea
+              value={formEditor.fieldText}
+              onChange={(e) => setFormEditor({ ...formEditor, fieldText: e.target.value })}
+              style={{ minHeight: 130 }}
+              placeholder={'한 줄에 하나씩 적으세요.\n예)\n사업명 *\n선발 방법 *...\n예산 ...\n담당자'}
+            />
+            <div className="hint">
+              이름 뒤에 <code>*</code> 를 붙이면 <b>반드시 채워야 하는 칸</b>, <code>...</code> 을
+              붙이면 <b>여러 줄을 적는 넓은 칸</b>이 됩니다. 둘 다 붙여도 됩니다.
+            </div>
+          </div>
+
+          <div className="field">
+            <label>문체 · 주의사항 (선택)</label>
+            <textarea
+              value={formEditor.guide}
+              onChange={(e) => setFormEditor({ ...formEditor, guide: e.target.value })}
+              style={{ minHeight: 90 }}
+              placeholder={'예: 공문 기안 문체(개조식)로 쓰세요.\n금액은 산출 내역이 드러나게 적으세요.'}
+            />
+          </div>
+
+          <label className="sheet-check" style={{ marginBottom: 12 }}>
+            <input
+              type="checkbox"
+              checked={formEditor.personal}
+              onChange={(e) => setFormEditor({ ...formEditor, personal: e.target.checked })}
+              style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+            />
+            <span>
+              <b>학생·보호자 이름이 들어가는 문서</b>
+              <span className="muted"> — 켜 두면 가명처리 칸이 펼쳐진 채로 나옵니다</span>
+            </span>
+          </label>
+
+          <div className="row row-end">
+            <button className="btn btn-ghost" onClick={() => setFormEditor(null)}>
+              취소
+            </button>
+            <button className="btn btn-primary" onClick={() => void saveCustomForm()}>
+              서식 저장
+            </button>
+          </div>
+        </div>
       )}
 
       {mode === '만들기' && form && (
@@ -388,16 +832,37 @@ export default function Committee({ onGo }: Props): JSX.Element {
             <div className="card-title">
               <span>
                 {form.icon} {form.name}
+                {isCustom(form) && (
+                  <span className="badge" style={{ marginLeft: 8 }}>
+                    내가 만든 서식
+                  </span>
+                )}
               </span>
-              <button
-                className="btn btn-sm btn-ghost"
-                onClick={() => {
-                  setFormId('')
-                  setResult('')
-                }}
-              >
-                ← 다른 문서
-              </button>
+              <div className="row">
+                {isCustom(form) && (
+                  <>
+                    <button className="btn btn-sm btn-ghost" onClick={() => openFormEditor(form)}>
+                      ✎ 서식 고치기
+                    </button>
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => void removeCustomForm(form)}
+                    >
+                      🗑 서식 지우기
+                    </button>
+                  </>
+                )}
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => {
+                    setFormId('')
+                    setResult('')
+                    setFormEditor(null)
+                  }}
+                >
+                  ← 다른 문서
+                </button>
+              </div>
             </div>
             <p className="hint" style={{ margin: 0 }}>{form.summary}</p>
             <div className="cal-tasklist" style={{ marginTop: 10 }}>

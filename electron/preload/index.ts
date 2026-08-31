@@ -6,6 +6,7 @@ import type {
   CalEventInput,
   DocDraftInput,
   DocDraftResult,
+  FormSketch,
   ChatReply,
   ChatTurn,
   Deadline,
@@ -22,6 +23,7 @@ import type {
   Notice,
   NoticeInput,
   PickedFile,
+  ScrubResult,
   SearchAnswer,
   SearchHit,
   Task,
@@ -98,14 +100,20 @@ const api = {
     aliases: (entries: { name: string; role: string }[]): Promise<AliasPair[]> =>
       ipcRenderer.invoke('privacy:aliases', entries),
     mask: (text: string, pairs: AliasPair[]): Promise<string> =>
-      ipcRenderer.invoke('privacy:mask', text, pairs)
+      ipcRenderer.invoke('privacy:mask', text, pairs),
+    scrub: (text: string): Promise<ScrubResult> => ipcRenderer.invoke('privacy:scrub', text)
   },
   docdraft: {
     generate: (
       args: DocDraftInput & { aliases: AliasPair[]; model?: ModelChoice }
     ): Promise<DocDraftResult> => ipcRenderer.invoke('docdraft:generate', args),
     save: (args: { name: string; text: string }): Promise<ActionResult> =>
-      ipcRenderer.invoke('scenario:save', args)
+      ipcRenderer.invoke('scenario:save', args),
+    extractForm: (args: {
+      name: string
+      sample: string
+      model?: ModelChoice
+    }): Promise<FormSketch> => ipcRenderer.invoke('docform:extract', args)
   },
   notices: {
     list: (): Promise<Notice[]> => ipcRenderer.invoke('notices:list'),

@@ -41,7 +41,7 @@ export interface DocForm {
   basis?: string
 }
 
-export const DOC_GROUPS = ['선도 · 학교폭력', '회의', '계획 · 보고', '안내'] as const
+export const DOC_GROUPS = ['공통 · 행정', '수업 · 평가', '담임 · 상담', '학생 지도 · 사안'] as const
 
 /* 여러 문서가 함께 쓰는 칸 */
 const F_MEETING: DocField = {
@@ -58,10 +58,10 @@ const F_MEMBERS: DocField = {
 }
 
 export const DOC_FORMS: DocForm[] = [
-  /* ---------- 선도 · 학교폭력 ---------- */
+  /* ---------- 학생 지도 · 사안 ---------- */
   {
     id: '대본',
-    group: '선도 · 학교폭력',
+    group: '학생 지도 · 사안',
     icon: '🎤',
     name: '선도위원회 진행 대본',
     summary: '회의 전에 사회자가 그대로 읽을 수 있는 진행 대본',
@@ -112,7 +112,7 @@ export const DOC_FORMS: DocForm[] = [
   },
   {
     id: '회의록',
-    group: '선도 · 학교폭력',
+    group: '학생 지도 · 사안',
     icon: '📝',
     name: '선도위원회 회의록',
     summary: '회의가 끝난 뒤 남기는 회의록. 심의 내용과 의결 사항을 남긴다',
@@ -158,7 +158,7 @@ export const DOC_FORMS: DocForm[] = [
   },
   {
     id: '사안보고서',
-    group: '선도 · 학교폭력',
+    group: '학생 지도 · 사안',
     icon: '📂',
     name: '사안조사 보고서',
     summary: '접수부터 조사까지의 경위를 정리해 결재를 올리는 문서',
@@ -216,7 +216,7 @@ export const DOC_FORMS: DocForm[] = [
   },
   {
     id: '교사진술서',
-    group: '선도 · 학교폭력',
+    group: '학생 지도 · 사안',
     icon: '🖊',
     name: '교사 진술서 (경위서)',
     summary: '교사가 직접 보고 들은 것과 취한 조치를 적는 문서',
@@ -263,7 +263,7 @@ export const DOC_FORMS: DocForm[] = [
   },
   {
     id: '학생확인서',
-    group: '선도 · 학교폭력',
+    group: '학생 지도 · 사안',
     icon: '📄',
     name: '학생 확인서',
     summary: '학생이 직접 채워 넣도록 만드는 확인서 서식',
@@ -307,7 +307,7 @@ export const DOC_FORMS: DocForm[] = [
   },
   {
     id: '출석통지서',
-    group: '선도 · 학교폭력',
+    group: '학생 지도 · 사안',
     icon: '📮',
     name: '보호자 출석통지서',
     summary: '위원회 개최를 보호자에게 알리고 출석을 요청하는 문서',
@@ -343,7 +343,7 @@ export const DOC_FORMS: DocForm[] = [
   },
   {
     id: '결과통보서',
-    group: '선도 · 학교폭력',
+    group: '학생 지도 · 사안',
     icon: '📨',
     name: '조치 결과 통보서',
     summary: '심의 결과와 이행 방법을 보호자에게 알리는 문서',
@@ -387,10 +387,10 @@ export const DOC_FORMS: DocForm[] = [
     ]
   },
 
-  /* ---------- 회의 ---------- */
+  /* ---------- 공통 · 행정 ---------- */
   {
     id: '부서회의록',
-    group: '회의',
+    group: '공통 · 행정',
     icon: '🗒',
     name: '부서 회의록 · 협의록',
     summary: '부서회의, 협의회, 각종 위원회의 일반 회의록',
@@ -432,10 +432,10 @@ export const DOC_FORMS: DocForm[] = [
     ]
   },
 
-  /* ---------- 계획 · 보고 ---------- */
+
   {
     id: '평가계획서',
-    group: '계획 · 보고',
+    group: '수업 · 평가',
     icon: '📐',
     name: '교수 · 학습 및 평가계획서',
     summary: '학기별 교과 평가계획. 정보공시에 올리는 그 문서',
@@ -487,7 +487,7 @@ export const DOC_FORMS: DocForm[] = [
   },
   {
     id: '사업계획서',
-    group: '계획 · 보고',
+    group: '공통 · 행정',
     icon: '📋',
     name: '교육활동 계획서 (기안용)',
     summary: '행사·사업을 올릴 때 쓰는 계획 기안문',
@@ -538,7 +538,7 @@ export const DOC_FORMS: DocForm[] = [
   },
   {
     id: '결과보고서',
-    group: '계획 · 보고',
+    group: '공통 · 행정',
     icon: '📈',
     name: '교육활동 결과보고서',
     summary: '행사·사업을 마치고 올리는 결과 기안문',
@@ -579,10 +579,10 @@ export const DOC_FORMS: DocForm[] = [
     ]
   },
 
-  /* ---------- 안내 ---------- */
+
   {
     id: '가정통신문',
-    group: '안내',
+    group: '공통 · 행정',
     icon: '🏠',
     name: '가정통신문',
     summary: '학부모에게 보내는 안내문',
@@ -623,7 +623,189 @@ export const DOC_FORMS: DocForm[] = [
         label: '회신이 필요한가',
         placeholder: '예: 참가 여부를 9월 8일까지 회신 / 회신 불필요'
       },
-      { key: '문의처', label: '문의처', placeholder: '예: 인성부 ○○○ 교사 (031-000-0000)' }
+      { key: '문의처', label: '문의처', placeholder: '예: ○○부 ○○○ 교사 (031-000-0000)' }
+    ]
+  },
+  {
+    id: '공문기안',
+    group: '공통 · 행정',
+    icon: '📤',
+    name: '공문 기안문',
+    summary: '다른 학교·기관에 보내는 협조 요청, 자료 제출 공문',
+    outline: [
+      '수신 (기관명 · 부서)',
+      '경유 · 참조',
+      '제목',
+      '관련 (근거 공문 · 법령)',
+      '본문 (1. 2. 3. 으로 나눈 요청 사항)',
+      '기한과 제출 방법',
+      '붙임',
+      '발신 명의'
+    ],
+    guide:
+      '행정 공문 문체로 쓰세요.\n' +
+      '"1. 관련: …" 으로 근거를 먼저 밝히고, "2. 위와 관련하여 … 하오니 협조하여 주시기 바랍니다." 로 잇습니다.\n' +
+      '항목은 1. → 가. → 1) → 가) 차례로 나눕니다.\n' +
+      '붙임은 "붙임  1. ○○○ 1부.  끝." 처럼 적고, 붙임이 없으면 본문 끝에 "끝." 만 붙이세요.',
+    fields: [
+      { key: '수신', label: '수신', placeholder: '예: ○○교육지원청(교수학습지원과장)' },
+      { key: '제목', label: '제목', required: true, placeholder: '예: 2026학년도 학교 간 협력 프로그램 협조 요청' },
+      {
+        key: '근거',
+        label: '관련 근거',
+        lines: 70,
+        placeholder: '예: ○○교육지원청 교수학습지원과-1234(2026. 8. 20.)'
+      },
+      {
+        key: '내용',
+        label: '요청하거나 알릴 내용',
+        required: true,
+        lines: 140,
+        placeholder: '무엇을 · 언제까지 · 어떻게 해 달라는 것인지 적으세요.'
+      },
+      { key: '붙임', label: '붙임', lines: 70, placeholder: '한 줄에 하나씩. 예: 운영 계획서 1부' },
+      { key: '담당자', label: '담당자', placeholder: '예: ○○부 ○○○ 교사 (031-000-0000)' }
+    ]
+  },
+  {
+    id: '인수인계서',
+    group: '공통 · 행정',
+    icon: '🤝',
+    name: '업무 인수인계서',
+    summary: '맡던 업무를 다음 담당자에게 넘길 때 쓰는 문서',
+    outline: [
+      '인계자 · 인수자 · 인계 일자',
+      '업무 개요 (무슨 일인지, 왜 하는지)',
+      '연간 업무 흐름 (월별)',
+      '진행 중인 일과 이어서 해야 할 것',
+      '관련 규정 · 지침 · 서식',
+      '협조 부서와 담당자',
+      '자료가 있는 곳 (문서함 · 나이스 · 공유 폴더)',
+      '특히 주의할 점 · 겪어 보고 아는 요령',
+      '인계 · 인수 확인란'
+    ],
+    guide:
+      '**이 업무를 처음 맡는 사람이 읽는다**는 전제로 쓰세요.\n' +
+      '줄임말과 학교 안에서만 통하는 말은 풀어서 적습니다.\n' +
+      '"언제 · 무엇을 · 어디서" 가 드러나게 구체적으로 적고, "잘 챙기면 됨" 같은 두루뭉술한 말은 쓰지 마세요.\n' +
+      '적어 넣은 것이 없는 항목은 제목만 남기고 빈칸으로 두어, 인계자가 채울 수 있게 하세요.',
+    fields: [
+      { key: '업무명', label: '업무명', required: true, placeholder: '예: 학교폭력 예방 및 사안처리' },
+      { key: '기간', label: '담당 기간', placeholder: '예: 2026. 3. 1. ~ 2027. 2. 28.' },
+      {
+        key: '흐름',
+        label: '연간 흐름',
+        lines: 140,
+        placeholder: '한 줄에 하나씩.\n예: 3월 — 학교폭력 실태조사 준비\n4월 — 예방교육 계획 수립'
+      },
+      { key: '진행중', label: '지금 진행 중인 일', lines: 110, placeholder: '넘기는 시점에 아직 끝나지 않은 일과 다음 단계' },
+      { key: '규정', label: '관련 규정 · 서식', lines: 90 },
+      { key: '협조처', label: '협조 부서 · 연락처', lines: 80 },
+      { key: '자료위치', label: '자료가 있는 곳', lines: 80, placeholder: '예: 인성부 캐비닛 2번 서랍 / 나이스 학교폭력 메뉴' },
+      { key: '주의', label: '특히 주의할 점', lines: 110, placeholder: '겪어 보고 아는 요령, 실수하기 쉬운 것' }
+    ]
+  },
+  {
+    id: '채점기준표',
+    group: '수업 · 평가',
+    icon: '📏',
+    name: '수행평가 채점기준표',
+    summary: '수행평가 과제의 채점 기준(루브릭)',
+    outline: [
+      '평가 개요 (과목 · 학년 · 영역 · 배점 · 시기)',
+      '관련 성취기준',
+      '평가 과제 (학생에게 주는 안내)',
+      '채점 요소',
+      '요소별 수준 구분과 배점',
+      '채점 시 유의사항',
+      '결시 · 미응시자 처리 기준',
+      '재평가 · 이의신청 안내'
+    ],
+    guide:
+      '수준을 나누는 말은 **관찰할 수 있는 행동**으로 적으세요.\n' +
+      '"잘함 / 보통 / 미흡" 처럼 두루뭉술하게 쓰지 말고, "근거를 두 가지 이상 들어 설명함" 처럼 무엇을 했는지로 적습니다.\n' +
+      '요소별 배점의 합이 총 배점과 맞는지 확인해 적으세요. 입력에 없으면 (   점) 으로 비워 둡니다.\n' +
+      '표로 옮기기 쉽게, 요소마다 줄을 바꾸어 나란히 적으세요.',
+    fields: [
+      {
+        key: '개요',
+        label: '평가 개요',
+        required: true,
+        placeholder: '예: 2학년 통합사회 / 논술형 / 20점 / 10월 2주'
+      },
+      { key: '성취기준', label: '관련 성취기준', lines: 80 },
+      { key: '과제', label: '평가 과제', required: true, lines: 110, placeholder: '학생에게 무엇을 하라고 할 것인지' },
+      { key: '요소', label: '채점 요소', lines: 110, placeholder: '한 줄에 하나씩.\n예: 자료 활용 / 8점\n논리 전개 / 7점' },
+      { key: '수준', label: '수준 구분', placeholder: '예: 상·중·하 3단계 / A~E 5단계' },
+      { key: '유의', label: '유의사항 · 결시 처리', lines: 90 }
+    ],
+    basis: '학업성적관리 시행지침 (평가 기준·배점·결시 처리 명시)'
+  },
+  {
+    id: '상담기록',
+    group: '담임 · 상담',
+    icon: '💬',
+    name: '상담 기록',
+    summary: '학생·학부모 상담을 마치고 남기는 기록',
+    personal: true,
+    outline: [
+      '상담 개요 (일시 · 장소 · 대상 · 상담자 · 상담 유형)',
+      '상담을 하게 된 배경',
+      '주요 호소 내용',
+      '나눈 이야기 요약',
+      '관찰된 점',
+      '합의한 것 · 약속',
+      '후속 조치 계획 (연계 · 지원)',
+      '다음 상담 예정'
+    ],
+    guide:
+      '**학생이 한 말과 상담자의 판단을 나누어** 적으세요.\n' +
+      '학생 말은 "…라고 말함", 상담자 판단은 "…로 보임" 으로 구분합니다.\n' +
+      '진단하듯 단정하지 마세요. 의학적·심리적 진단명을 쓰지 말고 관찰한 것만 적습니다.\n' +
+      '상담 기록은 학생에게 불리하게 쓰일 수 있으므로, 확인되지 않은 것은 적지 마세요.',
+    fields: [
+      {
+        key: '개요',
+        label: '상담 개요',
+        required: true,
+        placeholder: '예: 2026. 9. 3. 15:00 / 상담실 / 2학년 3반 ○○○ / 담임 ○○○'
+      },
+      { key: '유형', label: '상담 유형', placeholder: '예: 학업 / 교우관계 / 진로 / 생활 / 학부모' },
+      { key: '배경', label: '상담을 하게 된 배경', lines: 80 },
+      { key: '내용', label: '나눈 이야기', required: true, lines: 140 },
+      { key: '관찰', label: '관찰된 점', lines: 90 },
+      { key: '합의', label: '합의한 것 · 약속', lines: 90 },
+      { key: '후속', label: '후속 조치 계획', lines: 80, placeholder: '예: Wee클래스 연계, 2주 뒤 재상담' }
+    ]
+  },
+  {
+    id: '학급운영계획',
+    group: '담임 · 상담',
+    icon: '🏫',
+    name: '학급 운영 계획',
+    summary: '담임이 한 해 학급을 어떻게 꾸릴지 적는 계획',
+    outline: [
+      '학급 현황 (학년 · 반 · 인원 · 특성)',
+      '학급 경영 목표',
+      '중점 과제',
+      '생활 지도 방침',
+      '학습 지도 방침',
+      '학급 특색 활동',
+      '학부모 소통 계획',
+      '월별 운영 계획',
+      '평가 및 환류'
+    ],
+    guide:
+      '목표는 한 해가 끝났을 때 이루었는지 알 수 있게 구체적으로 적으세요.\n' +
+      '월별 계획은 학사일정에 맞추어 한 줄씩 적습니다.\n' +
+      '학생 개개인의 이름이나 특성은 적지 마세요. 학급 전체를 다루는 문서입니다.',
+    fields: [
+      { key: '학급', label: '학급', required: true, placeholder: '예: 2026학년도 2학년 3반 / 28명' },
+      { key: '목표', label: '학급 경영 목표', required: true, lines: 80 },
+      { key: '중점', label: '중점 과제', lines: 90, placeholder: '한 줄에 하나씩' },
+      { key: '특색', label: '학급 특색 활동', lines: 90 },
+      { key: '생활', label: '생활 지도 방침', lines: 90 },
+      { key: '소통', label: '학부모 소통 계획', lines: 80, placeholder: '예: 학기 초 상담 주간, 월 1회 학급 소식' }
     ]
   }
 ]
@@ -632,11 +814,60 @@ export function formById(id: string): DocForm | null {
   return DOC_FORMS.find((f) => f.id === id) ?? null
 }
 
+/* ---------- 직접 만든 문서 서식 ---------- */
+
+/**
+ * 학교 업무는 부서마다 다르고, 같은 부서라도 학교마다 다르다.
+ * 여기 미리 넣어 둔 것으로 다 담을 수 없으므로, 쓰는 사람이 자기 서식을
+ * 직접 만들어 쓸 수 있게 한다.
+ *
+ * 만든 서식은 설정에 `docform:<id>` 로 저장되어 인수인계 파일에 함께 넘어간다.
+ * 다음 담당자도 같은 서식으로 문서를 만들 수 있다.
+ */
+export const CUSTOM_PREFIX = 'docform:'
+
+/** 직접 만든 서식임을 나타낸다. 미리 넣어 둔 것과 구분해 보여 준다. */
+export interface CustomDocForm extends DocForm {
+  custom: true
+}
+
+export function isCustom(f: DocForm): f is CustomDocForm {
+  return (f as CustomDocForm).custom === true
+}
+
+/** 설정 값에서 서식을 읽어 낸다. 깨져 있으면 없는 셈 친다. */
+export function parseCustomForm(key: string, raw: string): CustomDocForm | null {
+  try {
+    const v = JSON.parse(raw) as Partial<DocForm>
+    const id = key.startsWith(CUSTOM_PREFIX) ? key.slice(CUSTOM_PREFIX.length) : key
+    if (!id || !v.name?.trim()) return null
+    return {
+      custom: true,
+      id,
+      name: v.name.trim(),
+      group: v.group?.trim() || '직접 만든 서식',
+      icon: v.icon || '📃',
+      summary: v.summary?.trim() ?? '',
+      outline: (v.outline ?? []).filter((s) => typeof s === 'string' && s.trim()),
+      guide: v.guide ?? '',
+      fields: (v.fields ?? []).filter((f) => f?.key && f?.label),
+      personal: !!v.personal
+    }
+  } catch {
+    return null
+  }
+}
+
+/** 서식 이름에서 저장에 쓸 id 를 만든다. 같은 이름이면 같은 id 가 된다. */
+export function customId(name: string): string {
+  return name.trim().replace(/\s+/g, '_').slice(0, 40)
+}
+
 /**
  * 예시를 담아 두는 templates 표의 kind 칸에는 문서 서식의 id 를 넣는다.
  * 1.7.0 이전에 '대본' · '회의록' 으로 저장해 둔 것이 그대로 살아 있도록
  * 그 둘은 서식 id 를 같은 이름으로 두었다.
  *
- * '서식' 은 문서 종류가 아니라 [서식 채우기] 에서 쓰는 빈칸 채우기용이다.
+ * '서식' 은 문서 종류가 아니라 [빈칸 채우기] 에서 쓰는 서식이다.
  */
 export const SLOT_KIND = '서식'

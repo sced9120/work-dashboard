@@ -7,6 +7,7 @@ import type {
   ChatTurn,
   DocDraftResult,
   DocKind,
+  FormSketch,
   LocalSettings,
   ModelChoice,
   Provider,
@@ -491,6 +492,7 @@ function valueBlock(form: DocForm, values: Record<string, string>): string {
  */
 function docDraftPrompt(
   schoolName: string,
+  jobTitle: string,
   form: DocForm,
   values: Record<string, string>,
   examples: Template[]
@@ -521,8 +523,9 @@ ${outline}
 
 넣을 자료가 없는 항목도 **제목은 남기고** 빈칸으로 두세요. 담당자가 채울 수 있어야 합니다.`
 
-  return `당신은 대한민국 고등학교에서 학생생활·인성 업무를 오래 맡아 온 교사입니다.
-${schoolName ? `학교명은 '${schoolName}' 입니다.` : ''}
+  return `당신은 대한민국 학교에서 행정 문서를 오래 다뤄 온 교사입니다.
+${schoolName ? `학교명은 '${schoolName}' 입니다.` : ''}${jobTitle ? `
+지금 이 문서를 쓰는 사람이 맡은 업무는 '${jobTitle}' 입니다.` : ''}
 
 ${shape}
 
@@ -548,6 +551,7 @@ ${valueBlock(form, values) || '(적어 넣은 것이 없습니다. 빈 서식으
 export async function generateDocDraft(
   settings: LocalSettings,
   schoolName: string,
+  jobTitle: string,
   form: DocForm,
   values: Record<string, string>,
   examples: Template[],
@@ -563,7 +567,7 @@ export async function generateDocDraft(
     content: maskText(t.content, aliases)
   }))
 
-  const prompt = docDraftPrompt(schoolName, form, maskedValues, maskedExamples)
+  const prompt = docDraftPrompt(schoolName, jobTitle, form, maskedValues, maskedExamples)
 
   // 마지막 방어선: 가렸는데도 실명이 남아 있으면 전송을 멈춘다.
   const leaked = leakCheck(prompt, aliases)
@@ -584,6 +588,82 @@ export async function generateDocDraft(
       ok: false,
       text: '',
       sentToAi: prompt,
+      error: e instanceof Error ? e.message : String(e)
+    }
+  }
+}
+
+/**
+ * 예시 문서 하나를 읽고 "이 문서는 어떤 항목으로 이루어져 있는지" 를 뽑아낸다.
+ *
+ * 학교 업무는 부서마다 달라서 서식을 미리 다 넣어 둘 수 없다. 쓰는 사람이
+ * 자기 문서를 하나 붙여넣으면 그것을 뜯어 자기만의 서식을 만들어 주는 것이다.
+ */
+export async function extractDocForm(
+  settings: LocalSettings,
+  docName: string,
+  sample: string,
+  override?: ModelChoice
+): Promise<FormSketch> {
+  const prompt = `당신은 대한민국 학교의 행정 문서를 잘 아는 교사입니다.
+아래는 어느 학교에서 실제로 쓰는 '${docName || '문서'}' 입니다.
+이 문서를 앞으로도 같은 얼개로 만들 수 있도록, 문서를 뜯어 **서식**으로 정리하세요.
+
+- "항목" 은 이 문서에 실제로 있는 큰 단락의 이름입니다. 문서에 있는 차례 그대로, 있는 것만 적으세요.
+- "칸" 은 다음에 이 문서를 만들 때 담당자에게 **물어봐야 할 것** 입니다.
+  문서마다 달라지는 내용(일시, 대상, 금액, 경위 같은 것)을 칸으로 만드세요.
+  틀에 박혀 늘 같은 문장(인사말, 근거 조항 안내)은 칸으로 만들지 마세요.
+- "여러줄" 은 그 칸에 긴 글을 적어야 하면 true, 한 줄이면 false 입니다.
+- "필수" 는 그것이 없으면 문서를 쓸 수 없는 칸에만 true 로 하세요. 한두 개면 충분합니다.
+- "문체" 는 이 문서를 쓸 때 지켜야 할 말투와 주의사항을 두세 줄로 적으세요.
+- 칸은 4개에서 8개 사이로 하세요. 사람 이름이나 사건 내용은 옮겨 적지 마세요.
+
+JSON 형식:
+{"항목":["",""],"칸":[{"이름":"","여러줄":false,"필수":false}],"문체":""}
+
+--- 문서 ---
+${sample.slice(0, 12000)}`
+
+  try {
+    const raw = await callModel(settings, 'analyze', override, prompt, true)
+    const cleaned = raw
+      .replace(/^\s*```(?:json)?/i, '')
+      .replace(/```\s*$/, '')
+      .trim()
+    const parsed = JSON.parse(cleaned) as {
+      항목?: unknown
+      칸?: unknown
+      문체?: unknown
+    }
+
+    const outline = Array.isArray(parsed.항목)
+      ? parsed.항목.map((v) => str(v)).filter(Boolean)
+      : []
+    const fields = Array.isArray(parsed.칸)
+      ? parsed.칸
+          .map((v) => {
+            const f = v as { 이름?: unknown; 여러줄?: unknown; 필수?: unknown }
+            const label = str(f.이름)
+            return {
+              key: label,
+              label,
+              ...(f.여러줄 ? { lines: 110 } : {}),
+              ...(f.필수 ? { required: true } : {})
+            }
+          })
+          .filter((f) => f.label)
+      : []
+
+    if (!outline.length && !fields.length) {
+      return { ok: false, outline: [], fields: [], guide: '', error: '서식을 알아보지 못했습니다.' }
+    }
+    return { ok: true, outline, fields, guide: str(parsed.문체) }
+  } catch (e) {
+    return {
+      ok: false,
+      outline: [],
+      fields: [],
+      guide: '',
       error: e instanceof Error ? e.message : String(e)
     }
   }

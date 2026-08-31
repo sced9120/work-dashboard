@@ -33,6 +33,8 @@ export default function StoredDocsLearn({
   const [at, setAt] = useState(0)
   const [now, setNow] = useState('')
   const [failed, setFailed] = useState<string[]>([])
+  /** AI 에 보내기 전에 이름·연락처를 ○○○ 으로 덮을지 */
+  const [scrub, setScrub] = useState(false)
   const cancel = useRef(false)
 
   const load = useCallback(async () => {
@@ -113,9 +115,12 @@ export default function StoredDocsLearn({
         continue
       }
 
+      // 켜 두면 개인정보를 가린 글만 나간다. 보관된 원문은 손대지 않는다.
+      const text = scrub ? (await window.api.privacy.scrub(full.content)).text : full.content
+
       const res = await window.api.ai.analyze({
         filename: d.filename,
-        text: full.content,
+        text,
         kind,
         jobTitle,
         model: model ?? undefined
@@ -259,6 +264,23 @@ export default function StoredDocsLearn({
           </div>
         </div>
       )}
+
+      <label className="row" style={{ gap: 6, cursor: 'pointer', marginTop: 12 }}>
+        <input
+          type="checkbox"
+          checked={scrub}
+          onChange={(e) => setScrub(e.target.checked)}
+          disabled={busy}
+          style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+        />
+        <span className="small">
+          🧹 개인정보를 가리고 AI에 보내기{' '}
+          <span className="muted">
+            — 이름·연락처·주민등록번호·학번·주소를 ○○○ 으로 덮어 보냅니다. 보관된 원문은 그대로
+            남습니다
+          </span>
+        </span>
+      </label>
 
       <div className="row row-end" style={{ marginTop: 12 }}>
         <button
