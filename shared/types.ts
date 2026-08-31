@@ -177,9 +177,12 @@ export interface AliasPair {
   alias: string
 }
 
-export type ScenarioKind = '대본' | '회의록'
-
-/** 기존에 쓰던 대본·회의록. AI에 형식 본보기로 함께 보낸다. */
+/**
+ * 예전에 쓰던 문서. AI 에 "이 학교는 이렇게 쓴다" 는 본보기로 함께 보낸다.
+ *
+ * kind 에는 문서 서식의 id(shared/docforms.ts) 가 들어간다.
+ * '서식' 만 예외로, 빈칸 채우기용 서식을 뜻한다.
+ */
 export interface Template {
   id: number
   name: string
@@ -190,37 +193,17 @@ export interface Template {
 
 export type TemplateInput = Omit<Template, 'id'>
 
-/** 화면에서 입력받는 사안 정보. 실명이 들어 있을 수 있다. */
-export interface CaseDetail {
-  kind: ScenarioKind
-  /** 회차·일시·장소 */
-  meetingInfo: string
-  /** 사안명 */
-  caseTitle: string
-  /** 사안 개요 */
-  summary: string
-  /** 학생 진술 요지 */
-  statements: string
-  /** 위원 구성 */
-  members: string
-  /** 심의 방향이나 예상 처분 */
-  expected: string
-  /** 회의록을 쓸 때 넣는 진행 메모 */
-  notes: string
+/** 화면에서 채운 문서 입력. 실명이 들어 있을 수 있다. */
+export interface DocDraftInput {
+  /** 문서 서식의 id */
+  formId: string
+  /** 칸 이름 → 적은 내용 */
+  values: Record<string, string>
+  /** 본보기로 함께 보낼 예시의 id */
+  exampleIds: number[]
 }
 
-export const BLANK_CASE: CaseDetail = {
-  kind: '대본',
-  meetingInfo: '',
-  caseTitle: '',
-  summary: '',
-  statements: '',
-  members: '',
-  expected: '',
-  notes: ''
-}
-
-export interface ScenarioResult {
+export interface DocDraftResult {
   ok: boolean
   /** 실명으로 되돌린 결과 */
   text: string

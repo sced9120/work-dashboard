@@ -1,15 +1,15 @@
+import type { DocForm } from '../../shared/docforms'
 import type {
   AiFeature,
   AliasPair,
   AnalyzeResult,
-  CaseDetail,
   ChatReply,
   ChatTurn,
+  DocDraftResult,
   DocKind,
   LocalSettings,
   ModelChoice,
   Provider,
-  ScenarioResult,
   TaskDraft,
   Template
 } from '../../shared/types'
@@ -467,95 +467,103 @@ ${blocks.join('\n\n')}`
   }
 }
 
-/* ---------- 위원회 대본 · 회의록 ---------- */
+/* ---------- 학교 문서 만들기 ---------- */
 
-/** 본보기로 보내는 대본 한 건의 길이 상한 */
+/** 본보기로 보내는 예시 한 건의 길이 상한 */
 const TEMPLATE_BUDGET = 6000
+/** 예시를 다 합쳐 이 길이를 넘기지 않는다. 넘기면 요청이 비싸고 느려진다. */
+const EXAMPLE_TOTAL = 18000
 
-function caseBlock(c: CaseDetail): string {
-  const lines: [string, string][] = [
-    ['회의 정보', c.meetingInfo],
-    ['사안명', c.caseTitle],
-    ['사안 개요', c.summary],
-    ['진술 요지', c.statements],
-    ['위원 구성', c.members],
-    ['심의 방향·예상 처분', c.expected],
-    ['진행 메모', c.notes]
-  ]
-  return lines
-    .filter(([, v]) => v.trim())
-    .map(([k, v]) => `[${k}]\n${v.trim()}`)
+function valueBlock(form: DocForm, values: Record<string, string>): string {
+  return form.fields
+    .map((f) => [f.label, (values[f.key] ?? '').trim()] as const)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `[${k}]\n${v}`)
     .join('\n\n')
 }
 
-function scenarioPrompt(
+/**
+ * 문서를 만들라는 지시문을 짠다.
+ *
+ * 예시가 없으면 서식에 적어 둔 뼈대(outline)대로 쓰고,
+ * 예시가 있으면 **예시를 뼈대보다 앞세운다.** 학교마다 서식이 달라서,
+ * 담당자가 실제로 쓰던 문서가 있으면 그것이 언제나 옳기 때문이다.
+ */
+function docDraftPrompt(
   schoolName: string,
-  c: CaseDetail,
-  templates: Template[]
+  form: DocForm,
+  values: Record<string, string>,
+  examples: Template[]
 ): string {
-  const examples = templates
-    .map((t, i) => `--- 본보기 ${i + 1}: ${t.name} ---\n${t.content.slice(0, TEMPLATE_BUDGET)}`)
-    .join('\n\n')
+  let budget = EXAMPLE_TOTAL
+  const shown: string[] = []
+  for (const [i, t] of examples.entries()) {
+    if (budget <= 0) break
+    const body = t.content.slice(0, Math.min(TEMPLATE_BUDGET, budget))
+    budget -= body.length
+    shown.push(`--- 예시 ${i + 1}: ${t.name} ---\n${body}`)
+  }
 
-  const shape =
-    c.kind === '대본'
-      ? `학생선도위원회를 실제로 진행할 때 사회자가 그대로 읽을 수 있는 **진행 대본**을 쓰세요.
-개회 선언 → 위원 소개 → 사안 보고 → 대상 학생 진술 → 위원 질의응답 → 학생 퇴장 →
-위원 심의 → 처분 의결 → 결과 고지 → 폐회 순서를 기본으로 하되, 본보기가 있으면 그 순서를 따르세요.
-사회자가 읽을 말은 "위원장: " 처럼 말하는 사람을 앞에 붙여 적고,
-진행상 필요한 안내는 (괄호) 로 표시하세요.`
-      : `학생선도위원회 **회의록**을 쓰세요.
-회의 개요(일시·장소·참석자), 안건, 논의 내용, 의결 사항, 향후 조치 순으로 정리합니다.
-말한 사람을 밝혀 요약하되, 대화를 그대로 옮기지 말고 회의록 문체로 간결하게 적으세요.
-본보기가 있으면 그 형식과 문체를 그대로 따르세요.`
+  const outline = form.outline.map((s, i) => `${i + 1}. ${s}`).join('\n')
 
-  return `당신은 대한민국 고등학교의 학생선도 업무를 오래 맡아 온 교사입니다.
+  const shape = shown.length
+    ? `아래에 이 학교에서 실제로 쓰던 **${form.name}** 예시가 있습니다.
+**예시를 무엇보다 앞세우세요.**
+- 항목의 이름과 차례, 번호 매김, 들여쓰기, 말투를 예시 그대로 따르세요.
+- 예시에 없는 항목은 새로 만들지 마세요.
+- 예시에 있는데 [입력 내용] 에 자료가 없는 항목은 제목만 남기고 빈칸으로 두세요.
+- 예시가 여러 건이면 가장 최근 것이나 가장 온전한 것을 기준으로 삼으세요.
+
+참고로 이 문서에 흔히 들어가는 항목은 다음과 같습니다. 예시와 어긋나면 **예시를 따르세요.**
+${outline}`
+    : `**${form.name}** 을 쓰세요. 다음 차례를 뼈대로 삼습니다.
+${outline}
+
+넣을 자료가 없는 항목도 **제목은 남기고** 빈칸으로 두세요. 담당자가 채울 수 있어야 합니다.`
+
+  return `당신은 대한민국 고등학교에서 학생생활·인성 업무를 오래 맡아 온 교사입니다.
 ${schoolName ? `학교명은 '${schoolName}' 입니다.` : ''}
 
 ${shape}
 
-반드시 지킬 것:
-- 아래 [사안 정보] 에 있는 사실만 쓰세요. 없는 사실, 없는 진술, 없는 날짜를 지어내지 마세요.
-- 정보가 비어 있는 부분은 (   ) 또는 "○○○" 처럼 담당자가 채울 빈칸으로 남기세요. 추측해서 메우지 마세요.
-- 사람 이름이 '학생A', '위원B' 처럼 적혀 있으면 그대로 쓰세요. 실제 이름을 만들어 넣지 마세요.
-- 처분의 수위를 단정하지 마세요. 처분은 위원회가 정하는 것이므로, 의결 부분은 빈칸이나 선택지로 두세요.
-- 설명이나 머리말 없이 결과물만 출력하세요.
+${form.guide}
 
-${examples ? `아래는 이 학교에서 쓰던 형식입니다. 말투와 구성을 최대한 따르세요.\n\n${examples}\n` : ''}
---- 사안 정보 ---
-${caseBlock(c)}`
+반드시 지킬 것:
+- 아래 [입력 내용] 에 있는 사실만 쓰세요. 없는 사실·진술·날짜·숫자를 지어내지 마세요.
+- 비어 있는 부분은 (   ) 또는 ○○○ 처럼 담당자가 채울 빈칸으로 남기세요. 추측해서 메우지 마세요.
+- 사람 이름이 '학생A', '위원B' 처럼 적혀 있으면 그대로 쓰세요. 실제 이름을 만들어 넣지 마세요.
+- 한글(HWP)에 그대로 붙여 넣어 쓸 수 있게, 설명이나 머리말 없이 **문서 본문만** 출력하세요.
+- 마크다운 표시(**, ##, \`\`\`)를 쓰지 마세요. 학교 문서에서 쓰는 번호와 기호로만 단을 나누세요.
+
+${shown.length ? `${shown.join('\n\n')}\n` : ''}
+--- 입력 내용 ---
+${valueBlock(form, values) || '(적어 넣은 것이 없습니다. 빈 서식으로 만드세요.)'}`
 }
 
 /**
- * 대본·회의록을 만든다.
+ * 학교 문서 초안을 만든다.
  * 보내기 전에 실명을 가명으로 바꾸고, 받은 뒤 다시 실명으로 되돌린다.
  * 가리기에 실패한 이름이 하나라도 있으면 아예 보내지 않는다.
  */
-export async function generateScenario(
+export async function generateDocDraft(
   settings: LocalSettings,
   schoolName: string,
-  c: CaseDetail,
-  templates: Template[],
+  form: DocForm,
+  values: Record<string, string>,
+  examples: Template[],
   aliases: AliasPair[],
   override?: ModelChoice
-): Promise<ScenarioResult> {
-  // 사안 정보만 가린다. 본보기는 형식용이라 그대로 두되 함께 가려 준다.
-  const maskedCase: CaseDetail = {
-    ...c,
-    meetingInfo: maskText(c.meetingInfo, aliases),
-    caseTitle: maskText(c.caseTitle, aliases),
-    summary: maskText(c.summary, aliases),
-    statements: maskText(c.statements, aliases),
-    members: maskText(c.members, aliases),
-    expected: maskText(c.expected, aliases),
-    notes: maskText(c.notes, aliases)
-  }
-  const maskedTemplates: Template[] = templates.map((t) => ({
+): Promise<DocDraftResult> {
+  const maskedValues: Record<string, string> = {}
+  for (const [k, v] of Object.entries(values)) maskedValues[k] = maskText(v, aliases)
+
+  // 예시는 형식을 보여 주려는 것이지만, 실명이 남아 있을 수 있어 함께 가린다.
+  const maskedExamples: Template[] = examples.map((t) => ({
     ...t,
     content: maskText(t.content, aliases)
   }))
 
-  const prompt = scenarioPrompt(schoolName, maskedCase, maskedTemplates)
+  const prompt = docDraftPrompt(schoolName, form, maskedValues, maskedExamples)
 
   // 마지막 방어선: 가렸는데도 실명이 남아 있으면 전송을 멈춘다.
   const leaked = leakCheck(prompt, aliases)

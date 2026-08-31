@@ -59,7 +59,7 @@ const NAV: { section: string; items: { id: PageId; icon: string; label: string }
     section: '자료 만들기',
     items: [
       { id: '학습', icon: '📥', label: '문서로 업무 만들기' },
-      { id: '위원회', icon: '⚖️', label: '선도위원회 자료' }
+      { id: '위원회', icon: '📑', label: '학교 문서 만들기' }
     ]
   },
   {

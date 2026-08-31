@@ -4,7 +4,8 @@ import type {
   AnalyzeResult,
   CalEvent,
   CalEventInput,
-  CaseDetail,
+  DocDraftInput,
+  DocDraftResult,
   ChatReply,
   ChatTurn,
   Deadline,
@@ -21,7 +22,6 @@ import type {
   Notice,
   NoticeInput,
   PickedFile,
-  ScenarioResult,
   SearchAnswer,
   SearchHit,
   Task,
@@ -100,13 +100,10 @@ const api = {
     mask: (text: string, pairs: AliasPair[]): Promise<string> =>
       ipcRenderer.invoke('privacy:mask', text, pairs)
   },
-  scenario: {
-    generate: (args: {
-      detail: CaseDetail
-      templateIds: number[]
-      aliases: AliasPair[]
-      model?: ModelChoice
-    }): Promise<ScenarioResult> => ipcRenderer.invoke('scenario:generate', args),
+  docdraft: {
+    generate: (
+      args: DocDraftInput & { aliases: AliasPair[]; model?: ModelChoice }
+    ): Promise<DocDraftResult> => ipcRenderer.invoke('docdraft:generate', args),
     save: (args: { name: string; text: string }): Promise<ActionResult> =>
       ipcRenderer.invoke('scenario:save', args)
   },

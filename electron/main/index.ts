@@ -17,10 +17,11 @@ import {
   analyzeDocument,
   answerFromSources,
   chatAnswer,
-  generateScenario,
+  generateDocDraft,
   testConnection
 } from './ai'
 import { buildAliases, findNameCandidates, maskText } from './anonymize'
+import { formById } from '../../shared/docforms'
 import { checkForUpdate } from './update'
 import { downloadUpdate, installUpdate, wireAutoUpdate } from './autoupdate'
 import { applyLocalSettings, checkDeadlinesNow, stopDeadlineWatch } from './notify'
@@ -28,8 +29,8 @@ import fs from 'node:fs'
 import type {
   AliasPair,
   CalEventInput,
-  CaseDetail,
   ChatTurn,
+  DocDraftInput,
   DeadlineInput,
   DocInput,
   DocKind,
@@ -222,23 +223,20 @@ function registerIpc(): void {
   )
   ipcMain.handle('privacy:mask', (_e, text: string, pairs: AliasPair[]) => maskText(text, pairs))
 
-  /* ---------- 위원회 자료 생성 ---------- */
+  /* ---------- 학교 문서 만들기 ---------- */
   ipcMain.handle(
-    'scenario:generate',
-    async (
-      _e,
-      args: {
-        detail: CaseDetail
-        templateIds: number[]
-        aliases: AliasPair[]
-        model?: ModelChoice
+    'docdraft:generate',
+    async (_e, args: DocDraftInput & { aliases: AliasPair[]; model?: ModelChoice }) => {
+      const form = formById(args.formId)
+      if (!form) {
+        return { ok: false, text: '', sentToAi: '', error: '모르는 문서 종류입니다.' }
       }
-    ) => {
-      const picked = db.listTemplates().filter((t) => args.templateIds.includes(t.id))
-      return generateScenario(
+      const picked = db.listTemplates().filter((t) => args.exampleIds.includes(t.id))
+      return generateDocDraft(
         loadLocalSettings(),
         db.getSetting('school_name', ''),
-        args.detail,
+        form,
+        args.values,
         picked,
         args.aliases,
         args.model
