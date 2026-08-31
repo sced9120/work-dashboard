@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CalEvent, CalEventInput, Deadline, Task } from '../../shared/types'
 import { BLANK_EVENT, EVENT_COLORS } from '../../shared/types'
+import { holidayLabel, holidayMap, lunarKnown, LUNAR_TO } from '../lib/holidays'
 import { useToast } from '../lib/toast'
 import { monthOf, todayStr, weekOf } from '../lib/util'
 
@@ -100,6 +101,23 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
     return cells
   }, [cursor])
 
+  /**
+   * 공휴일. 달력 격자에는 앞뒤 달이 함께 나오므로 해도 앞뒤로 한 해씩 담는다.
+   * 인터넷을 쓰지 않고 프로그램 안에서 셈한다.
+   */
+  const holidays = useMemo(
+    () => holidayMap([cursor.year - 1, cursor.year, cursor.year + 1]),
+    [cursor.year]
+  )
+
+  /** 이 달의 공휴일 — 아래에 한눈에 모아 보여 준다 */
+  const monthHolidays = useMemo(() => {
+    const head = `${cursor.year}-${pad(cursor.month)}-`
+    return [...holidays.values()]
+      .filter((h) => h.date.startsWith(head))
+      .sort((a, b) => a.date.localeCompare(b.date))
+  }, [holidays, cursor])
+
   const eventsOn = useCallback(
     (day: string) => events.filter((e) => covers(e, day)),
     [events]
@@ -187,6 +205,7 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
 
   const selectedEvents = eventsOn(selected)
   const selectedDeadlines = deadlinesOn(selected)
+  const selectedHoliday = holidays.get(selected)
 
   return (
     <div className={`cal ${big ? "cal-big" : ""} ${compact ? "cal-compact" : ""}`}>
@@ -229,9 +248,11 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
         {grid.map((cell) => {
           const evs = eventsOn(cell.date)
           const dls = deadlinesOn(cell.date)
+          const hol = holidays.get(cell.date)
           const isToday = cell.date === today
           const isSel = cell.date === selected
-          const shown = evs.slice(0, 3)
+          // 공휴일이면 한 줄을 이름에 내주므로 일정은 두 개까지만 보인다
+          const shown = evs.slice(0, hol ? 2 : 3)
           const rest = evs.length + dls.length - shown.length
 
           return (
@@ -240,11 +261,17 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
               className={`cal-cell ${cell.inMonth ? '' : 'out'} ${isToday ? 'today' : ''} ${isSel ? 'sel' : ''}`}
               onClick={() => setSelected(cell.date)}
               onDoubleClick={() => openNew(cell.date)}
+              title={hol ? holidayLabel(hol) : undefined}
             >
-              <span
-                className={`cal-num ${cell.dow === 0 ? 'sun' : ''} ${cell.dow === 6 ? 'sat' : ''}`}
-              >
-                {Number(cell.date.slice(8, 10))}
+              <span className="cal-top">
+                <span
+                  className={`cal-num ${cell.dow === 0 || hol ? 'sun' : ''} ${
+                    cell.dow === 6 && !hol ? 'sat' : ''
+                  }`}
+                >
+                  {Number(cell.date.slice(8, 10))}
+                </span>
+                {hol && <span className="cal-hol">{hol.name}</span>}
               </span>
 
               <span className="cal-chips">
@@ -276,6 +303,11 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
           <span>
             {selected.replace(/-/g, '. ')}
             {selected === today && <span className="badge badge-accent" style={{ marginLeft: 8 }}>오늘</span>}
+            {selectedHoliday && (
+              <span className="badge badge-danger" style={{ marginLeft: 8 }}>
+                {holidayLabel(selectedHoliday)}
+              </span>
+            )}
           </span>
           <button className="btn btn-sm btn-primary" onClick={() => openNew(selected)}>
             ＋ 이 날에 넣기
@@ -345,6 +377,36 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
           </div>
         )}
       </div>
+
+      {/* ── 이 달의 공휴일 ── */}
+      {!compact && (
+        <div className="card">
+          <div className="card-title">
+            <span>{cursor.month}월 공휴일</span>
+            {monthHolidays.length > 0 && (
+              <span className="badge badge-danger">{monthHolidays.length}일</span>
+            )}
+          </div>
+          {monthHolidays.length === 0 ? (
+            <p className="muted small" style={{ margin: 0 }}>
+              이 달에는 공휴일이 없습니다.
+            </p>
+          ) : (
+            <div className="cal-tasklist">
+              {monthHolidays.map((h) => (
+                <span key={h.date} className="badge badge-danger">
+                  {Number(h.date.slice(8, 10))}일 · {holidayLabel(h)}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="hint" style={{ marginBottom: 0 }}>
+            {lunarKnown(cursor.year)
+              ? '선거일과 임시공휴일은 그때그때 정해져 규칙이 없습니다. 정해지면 일정으로 넣어 두세요.'
+              : `설날·부처님오신날·추석은 음력이라 ${LUNAR_TO}년까지만 넣어 두었습니다. 그 밖의 해는 날짜가 정해진 공휴일만 뜹니다.`}
+          </p>
+        </div>
+      )}
 
       {/* ── 이 달의 업무 (뭉뚱그린 시기라 날짜 칸에는 못 올린다) ── */}
       {!compact && monthTasks.length > 0 && (

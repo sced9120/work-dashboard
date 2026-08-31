@@ -1113,6 +1113,24 @@ textarea {
   outline-offset: -2px;
 }
 
+/* 날짜 숫자와 공휴일 이름이 나란히 선다 */
+.cal-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cal-hol {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--danger);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .cal-num {
   font-size: 12px;
   font-weight: 700;
@@ -2020,6 +2038,10 @@ textarea {
   padding: 2px 6px;
 }
 
+.cal-big .cal-hol {
+  font-size: 11px;
+}
+
 .cal-big .cal-num {
   font-size: 13px;
   width: 24px;
@@ -2035,6 +2057,10 @@ textarea {
   font-size: 10px;
   line-height: 1.35;
   padding: 0 4px;
+}
+
+.cal-compact .cal-hol {
+  font-size: 9px;
 }
 
 .cal-compact .cal-num {
