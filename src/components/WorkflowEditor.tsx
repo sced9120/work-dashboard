@@ -75,6 +75,20 @@ export function draftWorkflow(tasks: Task[]): Workflow {
   return { nodes, edges }
 }
 
+/** 상자의 네 변 */
+export type Side = 'top' | 'right' | 'bottom' | 'left'
+
+const SIDES: Side[] = ['top', 'right', 'bottom', 'left']
+
+/** 그 변의 가운데 점이 판 위 어디인지 */
+function handlePoint(n: WfNode, side: Side): { x: number; y: number } {
+  const h = nodeHeight(n)
+  if (side === 'top') return { x: n.x + n.w / 2, y: n.y }
+  if (side === 'bottom') return { x: n.x + n.w / 2, y: n.y + h }
+  if (side === 'left') return { x: n.x, y: n.y + h / 2 }
+  return { x: n.x + n.w, y: n.y + h / 2 }
+}
+
 /** 두 상자 사이를 잇는 선. 세로로 늘어선 경우가 많아 위·아래를 먼저 본다. */
 function anchors(a: WfNode, b: WfNode): { x1: number; y1: number; x2: number; y2: number } {
   const ah = nodeHeight(a)
@@ -105,9 +119,27 @@ export default function WorkflowEditor({
 }: Props): JSX.Element {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<string | null>(null)
-  /** 연결 시작점으로 잡아 둔 상자 */
-  const [linking, setLinking] = useState<string | null>(null)
   const [editingText, setEditingText] = useState<string | null>(null)
+
+  /**
+   * 연결선을 끌고 있는 중.
+   *
+   * 고른 상자의 네 변 가운데 점을 잡아 끌면, 커서를 따라 선이 따라오다가
+   * 다른 상자에 놓는 순간 화살표가 된다. over 는 지금 커서가 얹힌 상자로,
+   * 놓기 전에 어디로 이어지는지 보여 주려고 들고 있다.
+   */
+  const [link, setLink] = useState<{
+    from: string
+    x1: number
+    y1: number
+    x2: number
+    y2: number
+    over: string | null
+  } | null>(null)
+
+  /** 창 전체에서 받는 손가락 움직임이 최신 값을 보게 하는 그릇 */
+  const linkRef = useRef(link)
+  linkRef.current = link
 
   /** 끌고 있는 상자와, 상자 안에서 붙잡은 지점 */
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null)
@@ -147,37 +179,88 @@ export default function WorkflowEditor({
     [patch, value.nodes]
   )
 
+  /** 화면 위의 자리를 판 위의 자리로 옮긴다 (스크롤한 만큼 더해 준다) */
+  const toCanvas = useCallback((clientX: number, clientY: number): { x: number; y: number } => {
+    const el = wrapRef.current
+    if (!el) return { x: 0, y: 0 }
+    const r = el.getBoundingClientRect()
+    return { x: clientX - r.left + el.scrollLeft, y: clientY - r.top + el.scrollTop }
+  }, [])
+
+  /** 그 자리에 있는 상자의 id. 연결선을 놓을 곳을 찾을 때 쓴다. */
+  const nodeAt = (clientX: number, clientY: number): string | null => {
+    const el = document.elementFromPoint(clientX, clientY)
+    const host = el instanceof Element ? el.closest('[data-node]') : null
+    return host?.getAttribute('data-node') ?? null
+  }
+
+  const connect = useCallback(
+    (from: string, to: string) => {
+      if (from === to) return
+      if (value.edges.some((e) => e.from === from && e.to === to)) return
+      patch({ edges: [...value.edges, { id: uid('e'), from, to, label: '' }] })
+    },
+    [patch, value.edges]
+  )
+
   // 끌기 — 판 전체에서 받아야 빨리 움직여도 놓치지 않는다
   useEffect(() => {
     if (readOnly) return
+
     const onMove = (e: PointerEvent): void => {
-      if (!drag.current || !wrapRef.current) return
-      const r = wrapRef.current.getBoundingClientRect()
-      const x = e.clientX - r.left + wrapRef.current.scrollLeft - drag.current.dx
-      const y = e.clientY - r.top + wrapRef.current.scrollTop - drag.current.dy
-      moveNode(drag.current.id, x, y)
+      // 연결선을 끄는 중이면 선 끝을 커서에 붙인다
+      const l = linkRef.current
+      if (l) {
+        const p = toCanvas(e.clientX, e.clientY)
+        const over = nodeAt(e.clientX, e.clientY)
+        setLink({ ...l, x2: p.x, y2: p.y, over: over && over !== l.from ? over : null })
+        return
+      }
+      if (!drag.current) return
+      const p = toCanvas(e.clientX, e.clientY)
+      moveNode(drag.current.id, p.x - drag.current.dx, p.y - drag.current.dy)
     }
-    const onUp = (): void => {
+
+    const onUp = (e: PointerEvent): void => {
+      const l = linkRef.current
+      if (l) {
+        const to = nodeAt(e.clientX, e.clientY)
+        if (to) connect(l.from, to)
+        setLink(null)
+      }
       drag.current = null
     }
+
+    // 끌던 도중 Esc 를 누르면 없던 일로 한다
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape' && linkRef.current) setLink(null)
+    }
+
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
+    window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('keydown', onKey)
     }
-  }, [moveNode, readOnly])
+  }, [moveNode, readOnly, toCanvas, connect])
 
   const startDrag = (e: React.PointerEvent, n: WfNode): void => {
     if (readOnly || editingText === n.id) return
-    const r = wrapRef.current?.getBoundingClientRect()
-    if (!r) return
-    drag.current = {
-      id: n.id,
-      dx: e.clientX - r.left + (wrapRef.current?.scrollLeft ?? 0) - n.x,
-      dy: e.clientY - r.top + (wrapRef.current?.scrollTop ?? 0) - n.y
-    }
+    const p = toCanvas(e.clientX, e.clientY)
+    drag.current = { id: n.id, dx: p.x - n.x, dy: p.y - n.y }
     setSelected(n.id)
+  }
+
+  /** 네 변의 가운데 점을 잡고 끌기 시작 */
+  const startLink = (e: React.PointerEvent, n: WfNode, side: Side): void => {
+    if (readOnly) return
+    // 상자 끌기로 넘어가지 않게 막는다
+    e.stopPropagation()
+    e.preventDefault()
+    const p = handlePoint(n, side)
+    setLink({ from: n.id, x1: p.x, y1: p.y, x2: p.x, y2: p.y, over: null })
   }
 
   const addNode = (kind: WfNode['kind']): void => {
@@ -218,17 +301,8 @@ export default function WorkflowEditor({
     })
   }
 
-  /** 연결 만들기 — 시작점을 잡아 두고 다음에 누른 상자로 잇는다 */
   const clickNode = (n: WfNode): void => {
     if (readOnly) return
-    if (linking && linking !== n.id) {
-      const exists = value.edges.some((e) => e.from === linking && e.to === n.id)
-      if (!exists) {
-        patch({ edges: [...value.edges, { id: uid('e'), from: linking, to: n.id, label: '' }] })
-      }
-      setLinking(null)
-      return
-    }
     setSelected(n.id)
   }
 
@@ -268,17 +342,26 @@ export default function WorkflowEditor({
         </div>
       )}
 
-      {linking && (
-        <div className="note note-info wf-hint">
-          <b>이을 상자를 누르세요.</b> 화살표가 <b>{byId.get(linking)?.text.split('\n')[0]}</b> →
-          누른 상자 방향으로 생깁니다.{' '}
-          <button className="link" onClick={() => setLinking(null)}>
-            취소
-          </button>
-        </div>
-      )}
+      {/*
+        안내 띠는 판 위에 떠 있다. 흐름대로 자리를 차지하면 띠가 나타나는 순간
+        판이 아래로 밀려, 끌던 손 밑에서 상자가 움직여 엉뚱한 곳에 놓인다.
+      */}
+      <div className="wf-stage">
+        {link && (
+          <div className="note note-info wf-hint">
+            <b>이을 상자에 놓으세요.</b>{' '}
+            {link.over ? (
+              <>
+                <b>{byId.get(link.from)?.text.split('\n')[0]}</b> →{' '}
+                <b>{byId.get(link.over)?.text.split('\n')[0]}</b> 로 이어집니다.
+              </>
+            ) : (
+              <>빈 곳에 놓거나 Esc 를 누르면 그만둡니다.</>
+            )}
+          </div>
+        )}
 
-      <div className="wf-canvas-wrap" ref={wrapRef}>
+        <div className="wf-canvas-wrap" ref={wrapRef}>
         <div className="wf-canvas" style={{ width: size.w, height: size.h }}>
           <svg width={size.w} height={size.h} className="wf-svg">
             <defs>
@@ -292,6 +375,17 @@ export default function WorkflowEditor({
                 orient="auto-start-reverse"
               >
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--border-strong)" />
+              </marker>
+              <marker
+                id="wf-arrow-live"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)" />
               </marker>
             </defs>
 
@@ -339,14 +433,27 @@ export default function WorkflowEditor({
                 </g>
               )
             })}
+
+            {/* 끌고 있는 연결선 — 놓을 상자에 얹히면 파랗게 바뀐다 */}
+            {link && (
+              <line
+                x1={link.x1}
+                y1={link.y1}
+                x2={link.x2}
+                y2={link.y2}
+                className={`wf-link-preview ${link.over ? 'on' : ''}`}
+                markerEnd="url(#wf-arrow-live)"
+              />
+            )}
           </svg>
 
           {value.nodes.map((n) => (
             <div
               key={n.id}
+              data-node={n.id}
               className={`wf-node k-${n.kind} ${selected === n.id ? 'sel' : ''} ${
-                linking === n.id ? 'linking' : ''
-              }`}
+                link?.over === n.id ? 'drop' : ''
+              } ${link?.from === n.id ? 'linking' : ''}`}
               style={{ left: n.x, top: n.y, width: n.w, minHeight: nodeHeight(n) }}
               onPointerDown={(e) => startDrag(e, n)}
               onClick={() => clickNode(n)}
@@ -367,8 +474,22 @@ export default function WorkflowEditor({
               ) : (
                 <span className="wf-node-text">{n.text}</span>
               )}
+
+              {/* 고른 상자의 네 변 가운데 점. 끌어다 다른 상자에 놓으면 이어진다. */}
+              {!readOnly &&
+                selected === n.id &&
+                editingText !== n.id &&
+                SIDES.map((side) => (
+                  <span
+                    key={side}
+                    className={`wf-handle h-${side}`}
+                    onPointerDown={(e) => startLink(e, n, side)}
+                    title="끌어다 다른 상자에 놓으면 화살표가 이어집니다"
+                  />
+                ))}
             </div>
           ))}
+          </div>
         </div>
       </div>
 
@@ -396,12 +517,9 @@ export default function WorkflowEditor({
               <button className="btn btn-sm" onClick={() => resize(sel.id, 30)}>
                 넓게 ￫
               </button>
-              <button
-                className={`btn btn-sm ${linking === sel.id ? 'btn-primary' : ''}`}
-                onClick={() => setLinking(linking === sel.id ? null : sel.id)}
-              >
-                → 연결
-              </button>
+              <span className="muted small">
+                네 변의 <b>파란 점</b>을 끌어다 다른 상자에 놓으면 이어집니다
+              </span>
               <span className="spacer" />
               <button className="btn btn-sm btn-danger" onClick={() => removeNode(sel.id)}>
                 삭제
@@ -409,8 +527,9 @@ export default function WorkflowEditor({
             </>
           ) : (
             <span className="muted small">
-              상자를 <b>끌어서</b> 옮기고, <b>두 번 눌러</b> 글자를 고칩니다. 상자를 고른 뒤
-              <b> [→ 연결]</b> 로 화살표를 잇습니다. — {topic}
+              상자를 <b>끌어서</b> 옮기고, <b>두 번 눌러</b> 글자를 고칩니다. 상자를 한 번 누르면
+              네 변에 <b>파란 점</b>이 생기는데, 그것을 <b>끌어다 다른 상자에 놓으면</b> 화살표가
+              이어집니다. — {topic}
             </span>
           )}
         </div>
