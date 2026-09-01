@@ -1,14 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Doc, DocKind, ModelChoice, TaskDraft } from '../../shared/types'
-import { schoolYearLabel } from '../../shared/types'
+import { currentSchoolYear, schoolYearLabel } from '../../shared/types'
 import { useToast } from '../lib/toast'
+import {
+  addDrafts,
+  addFailure,
+  finishJob,
+  isStopping,
+  requestStop,
+  setProgress,
+  startJob,
+  useLearnJob
+} from '../lib/learnJob'
 
 interface Props {
   jobTitle: string
   kind: DocKind
   model: ModelChoice | null
-  /** 분석이 끝난 결과를 위쪽 검토 목록으로 올린다 */
-  onDrafts: (drafts: TaskDraft[]) => void
 }
 
 /** 한 번에 돌릴 기본 건수. 실수로 수백 건을 한꺼번에 돌리지 않게 막아 둔다. */
@@ -17,12 +25,10 @@ const DEFAULT_LIMIT = 50
 /** 이 프로그램이 긴 문서를 자르는 단위 (ai.ts 의 CHUNK_SIZE 와 같다) */
 const CHUNK = 28000
 
-export default function StoredDocsLearn({
-  jobTitle,
-  kind,
-  model,
-  onDrafts
-}: Props): JSX.Element {
+/** 학년도 고르개에서 "공문에 매겨 둔 것을 그대로 쓴다" 를 뜻하는 값 */
+const FOLLOW_DOC = -1
+
+export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.Element {
   const toast = useToast()
   const [docs, setDocs] = useState<Doc[]>([])
   const [learned, setLearned] = useState<Set<string>>(new Set())
@@ -30,13 +36,25 @@ export default function StoredDocsLearn({
   const [limit, setLimit] = useState(DEFAULT_LIMIT)
   const [query, setQuery] = useState('')
 
-  const [busy, setBusy] = useState(false)
-  const [at, setAt] = useState(0)
-  const [now, setNow] = useState('')
-  const [failed, setFailed] = useState<string[]>([])
+  // 진행 상태와 찾아낸 것은 화면 밖에 둔다 (src/lib/learnJob.ts).
+  // 다른 화면으로 넘어가도 위쪽 띠에 "학습 중" 이 남는다.
+  const job = useLearnJob()
+  const busy = job.running
+  const at = job.done
+  const now = job.now
+  const failed = job.failed
+
   /** AI 에 보내기 전에 이름·연락처를 ○○○ 으로 덮을지 */
   const [scrub, setScrub] = useState(false)
-  const cancel = useRef(false)
+
+  /**
+   * 뽑아낸 업무를 몇 학년도로 매길지.
+   *
+   * 기본은 공문에 이미 매겨 둔 학년도를 따르는 것이다. 다만 예전에 쌓아 둔
+   * 공문은 학년도가 없어서(미지정) 그대로 두면 업무도 미지정이 된다.
+   * 그럴 때 여기서 골라 한꺼번에 매길 수 있어야 한다.
+   */
+  const [year, setYear] = useState<number>(FOLLOW_DOC)
 
   const load = useCallback(async () => {
     const [list, tasks] = await Promise.all([window.api.docs.list(), window.api.tasks.list()])
@@ -58,6 +76,17 @@ export default function StoredDocsLearn({
   const notYet = useMemo(() => docs.filter((d) => !learned.has(d.filename)), [docs, learned])
 
   const chosen = useMemo(() => docs.filter((d) => picked.has(d.id)), [docs, picked])
+
+  /**
+   * 고르개에 세울 학년도들.
+   * 올해 둘레의 몇 해에, 보관된 공문에 실제로 매겨져 있는 해를 보탠다.
+   */
+  const yearChoices = useMemo(() => {
+    const now = currentSchoolYear()
+    const set = new Set<number>([now + 1, now, now - 1, now - 2, now - 3])
+    for (const d of docs) if (d.school_year) set.add(d.school_year)
+    return [...set].sort((a, b) => b - a)
+  }, [docs])
 
   /** 실제로 몇 번 요청이 나가는지 — 긴 문서는 나눠 보내므로 건수보다 많다 */
   const calls = useMemo(
@@ -96,23 +125,17 @@ export default function StoredDocsLearn({
     )
     if (!ok) return
 
-    cancel.current = false
-    setBusy(true)
-    setAt(0)
-    setFailed([])
-
-    const collected: TaskDraft[] = []
-    const bad: string[] = []
+    startJob('보관 문서 학습', chosen.length)
+    let found = 0
 
     for (let i = 0; i < chosen.length; i++) {
-      if (cancel.current) break
+      if (isStopping()) break
       const d = chosen[i]
-      setNow(d.filename)
-      setAt(i)
+      setProgress({ now: d.filename, done: i })
 
       const full = await window.api.docs.get(d.id)
       if (!full?.content?.trim()) {
-        bad.push(`${d.filename} — 원문이 비어 있습니다`)
+        addFailure(`${d.filename} — 원문이 비어 있습니다`)
         continue
       }
 
@@ -128,34 +151,33 @@ export default function StoredDocsLearn({
       })
 
       if (!res.ok) {
-        bad.push(`${d.filename} — ${res.error ?? '분석 실패'}`)
+        addFailure(`${d.filename} — ${res.error ?? '분석 실패'}`)
         // 키가 잘못됐거나 한도에 걸린 것이면 계속해 봐야 다 실패한다
         if (/키|한도|없습니다/.test(res.error ?? '')) {
           toast(`${res.error} — 중단합니다.`, 'err')
           break
         }
       } else if (res.drafts.length === 0) {
-        bad.push(`${d.filename} — 뽑을 업무를 찾지 못했습니다`)
+        addFailure(`${d.filename} — 뽑을 업무를 찾지 못했습니다`)
       }
 
-      // 이미 보관된 문서이므로 원문을 다시 넣지 않도록 id 를 달아 둔다
-      // 공문에 매겨 둔 학년도를 그대로 물려준다
-      collected.push(
-        ...res.drafts.map((x) => ({ ...x, document_id: d.id, school_year: d.school_year }))
+      // 이미 보관된 문서이므로 원문을 다시 넣지 않도록 id 를 달아 둔다.
+      // 학년도는 고른 값을 쓰되, "공문을 따름" 이면 그 공문에 매겨 둔 것을 쓴다.
+      addDrafts(
+        res.drafts.map((x) => ({
+          ...x,
+          document_id: d.id,
+          school_year: year === FOLLOW_DOC ? d.school_year : year
+        }))
       )
+      found += res.drafts.length
+      setProgress({ done: i + 1 })
     }
 
-    setAt(chosen.length)
-    setBusy(false)
-    setNow('')
-    setFailed(bad)
+    finishJob()
 
-    if (collected.length) {
-      onDrafts(collected)
-      toast(
-        `${collected.length}건을 찾았습니다. 위쪽 목록에서 확인하고 등록해 주세요.`,
-        'ok'
-      )
+    if (found) {
+      toast(`${found}건을 찾았습니다. 위쪽 목록에서 확인하고 등록해 주세요.`, 'ok')
     } else {
       toast('업무로 뽑을 내용을 찾지 못했습니다.', 'err')
     }
@@ -226,7 +248,7 @@ export default function StoredDocsLearn({
             <button
               className="btn btn-sm btn-danger"
               onClick={() => {
-                cancel.current = true
+                requestStop()
                 toast('이번 문서까지 마치고 멈춥니다.')
               }}
             >
@@ -271,6 +293,36 @@ export default function StoredDocsLearn({
           </div>
         </div>
       )}
+
+      <div className="field" style={{ maxWidth: 400, marginTop: 12 }}>
+        <label>뽑아낸 업무를 몇 학년도로 매길까요?</label>
+        <select
+          value={year}
+          onChange={(e) => setYear(Number(e.target.value))}
+          disabled={busy}
+        >
+          <option value={FOLLOW_DOC}>공문에 매겨 둔 학년도를 따름</option>
+          {yearChoices.map((y) => (
+            <option key={y} value={y}>
+              {schoolYearLabel(y)}
+              {y === currentSchoolYear() ? ' · 올해' : ''}
+            </option>
+          ))}
+        </select>
+        <div className="hint">
+          {year === FOLLOW_DOC ? (
+            <>
+              공문마다 매겨 둔 학년도를 그대로 씁니다. 학년도가 없는 공문에서 뽑은 업무는{' '}
+              <b>미지정</b>으로 들어갑니다 — 지금 고르신 것 가운데{' '}
+              <b>{chosen.filter((d) => !d.school_year).length}건</b>이 그렇습니다.
+            </>
+          ) : (
+            <>
+              공문에 무엇이 매겨져 있든 <b>{schoolYearLabel(year)}</b>로 몰아서 매깁니다.
+            </>
+          )}
+        </div>
+      </div>
 
       <label className="row" style={{ gap: 6, cursor: 'pointer', marginTop: 12 }}>
         <input

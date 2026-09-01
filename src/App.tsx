@@ -13,6 +13,7 @@ import Chat from './pages/Chat'
 import Committee from './pages/Committee'
 import Deadlines from './pages/Deadlines'
 import Journal from './pages/Journal'
+import LearnBanner from './components/LearnBanner'
 import Data from './pages/Data'
 import Settings from './pages/Settings'
 
@@ -157,6 +158,9 @@ function Shell(): JSX.Element {
       </nav>
 
       <main className="main">
+        {/* 학습이 도는 동안 어느 화면에 있든 붙어 있는 띠 */}
+        <LearnBanner page={page} onGo={setPage} />
+
         {update && !updateHidden && (
           <div className="update-bar">
             <span className="update-dot" />

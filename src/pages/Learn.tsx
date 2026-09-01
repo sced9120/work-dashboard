@@ -3,6 +3,16 @@ import type { DocKind, ExtractedDoc, ModelChoice, TaskDraft } from '../../shared
 import { currentSchoolYear, schoolYearLabel } from '../../shared/types'
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
+import {
+  addDrafts,
+  clearDrafts,
+  finishJob,
+  isStopping,
+  setDrafts as setJobDrafts,
+  setProgress as setJobProgress,
+  startJob,
+  useLearnJob
+} from '../lib/learnJob'
 import ModelPicker from '../components/ModelPicker'
 import YearPicker from '../components/YearPicker'
 import StoredDocsLearn from '../components/StoredDocsLearn'
@@ -23,10 +33,14 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   const toast = useToast()
   const [kind, setKind] = useState<DocKind>('길라잡이/매뉴얼')
   const [files, setFiles] = useState<FileRow[]>([])
-  const [drafts, setDrafts] = useState<TaskDraft[]>([])
-  const [busy, setBusy] = useState(false)
-  const [progress, setProgress] = useState('')
-  const [done, setDone] = useState(0)
+  // 진행 상태와 찾아낸 업무는 화면 밖에 둔다. 다른 화면으로 넘어갔다 돌아와도
+  // 이어서 보이고, 위쪽 띠에 "학습 중" 이 계속 떠 있다.
+  const job = useLearnJob()
+  const drafts = job.drafts
+  const setDrafts = setJobDrafts
+  const busy = job.running
+  const progress = job.message
+  const done = job.done
   const [hasKey, setHasKey] = useState(true)
   const [preview, setPreview] = useState<string | null>(null)
   const [keepOriginal, setKeepOriginal] = useState(true)
@@ -50,7 +64,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
     })()
   }, [])
 
-  useEffect(() => window.api.ai.onProgress((msg) => setProgress(msg)), [])
+  useEffect(() => window.api.ai.onProgress((msg) => setJobProgress({ message: msg })), [])
 
   const pick = useCallback(async () => {
     const picked = await window.api.files.pick()
@@ -77,13 +91,13 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
       return
     }
 
-    setBusy(true)
-    setDone(0)
-    const collected: TaskDraft[] = []
+    startJob('문서 분석', ready.length)
+    let found = 0
 
     for (let i = 0; i < ready.length; i++) {
+      if (isStopping()) break
       const f = ready[i]
-      setProgress(`${f.name} 분석 중`)
+      setJobProgress({ now: f.name, message: `${f.name} 분석 중` })
       // 켜 두면 개인정보를 가린 글을 보낸다. 보관하는 원문은 그대로 둔다 —
       // 학교 안에서는 원문이 필요하고, 밖으로 나가는 것만 가리면 되기 때문이다.
       const text = scrub ? (await window.api.privacy.scrub(f.doc!.text)).text : f.doc!.text
@@ -99,14 +113,14 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
       } else if (res.drafts.length === 0) {
         toast(`${f.name}: 업무로 뽑을 내용을 찾지 못했습니다.`, 'err')
       }
-      collected.push(...res.drafts)
-      setDone(i + 1)
+      // 한 건이 끝날 때마다 바로 담는다. 도중에 화면을 옮겨도 남는다.
+      addDrafts(res.drafts)
+      found += res.drafts.length
+      setJobProgress({ done: i + 1 })
     }
 
-    setDrafts((prev) => [...prev, ...collected])
-    setProgress('')
-    setBusy(false)
-    if (collected.length) toast(`${collected.length}건을 찾았습니다. 확인 후 등록해 주세요.`, 'ok')
+    finishJob()
+    if (found) toast(`${found}건을 찾았습니다. 확인 후 등록해 주세요.`, 'ok')
   }
 
   /**
@@ -162,7 +176,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         school_year: d.school_year || year
       }))
     )
-    setDrafts([])
+    clearDrafts()
     setFiles([])
     toast(
       docIds.size
@@ -225,6 +239,11 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
     setFiles([])
     toast(`${schoolYearLabel(year)} 공문 ${ready.length}건을 보관했습니다. [통합 검색]에서 찾을 수 있습니다.`, 'ok')
     onGo('검색')
+  }
+
+  /** 검토 목록의 한 줄만 고친다 */
+  const editDraft = (i: number, patch: Partial<TaskDraft>): void => {
+    setDrafts(drafts.map((x, xi) => (xi === i ? { ...x, ...patch } : x)))
   }
 
   const readyCount = files.filter((f) => f.state === '읽음').length
@@ -433,7 +452,6 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             jobTitle={jobTitle}
             kind={kind}
             model={model}
-            onDrafts={(list) => setDrafts((prev) => [...prev, ...list])}
           />
         </div>
       )}
@@ -450,13 +468,13 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
           <div className="row" style={{ marginBottom: 12 }}>
             <button
               className="btn btn-sm"
-              onClick={() => setDrafts((p) => p.map((d) => ({ ...d, selected: true })))}
+              onClick={() => setDrafts(drafts.map((d) => ({ ...d, selected: true })))}
             >
               전체 선택
             </button>
             <button
               className="btn btn-sm"
-              onClick={() => setDrafts((p) => p.map((d) => ({ ...d, selected: false })))}
+              onClick={() => setDrafts(drafts.map((d) => ({ ...d, selected: false })))}
             >
               전체 해제
             </button>
@@ -474,9 +492,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
                     type="checkbox"
                     checked={d.selected}
                     onChange={(e) =>
-                      setDrafts((p) =>
-                        p.map((x, xi) => (xi === i ? { ...x, selected: e.target.checked } : x))
-                      )
+                      editDraft(i, { selected: e.target.checked })
                     }
                     style={{ marginTop: 9, width: 15, height: 15, accentColor: 'var(--accent)' }}
                   />
@@ -486,9 +502,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
                         type="text"
                         value={d.title}
                         onChange={(e) =>
-                          setDrafts((p) =>
-                            p.map((x, xi) => (xi === i ? { ...x, title: e.target.value } : x))
-                          )
+                          editDraft(i, { title: e.target.value })
                         }
                         style={{ flex: 2, minWidth: 180 }}
                       />
@@ -496,11 +510,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
                         type="text"
                         value={d.task_date_display}
                         onChange={(e) =>
-                          setDrafts((p) =>
-                            p.map((x, xi) =>
-                              xi === i ? { ...x, task_date_display: e.target.value } : x
-                            )
-                          )
+                          editDraft(i, { task_date_display: e.target.value })
                         }
                         placeholder="시기"
                         style={{ flex: 1, minWidth: 110 }}
