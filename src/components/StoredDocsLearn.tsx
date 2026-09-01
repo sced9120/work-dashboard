@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Doc, DocKind, ModelChoice, TaskDraft } from '../../shared/types'
+import { schoolYearLabel } from '../../shared/types'
 import { useToast } from '../lib/toast'
 
 interface Props {
@@ -138,7 +139,10 @@ export default function StoredDocsLearn({
       }
 
       // 이미 보관된 문서이므로 원문을 다시 넣지 않도록 id 를 달아 둔다
-      collected.push(...res.drafts.map((x) => ({ ...x, document_id: d.id })))
+      // 공문에 매겨 둔 학년도를 그대로 물려준다
+      collected.push(
+        ...res.drafts.map((x) => ({ ...x, document_id: d.id, school_year: d.school_year }))
+      )
     }
 
     setAt(chosen.length)
@@ -250,6 +254,9 @@ export default function StoredDocsLearn({
               <span className="storeditem-name">{d.filename}</span>
               {learned.has(d.filename) && <span className="badge">학습함</span>}
               <span className="muted small">{d.doc_date || '날짜 미상'}</span>
+              <span className={`badge ${d.school_year ? '' : 'badge-warn'}`}>
+                {schoolYearLabel(d.school_year)}
+              </span>
               <span className="muted small">{d.chars.toLocaleString()}자</span>
             </label>
           ))

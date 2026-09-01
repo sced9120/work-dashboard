@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { DocKind, ExtractedDoc, ModelChoice, TaskDraft } from '../../shared/types'
+import { currentSchoolYear, schoolYearLabel } from '../../shared/types'
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
 import ModelPicker from '../components/ModelPicker'
+import YearPicker from '../components/YearPicker'
 import StoredDocsLearn from '../components/StoredDocsLearn'
 
 interface Props {
@@ -30,6 +32,13 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   const [keepOriginal, setKeepOriginal] = useState(true)
   /** AI 에 보내기 전에 이름·연락처를 ○○○ 으로 덮을지 */
   const [scrub, setScrub] = useState(false)
+  /**
+   * 이 문서들이 몇 학년도 것인지.
+   *
+   * 해가 바뀌어 넘겨줄 때 "지난 학년도 것만 지우기" 를 하려면 지금 정해 두어야
+   * 한다. 전임자에게 받은 묵은 공문을 학습시킬 때는 그 해로 바꿔 주면 된다.
+   */
+  const [year, setYear] = useState(currentSchoolYear())
   const [model, setModel] = useState<ModelChoice | null>(null)
   /** 파일을 새로 올릴지, 이미 보관한 공문을 학습할지 */
   const [source, setSource] = useState<'파일' | '보관함'>('파일')
@@ -117,7 +126,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         doc_kind: kind,
         doc_date: await window.api.docs.guessDate(f.doc!.text),
         added_at: '',
-        content: f.doc!.text
+        content: f.doc!.text,
+        school_year: year
       }))
     )
 
@@ -147,15 +157,17 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         filename: d.filename,
         is_completed: 0,
         // 보관함에서 뽑은 것은 이미 문서 id 를 달고 온다
-        document_id: d.document_id ?? docIds.get(d.filename) ?? 0
+        document_id: d.document_id ?? docIds.get(d.filename) ?? 0,
+        // 보관함에서 뽑은 것은 그 공문의 학년도를 따르고, 새로 올린 것은 위에서 고른 값을 쓴다
+        school_year: d.school_year || year
       }))
     )
     setDrafts([])
     setFiles([])
     toast(
       docIds.size
-        ? `${chosen.length}건을 등록하고, 공문 원문 ${docIds.size}건을 보관했습니다.`
-        : `${chosen.length}건을 등록했습니다.`,
+        ? `${schoolYearLabel(year)} 업무 ${chosen.length}건을 등록하고, 공문 원문 ${docIds.size}건을 보관했습니다.`
+        : `${schoolYearLabel(year)} 업무 ${chosen.length}건을 등록했습니다.`,
       'ok'
     )
     onGo('로드맵')
@@ -171,7 +183,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         doc_kind: kind,
         doc_date: await window.api.docs.guessDate(f.doc.text),
         added_at: '',
-        content: f.doc.text
+        content: f.doc.text,
+        school_year: year
       })
     }
 
@@ -185,7 +198,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
       key_points: '',
       filename: f.name,
       is_completed: 0,
-      document_id: docId
+      document_id: docId,
+      school_year: year
     })
     toast('문서 내용을 그대로 등록했습니다.', 'ok')
   }
@@ -203,12 +217,13 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         doc_kind: kind,
         doc_date: await window.api.docs.guessDate(f.doc!.text),
         added_at: '',
-        content: f.doc!.text
+        content: f.doc!.text,
+        school_year: year
       }))
     )
     await window.api.docs.addMany(payload)
     setFiles([])
-    toast(`${ready.length}건을 보관했습니다. [통합 검색]에서 찾을 수 있습니다.`, 'ok')
+    toast(`${schoolYearLabel(year)} 공문 ${ready.length}건을 보관했습니다. [통합 검색]에서 찾을 수 있습니다.`, 'ok')
     onGo('검색')
   }
 
@@ -283,6 +298,13 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             PDF · 한글(hwp, hwpx) · 엑셀(xlsx) · 워드(docx) · 텍스트를 지원합니다. PDF가 가장
             정확합니다.
           </p>
+
+          <YearPicker
+            value={year}
+            onChange={setYear}
+            label="몇 학년도 공문인가요?"
+            hint="해가 바뀌어 넘겨줄 때 학년도별로 골라 지울 수 있습니다. 전임자에게 받은 묵은 공문이면 그 해로 바꿔 주세요."
+          />
 
           <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 6 }}>
             <input

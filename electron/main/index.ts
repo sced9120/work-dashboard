@@ -22,6 +22,7 @@ import {
   testConnection
 } from './ai'
 import { buildAliases, findNameCandidates, maskText, scrubPersonal } from './anonymize'
+import { buildBriefing } from './briefing'
 import { checkForUpdate } from './update'
 import { downloadUpdate, installUpdate, wireAutoUpdate } from './autoupdate'
 import { applyLocalSettings, checkDeadlinesNow, stopDeadlineWatch } from './notify'
@@ -30,6 +31,7 @@ import type {
   AliasPair,
   CalEventInput,
   ChatTurn,
+  CleanupPlan,
   DocDraftInput,
   DeadlineInput,
   DocInput,
@@ -154,6 +156,32 @@ function send(channel: string, payload: unknown): void {
   mainWindow?.webContents.send(channel, payload)
 }
 
+/** 인수인계 꾸러미 폴더에 함께 넣는 안내문 */
+function readmeText(job: string): string {
+  return `${job} 업무 인수인계 꾸러미
+
+이 폴더에 세 가지가 들어 있습니다.
+
+1. 인수인계서 (.txt)
+   먼저 이것부터 읽으세요. 한 해가 어떻게 돌아가는지, 업무별로 어떤 순서로
+   처리하는지, 무엇을 조심해야 하는지가 적혀 있습니다.
+   한글에서 열어 인쇄하셔도 됩니다.
+
+2. 인수인계 파일 (.db)
+   업무 대시보드 프로그램에서 여는 파일입니다.
+   공문 원문, 업무 목록, 워크플로우, 서식이 모두 들어 있어
+   검색하고 이어서 쓸 수 있습니다.
+
+3. 이 안내문
+
+프로그램은 아래에서 받으실 수 있습니다.
+https://github.com/sced9120/work-dashboard/releases/latest
+
+설치한 뒤 처음 실행하면 [인수인계 파일 불러오기] 를 고르고
+위 .db 파일을 열면 됩니다.
+`
+}
+
 function registerIpc(): void {
   /* ---------- 업무 ---------- */
   ipcMain.handle('tasks:list', () => db.listTasks())
@@ -270,6 +298,54 @@ function registerIpc(): void {
       return { ok: false, message: e instanceof Error ? e.message : String(e) }
     }
   })
+
+  /* ---------- 학년도 · 새 학년도 정리 ---------- */
+  ipcMain.handle('years:summary', () => db.yearSummary())
+  ipcMain.handle('years:setDocs', (_e, ids: number[], year: number) => db.setDocYear(ids, year))
+  ipcMain.handle('years:setTasks', (_e, ids: number[], year: number) => db.setTaskYear(ids, year))
+  ipcMain.handle('years:auto', () => db.autoAssignYears())
+  ipcMain.handle('years:cleanup', (_e, plan: CleanupPlan) => db.cleanupYear(plan))
+
+  /* ---------- 인수인계 브리핑 ---------- */
+  ipcMain.handle('briefing:build', (_e, args: { year: number; from: string; to: string }) =>
+    buildBriefing(args)
+  )
+
+  /**
+   * 인수인계 꾸러미 — 폴더 하나에 .db 파일과 인수인계서를 함께 담는다.
+   * 받는 사람이 "무엇부터 봐야 하나" 를 알 수 있게 하려는 것이다.
+   */
+  ipcMain.handle(
+    'briefing:package',
+    async (_e, args: { year: number; text: string; includePersonal: boolean }) => {
+      if (!mainWindow) return { ok: false, message: '창을 찾을 수 없습니다.' }
+      const res = await dialog.showOpenDialog(mainWindow, {
+        title: '인수인계 꾸러미를 만들 폴더를 고르세요',
+        properties: ['openDirectory', 'createDirectory']
+      })
+      if (res.canceled || !res.filePaths.length) return { ok: false, message: '취소했습니다.' }
+
+      const job = db.getSetting('job_title', '업무')
+      const stamp = new Date().toISOString().slice(0, 10)
+      const label = args.year ? `${args.year}학년도_` : ''
+      const dir = path.join(res.filePaths[0], `인수인계_${label}${job}_${stamp}`)
+
+      try {
+        fs.mkdirSync(dir, { recursive: true })
+        await db.exportTo(path.join(dir, `인수인계_${job}_${stamp}.db`), args.includePersonal)
+        // 한글(HWP)에서 바로 열리도록 BOM 을 붙여 UTF-8 로 저장한다.
+        fs.writeFileSync(path.join(dir, `인수인계서_${job}_${stamp}.txt`), `﻿${args.text}`, 'utf8')
+        fs.writeFileSync(
+          path.join(dir, '먼저 읽어 주세요.txt'),
+          `﻿${readmeText(job)}`,
+          'utf8'
+        )
+        return { ok: true, message: `꾸러미를 만들었습니다: ${dir}`, path: dir }
+      } catch (e) {
+        return { ok: false, message: e instanceof Error ? e.message : String(e) }
+      }
+    }
+  )
 
   /* ---------- 공지 ---------- */
   ipcMain.handle('notices:list', () => db.listNotices())

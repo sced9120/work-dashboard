@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useToast } from '../lib/toast'
+import Briefing from '../components/Briefing'
+import YearCleanup from '../components/YearCleanup'
 
 interface Props {
   onChanged: () => Promise<void>
@@ -58,6 +60,8 @@ export default function Data({ onChanged }: Props): JSX.Element {
           </div>
         </div>
       </div>
+
+      <Briefing includePersonal={includePersonal} />
 
       <div className="card">
         <div className="card-title">다음 담당자에게 넘겨주기</div>
@@ -136,6 +140,8 @@ export default function Data({ onChanged }: Props): JSX.Element {
           </button>
         </div>
       </div>
+
+      <YearCleanup onChanged={async () => { await load(); await onChanged() }} />
 
       <div className="card">
         <div className="card-title">초기화</div>

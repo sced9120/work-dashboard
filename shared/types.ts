@@ -24,9 +24,17 @@ export interface Task {
   is_completed: number
   /** 근거가 된 보관 문서의 id. 0이면 연결된 원문이 없다. */
   document_id: number
+  /**
+   * 어느 학년도의 일인지. 0 이면 아직 매기지 않은 것.
+   *
+   * 해가 바뀌어 업무를 넘길 때 "지난 학년도 것만 지우기" 를 하려면
+   * 무엇이 어느 해 것인지 알아야 한다. 공문을 학습시킬 때 정해 둔다.
+   */
+  school_year: number
 }
 
-export type TaskInput = Omit<Task, 'id'>
+/** 학년도는 넣지 않아도 된다. 없으면 0(미지정)으로 들어간다. */
+export type TaskInput = Omit<Task, 'id' | 'school_year'> & { school_year?: number }
 
 export interface Notice {
   id: number
@@ -119,9 +127,63 @@ export interface TaskDraft {
    * 보관함을 다시 학습시킬 때 원문을 두 번 넣지 않으려고 들고 다닌다.
    */
   document_id?: number
+  /** 근거가 된 공문에 매겨 둔 학년도. 없으면 화면에서 고른 값을 쓴다. */
+  school_year?: number
 }
 
 export type DocKind = '길라잡이/매뉴얼' | '개별 공문'
+
+/* ---------- 학년도 ---------- */
+
+/**
+ * 그 날짜가 몇 학년도에 드는지.
+ *
+ * 학교의 한 해는 3월에 시작해 이듬해 2월에 끝난다.
+ * 그래서 2027년 1월은 아직 2026학년도다.
+ */
+export function schoolYearOf(date: Date | string): number {
+  const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : date
+  if (Number.isNaN(d.getTime())) return 0
+  // 1월과 2월은 지난 학년도에 속한다
+  return d.getMonth() + 1 >= 3 ? d.getFullYear() : d.getFullYear() - 1
+}
+
+/** 지금이 몇 학년도인지 */
+export function currentSchoolYear(): number {
+  return schoolYearOf(new Date())
+}
+
+/** 화면에 보일 이름 */
+export function schoolYearLabel(year: number): string {
+  return year ? year + '학년도' : '학년도 미지정'
+}
+
+/** 어느 학년도의 자료가 얼마나 있는지 */
+export interface YearSummary {
+  year: number
+  docs: number
+  tasks: number
+}
+
+/** 학년도 정리에서 무엇을 지울지. year 가 0 이면 "학년도를 매기지 않은 것" */
+export interface CleanupPlan {
+  year: number
+  docs: boolean
+  tasks: boolean
+  journal: boolean
+  events: boolean
+}
+
+export interface CleanupResult {
+  ok: boolean
+  docs: number
+  tasks: number
+  journal: number
+  events: number
+  /** 지우기 전에 남긴 백업 파일 경로 */
+  backup: string
+  message: string
+}
 
 /* ---------- 보관 문서 (공문 원문) ---------- */
 
@@ -138,6 +200,8 @@ export interface Doc {
   added_at: string
   /** 본문 글자 수 */
   chars: number
+  /** 어느 학년도의 공문인지. 0 이면 아직 매기지 않은 것 */
+  school_year: number
 }
 
 /** 본문까지 포함한 문서 */
@@ -145,7 +209,10 @@ export interface DocFull extends Doc {
   content: string
 }
 
-export type DocInput = Omit<Doc, 'id' | 'chars'> & { content: string }
+export type DocInput = Omit<Doc, 'id' | 'chars' | 'school_year'> & {
+  content: string
+  school_year?: number
+}
 
 /* ---------- 통합 검색 ---------- */
 

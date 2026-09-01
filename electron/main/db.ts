@@ -5,6 +5,8 @@ import initSqlJs, { type Database, type SqlJsStatic } from 'sql.js'
 import type {
   CalEvent,
   CalEventInput,
+  CleanupPlan,
+  CleanupResult,
   Deadline,
   DeadlineInput,
   Doc,
@@ -18,8 +20,10 @@ import type {
   Task,
   TaskInput,
   Template,
-  TemplateInput
+  TemplateInput,
+  YearSummary
 } from '../../shared/types'
+import { schoolYearOf } from '../../shared/types'
 
 /**
  * 예전 Streamlit 버전(school_admin_v25_final.db)과 같은 스키마를 유지한다.
@@ -31,7 +35,8 @@ const SCHEMA = [
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      title TEXT, task_date_display TEXT, task_date_raw TEXT,
      task_type TEXT, workflow TEXT, draft_full TEXT,
-     key_points TEXT, filename TEXT, is_completed INTEGER DEFAULT 0)`,
+     key_points TEXT, filename TEXT, is_completed INTEGER DEFAULT 0,
+     school_year INTEGER DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS notices (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      title TEXT, content TEXT, date TEXT, link TEXT)`,
@@ -41,7 +46,7 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS documents (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      filename TEXT, doc_kind TEXT, doc_date TEXT,
-     added_at TEXT, content TEXT)`,
+     added_at TEXT, content TEXT, school_year INTEGER DEFAULT 0)`,
   // 문서를 만들 때 본보기로 삼는 예시. 내용이 아니라 '형식'을 담아 두는 곳이다.
   // kind 에는 문서 서식의 id 가 들어간다 (shared/docforms.ts).
   `CREATE TABLE IF NOT EXISTS templates (
@@ -109,6 +114,15 @@ function migrate(target: Database): boolean {
   }
   if (!cols('tasks').includes('document_id')) {
     target.run('ALTER TABLE tasks ADD COLUMN document_id INTEGER DEFAULT 0')
+    changed = true
+  }
+  // 학년도. 예전 자료는 0(미지정)으로 들어오고, 화면에서 한꺼번에 매길 수 있다.
+  if (!cols('tasks').includes('school_year')) {
+    target.run('ALTER TABLE tasks ADD COLUMN school_year INTEGER DEFAULT 0')
+    changed = true
+  }
+  if (!cols('documents').includes('school_year')) {
+    target.run('ALTER TABLE documents ADD COLUMN school_year INTEGER DEFAULT 0')
     changed = true
   }
 
@@ -231,6 +245,28 @@ function lastId(): number {
   return res.length ? Number(res[0].values[0][0]) : 0
 }
 
+/**
+ * 넣고 나서 새로 생긴 id 를 돌려준다.
+ *
+ * **저장하기 전에 id 를 먼저 읽어야 한다.** sql.js 의 export() 는 파일로
+ * 내보내려고 데이터베이스를 닫았다 다시 여는데, 그때 last_insert_rowid() 가
+ * 0 으로 되돌아간다. 저장한 뒤에 읽으면 언제나 0 이 나온다.
+ */
+function insert(sql: string, params: unknown[] = []): number {
+  need().run(sql, params as never)
+  const id = lastId()
+  persist()
+  return id
+}
+
+/** 방금 몇 줄이 바뀌었는지. id 와 같은 이유로 저장 전에 읽는다. */
+function changed(sql: string, params: unknown[] = []): number {
+  need().run(sql, params as never)
+  const n = need().getRowsModified()
+  persist()
+  return n
+}
+
 /* ---------- 업무 ---------- */
 
 export function listTasks(): Task[] {
@@ -238,10 +274,10 @@ export function listTasks(): Task[] {
 }
 
 export function addTask(t: TaskInput): number {
-  run(
+  return insert(
     `INSERT INTO tasks
-       (title, task_date_display, task_date_raw, task_type, workflow, draft_full, key_points, filename, is_completed, document_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+       (title, task_date_display, task_date_raw, task_type, workflow, draft_full, key_points, filename, is_completed, document_id, school_year)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
     [
       t.title,
       t.task_date_display,
@@ -252,10 +288,10 @@ export function addTask(t: TaskInput): number {
       t.key_points,
       t.filename,
       t.is_completed ?? 0,
-      t.document_id ?? 0
+      t.document_id ?? 0,
+      t.school_year ?? 0
     ]
   )
-  return lastId()
 }
 
 export function updateTask(id: number, patch: Partial<TaskInput>): void {
@@ -276,13 +312,12 @@ export function listNotices(): Notice[] {
 }
 
 export function addNotice(n: NoticeInput): number {
-  run('INSERT INTO notices (title, content, date, link) VALUES (?,?,?,?)', [
+  return insert('INSERT INTO notices (title, content, date, link) VALUES (?,?,?,?)', [
     n.title,
     n.content,
     n.date || today(),
     n.link
   ])
-  return lastId()
 }
 
 export function updateNotice(id: number, n: NoticeInput): void {
@@ -326,7 +361,7 @@ export function settingsByPrefix(prefix: string): { key: string; value: string }
 /** 목록에서는 본문을 빼고 읽는다. 본문까지 다 읽으면 수십 MB가 오간다. */
 export function listDocs(): Doc[] {
   return rows<Doc>(
-    `SELECT id, filename, doc_kind, doc_date, added_at, LENGTH(content) AS chars
+    `SELECT id, filename, doc_kind, doc_date, added_at, school_year, LENGTH(content) AS chars
        FROM documents ORDER BY id DESC`
   )
 }
@@ -352,14 +387,10 @@ export function addDoc(d: DocInput): number {
   )
   if (dup.length) return dup[0].id
 
-  run('INSERT INTO documents (filename, doc_kind, doc_date, added_at, content) VALUES (?,?,?,?,?)', [
-    d.filename,
-    d.doc_kind,
-    d.doc_date,
-    d.added_at || today(),
-    d.content
-  ])
-  return lastId()
+  return insert(
+    'INSERT INTO documents (filename, doc_kind, doc_date, added_at, content, school_year) VALUES (?,?,?,?,?,?)',
+    [d.filename, d.doc_kind, d.doc_date, d.added_at || today(), d.content, d.school_year ?? 0]
+  )
 }
 
 export function deleteDoc(id: number): void {
@@ -441,13 +472,12 @@ export function listTemplates(): Template[] {
 }
 
 export function addTemplate(t: TemplateInput): number {
-  run('INSERT INTO templates (name, kind, content, added_at) VALUES (?,?,?,?)', [
+  return insert('INSERT INTO templates (name, kind, content, added_at) VALUES (?,?,?,?)', [
     t.name,
     t.kind,
     t.content,
     t.added_at || today()
   ])
-  return lastId()
 }
 
 export function updateTemplate(id: number, t: TemplateInput): void {
@@ -471,14 +501,13 @@ export function listDeadlines(): Deadline[] {
 }
 
 export function addDeadline(d: DeadlineInput): number {
-  run('INSERT INTO deadlines (title, case_ref, due_date, note, done) VALUES (?,?,?,?,?)', [
+  return insert('INSERT INTO deadlines (title, case_ref, due_date, note, done) VALUES (?,?,?,?,?)', [
     d.title,
     d.case_ref,
     d.due_date,
     d.note,
     d.done ?? 0
   ])
-  return lastId()
 }
 
 export function updateDeadline(id: number, patch: Partial<DeadlineInput>): void {
@@ -499,8 +528,7 @@ export function listJournal(): JournalEntry[] {
 }
 
 export function addJournal(j: JournalInput): number {
-  run('INSERT INTO journal (entry_date, content) VALUES (?,?)', [j.entry_date || today(), j.content])
-  return lastId()
+  return insert('INSERT INTO journal (entry_date, content) VALUES (?,?)', [j.entry_date || today(), j.content])
 }
 
 export function updateJournal(id: number, j: JournalInput): void {
@@ -533,7 +561,7 @@ export function listEventsBetween(from: string, to: string): CalEvent[] {
 }
 
 export function addEvent(e: CalEventInput): number {
-  run(
+  return insert(
     `INSERT INTO events (event_date, end_date, start_time, title, content, color, remind, done)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
@@ -547,7 +575,6 @@ export function addEvent(e: CalEventInput): number {
       e.done ? 1 : 0
     ]
   )
-  return lastId()
 }
 
 export function updateEvent(id: number, patch: Partial<CalEventInput>): void {
@@ -791,6 +818,144 @@ export function retrieveForChat(query: string, limit = 6): { label: string; text
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map(({ label, text }) => ({ label, text }))
+}
+
+/* ---------- 학년도 ---------- */
+
+/**
+ * 어느 학년도에 자료가 얼마나 있는지.
+ * 화면에서 "2025학년도 — 공문 346건 · 업무 400건" 처럼 보여 준다.
+ */
+export function yearSummary(): YearSummary[] {
+  const map = new Map<number, YearSummary>()
+  const bump = (year: number, key: 'docs' | 'tasks', n: number): void => {
+    const found = map.get(year) ?? { year, docs: 0, tasks: 0 }
+    found[key] += n
+    map.set(year, found)
+  }
+
+  for (const r of rows<{ y: number; n: number }>(
+    'SELECT school_year AS y, COUNT(*) AS n FROM documents GROUP BY school_year'
+  )) {
+    bump(Number(r.y) || 0, 'docs', Number(r.n))
+  }
+  for (const r of rows<{ y: number; n: number }>(
+    'SELECT school_year AS y, COUNT(*) AS n FROM tasks GROUP BY school_year'
+  )) {
+    bump(Number(r.y) || 0, 'tasks', Number(r.n))
+  }
+
+  // 최근 학년도부터. 미지정(0)은 맨 뒤로 보낸다.
+  return [...map.values()].sort((a, b) => (b.year || -1) - (a.year || -1))
+}
+
+/** 고른 공문에 학년도를 매긴다. 딸린 업무에도 같이 매겨 준다. */
+export function setDocYear(ids: number[], year: number): number {
+  if (!ids.length) return 0
+  return batched(() => {
+    const marks = ids.map(() => '?').join(',')
+    run(`UPDATE documents SET school_year=? WHERE id IN (${marks})`, [year, ...ids])
+    const n = need().getRowsModified()
+    // 그 공문에서 뽑아낸 업무도 같은 해로 본다
+    run(`UPDATE tasks SET school_year=? WHERE document_id IN (${marks})`, [year, ...ids])
+    return n
+  })
+}
+
+/** 업무에 직접 학년도를 매긴다 (공문 없이 손으로 넣은 업무용) */
+export function setTaskYear(ids: number[], year: number): number {
+  if (!ids.length) return 0
+  const marks = ids.map(() => '?').join(',')
+  return changed(`UPDATE tasks SET school_year=? WHERE id IN (${marks})`, [year, ...ids])
+}
+
+/**
+ * 아직 학년도를 매기지 않은 자료에 문서 날짜를 보고 학년도를 매긴다.
+ *
+ * 날짜를 못 찾은 공문(약 40%)은 그대로 미지정으로 남는다.
+ * 그런 것은 화면에서 골라 한꺼번에 매기면 된다.
+ */
+export function autoAssignYears(): { docs: number; tasks: number } {
+  return batched(() => {
+    let docs = 0
+    for (const d of rows<{ id: number; doc_date: string }>(
+      "SELECT id, doc_date FROM documents WHERE school_year=0 AND doc_date <> ''"
+    )) {
+      const y = schoolYearOf(d.doc_date)
+      if (!y) continue
+      run('UPDATE documents SET school_year=? WHERE id=?', [y, d.id])
+      docs++
+    }
+    // 업무는 근거가 된 공문을 따라간다
+    run(`UPDATE tasks SET school_year =
+           (SELECT school_year FROM documents WHERE documents.id = tasks.document_id)
+         WHERE school_year = 0 AND document_id > 0
+           AND (SELECT school_year FROM documents WHERE documents.id = tasks.document_id) > 0`)
+    const tasks = need().getRowsModified()
+    return { docs, tasks }
+  })
+}
+
+/**
+ * 한 학년도의 자료를 지운다.
+ *
+ * **남기는 것**: 워크플로우 · 흐름도 · 예시와 서식 · 직접 만든 문서 서식 ·
+ * 주제 이름표 · 업무 상세 가이드 · 설정. 이런 것은 해가 바뀌어도 그대로
+ * 쓰이는 자산이라, 학년도와 상관없이 두어야 한다.
+ *
+ * 지우기 전에 반드시 백업을 남긴다. 잘못 눌러도 되돌릴 수 있어야 한다.
+ */
+export function cleanupYear(plan: CleanupPlan): CleanupResult {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const label = plan.year ? `${plan.year}학년도` : '미지정'
+  const backup = path.join(backupDir(), `정리전_${label}_${stamp}.db`)
+  fs.writeFileSync(backup, Buffer.from(need().export()))
+
+  const counted = { docs: 0, tasks: 0, journal: 0, events: 0 }
+
+  batched(() => {
+    if (plan.docs) {
+      run('DELETE FROM documents WHERE school_year=?', [plan.year])
+      counted.docs = need().getRowsModified()
+      // 원문이 사라졌으니 업무에 남은 연결을 끊는다.
+      // 업무를 남기기로 했다면 원문 없이 제목과 절차만 남는다.
+      run('UPDATE tasks SET document_id=0 WHERE school_year=?', [plan.year])
+    }
+    if (plan.tasks) {
+      run('DELETE FROM tasks WHERE school_year=?', [plan.year])
+      counted.tasks = need().getRowsModified()
+    }
+    // 일지와 달력은 학년도 칸이 없으므로 날짜로 고른다
+    if (plan.journal && plan.year) {
+      run("DELETE FROM journal WHERE entry_date >= ? AND entry_date < ?", [
+        `${plan.year}-03-01`,
+        `${plan.year + 1}-03-01`
+      ])
+      counted.journal = need().getRowsModified()
+    }
+    if (plan.events && plan.year) {
+      run("DELETE FROM events WHERE event_date >= ? AND event_date < ?", [
+        `${plan.year}-03-01`,
+        `${plan.year + 1}-03-01`
+      ])
+      counted.events = need().getRowsModified()
+    }
+  })
+
+  const parts: string[] = []
+  if (counted.docs) parts.push(`공문 ${counted.docs}건`)
+  if (counted.tasks) parts.push(`업무 ${counted.tasks}건`)
+  if (counted.journal) parts.push(`일지 ${counted.journal}건`)
+  if (counted.events) parts.push(`일정 ${counted.events}건`)
+
+  return {
+    ok: true,
+    ...counted,
+    backup,
+    message: parts.length
+      ? `${label} ${parts.join(' · ')}을 지웠습니다. 워크플로우·서식·가이드는 그대로 남았습니다.`
+      : `${label}에는 지울 것이 없었습니다.`
+  }
 }
 
 /* ---------- 백업 / 복구 ---------- */

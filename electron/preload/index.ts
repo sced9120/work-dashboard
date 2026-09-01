@@ -4,6 +4,8 @@ import type {
   AnalyzeResult,
   CalEvent,
   CalEventInput,
+  CleanupPlan,
+  CleanupResult,
   DocDraftInput,
   DocDraftResult,
   FormSketch,
@@ -23,6 +25,7 @@ import type {
   Notice,
   NoticeInput,
   PickedFile,
+  YearSummary,
   ScrubResult,
   SearchAnswer,
   SearchHit,
@@ -165,6 +168,25 @@ const api = {
       ipcRenderer.on('ai:progress', handler)
       return () => ipcRenderer.removeListener('ai:progress', handler)
     }
+  },
+  years: {
+    summary: (): Promise<YearSummary[]> => ipcRenderer.invoke('years:summary'),
+    setDocs: (ids: number[], year: number): Promise<number> =>
+      ipcRenderer.invoke('years:setDocs', ids, year),
+    setTasks: (ids: number[], year: number): Promise<number> =>
+      ipcRenderer.invoke('years:setTasks', ids, year),
+    auto: (): Promise<{ docs: number; tasks: number }> => ipcRenderer.invoke('years:auto'),
+    cleanup: (plan: CleanupPlan): Promise<CleanupResult> =>
+      ipcRenderer.invoke('years:cleanup', plan)
+  },
+  briefing: {
+    build: (args: { year: number; from: string; to: string }): Promise<string> =>
+      ipcRenderer.invoke('briefing:build', args),
+    package: (args: {
+      year: number
+      text: string
+      includePersonal: boolean
+    }): Promise<ActionResult> => ipcRenderer.invoke('briefing:package', args)
   },
   data: {
     info: (): Promise<{ path: string; backups: string; sizeKb: number }> =>

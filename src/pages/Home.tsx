@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Notice, Task } from '../../shared/types'
 import type { PageId } from '../App'
 import Calendar from '../components/Calendar'
+import LastYear from '../components/LastYear'
 import { useToast } from '../lib/toast'
 import { monthOf, sortTasks, todayStr } from '../lib/util'
 
@@ -91,6 +92,8 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
         </div>
         <Calendar tasks={tasks} compact onOpenFull={() => onGo('달력')} />
       </div>
+
+      <LastYear tasks={tasks} onGo={onGo} />
 
       <div className="cols cols-2">
         <div>
