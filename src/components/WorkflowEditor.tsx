@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Task, WfEdge, WfNode, Workflow } from '../../shared/types'
 import { WF_KINDS } from '../../shared/types'
+import { useConfirm } from '../lib/confirm'
 import { monthOf, schoolOrder, weekOf } from '../lib/util'
 
 interface Props {
@@ -90,7 +91,10 @@ function handlePoint(n: WfNode, side: Side): { x: number; y: number } {
 }
 
 /** 두 상자 사이를 잇는 선. 세로로 늘어선 경우가 많아 위·아래를 먼저 본다. */
-function anchors(a: WfNode, b: WfNode): { x1: number; y1: number; x2: number; y2: number } {
+function anchors(
+  a: WfNode,
+  b: WfNode
+): { x1: number; y1: number; x2: number; y2: number; vertical: boolean; sign: number } {
   const ah = nodeHeight(a)
   const bh = nodeHeight(b)
   const ac = { x: a.x + a.w / 2, y: a.y + ah / 2 }
@@ -102,12 +106,137 @@ function anchors(a: WfNode, b: WfNode): { x1: number; y1: number; x2: number; y2
   // 가로로 더 멀면 옆구리끼리, 아니면 위아래끼리 잇는다
   if (Math.abs(dx) > Math.abs(dy)) {
     return dx > 0
-      ? { x1: a.x + a.w, y1: ac.y, x2: b.x, y2: bc.y }
-      : { x1: a.x, y1: ac.y, x2: b.x + b.w, y2: bc.y }
+      ? { x1: a.x + a.w, y1: ac.y, x2: b.x, y2: bc.y, vertical: false, sign: 1 }
+      : { x1: a.x, y1: ac.y, x2: b.x + b.w, y2: bc.y, vertical: false, sign: -1 }
   }
   return dy > 0
-    ? { x1: ac.x, y1: a.y + ah, x2: bc.x, y2: b.y }
-    : { x1: ac.x, y1: a.y, x2: bc.x, y2: b.y + bh }
+    ? { x1: ac.x, y1: a.y + ah, x2: bc.x, y2: b.y, vertical: true, sign: 1 }
+    : { x1: ac.x, y1: a.y, x2: bc.x, y2: b.y + bh, vertical: true, sign: -1 }
+}
+
+/* ---------- 선이 상자를 뚫고 지나가지 않게 ---------- */
+
+/** 상자를 감싸는 네모 (조금 넉넉하게) */
+function box(n: WfNode, pad = 12): { l: number; r: number; t: number; b: number } {
+  return { l: n.x - pad, r: n.x + n.w + pad, t: n.y - pad, b: n.y + nodeHeight(n) + pad }
+}
+
+/** 선분이 네모를 지나가는가 (가로·세로 선분만 다룬다) */
+function hits(
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  r: { l: number; r: number; t: number; b: number }
+): boolean {
+  const lo = (a: number, b: number): number => Math.min(a, b)
+  const hi = (a: number, b: number): number => Math.max(a, b)
+  return (
+    hi(p1.x, p2.x) > r.l && lo(p1.x, p2.x) < r.r && hi(p1.y, p2.y) > r.t && lo(p1.y, p2.y) < r.b
+  )
+}
+
+/** 꺾인 점들을 모서리가 둥근 길로 그린다 */
+function roundedPath(pts: { x: number; y: number }[], radius = 10): string {
+  if (pts.length < 2) return ''
+  let d = `M ${pts[0].x} ${pts[0].y}`
+  for (let i = 1; i < pts.length - 1; i++) {
+    const prev = pts[i - 1]
+    const cur = pts[i]
+    const next = pts[i + 1]
+    // 모서리 앞뒤로 조금씩 잘라 내고 그 사이를 곡선으로 잇는다
+    const r1 = Math.min(radius, Math.hypot(cur.x - prev.x, cur.y - prev.y) / 2)
+    const r2 = Math.min(radius, Math.hypot(next.x - cur.x, next.y - cur.y) / 2)
+    const r = Math.min(r1, r2)
+    const a = {
+      x: cur.x + Math.sign(prev.x - cur.x) * r,
+      y: cur.y + Math.sign(prev.y - cur.y) * r
+    }
+    const b = {
+      x: cur.x + Math.sign(next.x - cur.x) * r,
+      y: cur.y + Math.sign(next.y - cur.y) * r
+    }
+    d += ` L ${a.x} ${a.y} Q ${cur.x} ${cur.y} ${b.x} ${b.y}`
+  }
+  const last = pts[pts.length - 1]
+  d += ` L ${last.x} ${last.y}`
+  return d
+}
+
+/** 상자에서 나오고 들어갈 때 곧게 뻗는 길이 */
+const STUB = 22
+
+/**
+ * 두 상자를 잇는 길을 낸다.
+ *
+ * 곧게 이으면 사이에 낀 상자를 뚫고 지나가 선이 보이지 않는다.
+ * 그래서 직각으로 꺾어 가되, 가는 길에 걸리는 상자가 있으면 **옆으로 비켜**
+ * 지나간다. 비킬 쪽은 걸린 상자들의 왼쪽·오른쪽 가운데 가까운 쪽을 고른다.
+ */
+function routeEdge(a: WfNode, b: WfNode, all: WfNode[]): { d: string; mid: { x: number; y: number } } {
+  const { x1, y1, x2, y2, vertical, sign } = anchors(a, b)
+  const others = all.filter((n) => n.id !== a.id && n.id !== b.id)
+
+  const pts: { x: number; y: number }[] = []
+
+  if (vertical) {
+    const sy = y1 + STUB * sign
+    const ey = y2 - STUB * sign
+    // 곧게 갈 수 있으면 그대로 간다
+    const straight = [{ x: x1, y: y1 }, { x: x1, y: sy }, { x: x2, y: ey }, { x: x2, y: y2 }]
+    const blocked = others.filter((n) =>
+      hits({ x: Math.min(x1, x2), y: sy }, { x: Math.max(x1, x2), y: ey }, box(n))
+    )
+    if (!blocked.length) {
+      pts.push(...(x1 === x2 ? [{ x: x1, y: y1 }, { x: x2, y: y2 }] : straight))
+    } else {
+      // 걸리는 상자들을 통째로 비켜 갈 x 를 고른다
+      const leftOf = Math.min(...blocked.map((n) => box(n).l)) - 18
+      const rightOf = Math.max(...blocked.map((n) => box(n).r)) + 18
+      const detour = Math.abs(leftOf - x1) <= Math.abs(rightOf - x1) ? leftOf : rightOf
+      pts.push(
+        { x: x1, y: y1 },
+        { x: x1, y: sy },
+        { x: detour, y: sy },
+        { x: detour, y: ey },
+        { x: x2, y: ey },
+        { x: x2, y: y2 }
+      )
+    }
+  } else {
+    const sx = x1 + STUB * sign
+    const ex = x2 - STUB * sign
+    const blocked = others.filter((n) =>
+      hits({ x: sx, y: Math.min(y1, y2) }, { x: ex, y: Math.max(y1, y2) }, box(n))
+    )
+    if (!blocked.length) {
+      pts.push(
+        ...(y1 === y2
+          ? [{ x: x1, y: y1 }, { x: x2, y: y2 }]
+          : [{ x: x1, y: y1 }, { x: sx, y: y1 }, { x: sx, y: y2 }, { x: x2, y: y2 }])
+      )
+    } else {
+      const above = Math.min(...blocked.map((n) => box(n).t)) - 18
+      const below = Math.max(...blocked.map((n) => box(n).b)) + 18
+      const detour = Math.abs(above - y1) <= Math.abs(below - y1) ? above : below
+      pts.push(
+        { x: x1, y: y1 },
+        { x: sx, y: y1 },
+        { x: sx, y: detour },
+        { x: ex, y: detour },
+        { x: ex, y: y2 },
+        { x: x2, y: y2 }
+      )
+    }
+  }
+
+  // 글자와 단추를 놓을 자리 — 길의 한가운데
+  const mid = pts.length % 2 === 1
+    ? pts[(pts.length - 1) / 2]
+    : {
+        x: (pts[pts.length / 2 - 1].x + pts[pts.length / 2].x) / 2,
+        y: (pts[pts.length / 2 - 1].y + pts[pts.length / 2].y) / 2
+      }
+
+  return { d: roundedPath(pts), mid }
 }
 
 export default function WorkflowEditor({
@@ -117,9 +246,15 @@ export default function WorkflowEditor({
   readOnly = false,
   tasks = []
 }: Props): JSX.Element {
+  const ask = useConfirm()
   const wrapRef = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [editingText, setEditingText] = useState<string | null>(null)
+
+  /** 눌러 고른 화살표. 고르면 가운데에 [−] [✎] 가 뜬다. */
+  const [pickedEdge, setPickedEdge] = useState<string | null>(null)
+  /** 화살표에 붙일 말을 고치는 중이면 그 값 */
+  const [edgeLabel, setEdgeLabelDraft] = useState<string | null>(null)
 
   /**
    * 연결선을 끌고 있는 중.
@@ -330,11 +465,21 @@ export default function WorkflowEditor({
             <button
               className="btn btn-sm"
               title="등록된 업무를 시기 순으로 세워 첫 그림을 만듭니다"
-              onClick={() => {
-                if (value.nodes.length && !confirm('지금 그림을 지우고 새로 그립니다. 계속할까요?')) return
-                onChange(draftWorkflow(tasks))
-                setSelected(null)
-              }}
+              onClick={() =>
+                void (async () => {
+                  if (value.nodes.length) {
+                    const ok = await ask({
+                      title: '지금 그림을 지우고 새로 그릴까요?',
+                      body: '등록된 업무를 시기 순으로 세워 첫 그림을 만듭니다.',
+                      okText: '새로 그리기',
+                      danger: true
+                    })
+                    if (!ok) return
+                  }
+                  onChange(draftWorkflow(tasks))
+                  setSelected(null)
+                })()
+              }
             >
               ✍ 업무로 자동 배치
             </button>
@@ -362,7 +507,17 @@ export default function WorkflowEditor({
         )}
 
         <div className="wf-canvas-wrap" ref={wrapRef}>
-        <div className="wf-canvas" style={{ width: size.w, height: size.h }}>
+        <div
+          className="wf-canvas"
+          style={{ width: size.w, height: size.h }}
+          onClick={(e) => {
+            // 빈 바닥을 눌렀을 때만 — 상자나 선을 누른 것은 그대로 둔다
+            if (e.target !== e.currentTarget) return
+            setPickedEdge(null)
+            setEdgeLabelDraft(null)
+            setSelected(null)
+          }}
+        >
           <svg width={size.w} height={size.h} className="wf-svg">
             <defs>
               <marker
@@ -393,42 +548,29 @@ export default function WorkflowEditor({
               const a = byId.get(e.from)
               const b = byId.get(e.to)
               if (!a || !b) return null
-              const { x1, y1, x2, y2 } = anchors(a, b)
-              const mx = (x1 + x2) / 2
-              const my = (y1 + y2) / 2
-              // 살짝 굽혀 두 상자가 나란할 때도 선이 보이게 한다
-              const cx = Math.abs(x2 - x1) > Math.abs(y2 - y1) ? mx : x1
-              const cy = Math.abs(x2 - x1) > Math.abs(y2 - y1) ? y1 : my
+              // 사이에 낀 상자를 피해 직각으로 돌아간다
+              const { d, mid } = routeEdge(a, b, value.nodes)
+              const on = pickedEdge === e.id
               return (
-                <g key={e.id} className="wf-edge">
-                  <path
-                    d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`}
-                    fill="none"
-                    stroke="var(--border-strong)"
-                    strokeWidth={2}
-                    markerEnd="url(#wf-arrow)"
-                  />
-                  {e.label && (
-                    <text x={mx} y={my - 6} className="wf-edge-label" textAnchor="middle">
+                <g key={e.id} className={`wf-edge ${on ? 'on' : ''}`}>
+                  <path d={d} fill="none" className="wf-edge-line" markerEnd="url(#wf-arrow)" />
+
+                  {/* 눈에 보이는 선은 얇아서 누르기 어렵다. 넓은 선을 겹쳐 둔다. */}
+                  {!readOnly && (
+                    <path
+                      d={d}
+                      fill="none"
+                      className="wf-edge-grab"
+                      onClick={() => setPickedEdge(on ? null : e.id)}
+                    >
+                      <title>누르면 지우거나 글자를 넣을 수 있습니다</title>
+                    </path>
+                  )}
+
+                  {e.label && !on && (
+                    <text x={mid.x} y={mid.y - 8} className="wf-edge-label" textAnchor="middle">
                       {e.label}
                     </text>
-                  )}
-                  {!readOnly && (
-                    <circle
-                      cx={mx}
-                      cy={my}
-                      r={9}
-                      className="wf-edge-hit"
-                      onClick={() => {
-                        const label = prompt('화살표에 붙일 말 (비우면 지웁니다)', e.label)
-                        if (label === null) return
-                        if (label === '__x') removeEdge(e.id)
-                        else setEdgeLabel(e.id, label)
-                      }}
-                      onDoubleClick={() => removeEdge(e.id)}
-                    >
-                      <title>누르면 글자 넣기 · 두 번 누르면 화살표 삭제</title>
-                    </circle>
                   )}
                 </g>
               )
@@ -489,6 +631,62 @@ export default function WorkflowEditor({
                 ))}
             </div>
           ))}
+
+          {/* 고른 화살표의 단추 — 길 한가운데에 뜬다 */}
+          {!readOnly &&
+            pickedEdge &&
+            (() => {
+              const e = value.edges.find((x) => x.id === pickedEdge)
+              const a = e && byId.get(e.from)
+              const b = e && byId.get(e.to)
+              if (!e || !a || !b) return null
+              const { mid } = routeEdge(a, b, value.nodes)
+              return (
+                <div className="wf-edge-tools" style={{ left: mid.x, top: mid.y }}>
+                  {edgeLabel === null ? (
+                    <>
+                      <button
+                        className="wf-edge-btn del"
+                        title="이 화살표를 지웁니다"
+                        onClick={() => {
+                          removeEdge(e.id)
+                          setPickedEdge(null)
+                        }}
+                      >
+                        −
+                      </button>
+                      <button
+                        className="wf-edge-btn"
+                        title="화살표에 붙일 말 (예 / 아니오 같은 것)"
+                        onClick={() => setEdgeLabelDraft(e.label)}
+                      >
+                        ✎
+                      </button>
+                    </>
+                  ) : (
+                    <input
+                      type="text"
+                      className="wf-edge-input"
+                      value={edgeLabel}
+                      autoFocus
+                      placeholder="예 / 아니오"
+                      onChange={(ev) => setEdgeLabelDraft(ev.target.value)}
+                      onBlur={() => {
+                        setEdgeLabel(e.id, edgeLabel.trim())
+                        setEdgeLabelDraft(null)
+                      }}
+                      onKeyDown={(ev) => {
+                        if (ev.key === 'Enter') {
+                          setEdgeLabel(e.id, edgeLabel.trim())
+                          setEdgeLabelDraft(null)
+                        }
+                        if (ev.key === 'Escape') setEdgeLabelDraft(null)
+                      }}
+                    />
+                  )}
+                </div>
+              )
+            })()}
           </div>
         </div>
       </div>

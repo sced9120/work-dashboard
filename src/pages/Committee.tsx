@@ -12,6 +12,7 @@ import {
 import type { AliasPair, ModelChoice, Template, TemplateInput } from '../../shared/types'
 import { ROLES } from '../../shared/types'
 import type { PageId } from '../App'
+import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 import { todayStr } from '../lib/util'
 import ModelPicker from '../components/ModelPicker'
@@ -97,6 +98,7 @@ function fieldLines(fields: DocField[]): string {
 
 export default function Committee({ onGo }: Props): JSX.Element {
   const toast = useToast()
+  const ask = useConfirm()
 
   const [mode, setMode] = useState<Mode>('만들기')
   const [templates, setTemplates] = useState<Template[]>([])
@@ -493,7 +495,13 @@ export default function Committee({ onGo }: Props): JSX.Element {
   }
 
   const removeCustomForm = async (f: DocForm): Promise<void> => {
-    if (!window.confirm(`'${f.name}' 서식을 지울까요?\n이 서식으로 만들어 둔 문서 파일은 그대로 남습니다.`)) return
+    const ok = await ask({
+      title: `'${f.name}' 서식을 지울까요?`,
+      body: '이 서식으로 만들어 둔 문서 파일은 그대로 남습니다.',
+      okText: '지우기',
+      danger: true
+    })
+    if (!ok) return
     await window.api.setting.set(`${CUSTOM_PREFIX}${f.id}`, '')
     if (formId === f.id) setFormId('')
     await loadCustomForms()

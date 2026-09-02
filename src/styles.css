@@ -1346,6 +1346,47 @@ textarea {
 
 /* ---------- 넣기 시트 (갤럭시 달력식) ---------- */
 
+/* ---------- 물어보는 창 ---------- */
+
+/*
+ * 운영체제의 confirm() 대신 화면 안에 그린다.
+ * 일렉트론에서는 그 창을 닫고 나면 화면이 글쇠 입력을 못 받는 일이 있었다.
+ */
+.ask-back {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 80;
+  padding: 20px;
+}
+
+.ask {
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(16, 24, 40, 0.28);
+  padding: 20px 22px;
+  width: 100%;
+  max-width: 440px;
+}
+
+.ask-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.ask-body {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--muted);
+  word-break: keep-all;
+}
+
 .sheet-back {
   position: fixed;
   inset: 0;
@@ -2263,15 +2304,78 @@ textarea {
   pointer-events: none;
 }
 
-.wf-edge-hit {
-  fill: transparent;
-  pointer-events: all;
+.wf-edge-line {
+  stroke: var(--border-strong);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.wf-edge.on .wf-edge-line {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+/* 눈에 보이는 선은 얇아 누르기 어렵다. 넓고 투명한 선을 겹쳐 잡는다. */
+.wf-edge-grab {
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: stroke;
   cursor: pointer;
 }
 
-.wf-edge-hit:hover {
-  fill: var(--accent-soft);
+.wf-edge-grab:hover + .wf-edge-line,
+.wf-edge:hover .wf-edge-line {
   stroke: var(--accent);
+}
+
+/* 고른 화살표 위에 뜨는 단추 */
+.wf-edge-tools {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: 4px;
+  z-index: 4;
+}
+
+.wf-edge-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.22);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.wf-edge-btn:hover {
+  background: var(--surface-2);
+}
+
+.wf-edge-btn.del {
+  color: var(--danger);
+  border-color: #f0c9c9;
+  background: var(--danger-soft);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.wf-edge-btn.del:hover {
+  background: #fde8e8;
+}
+
+.wf-edge-input {
+  width: 120px;
+  padding: 3px 8px !important;
+  font-size: 12px;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.22);
 }
 
 .wf-edge-label {

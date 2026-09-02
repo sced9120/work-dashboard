@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { UpdateInfo } from '../shared/types'
+import { ConfirmProvider } from './lib/confirm'
 import { ToastProvider } from './lib/toast'
 import Onboarding from './pages/Onboarding'
 import Home from './pages/Home'
@@ -251,7 +252,9 @@ function Shell(): JSX.Element {
 export default function App(): JSX.Element {
   return (
     <ToastProvider>
+      <ConfirmProvider>
       <Shell />
+      </ConfirmProvider>
     </ToastProvider>
   )
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Doc, DocKind, ModelChoice, TaskDraft } from '../../shared/types'
 import { currentSchoolYear, schoolYearLabel } from '../../shared/types'
+import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 import {
   addDrafts,
@@ -30,6 +31,7 @@ const FOLLOW_DOC = -1
 
 export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.Element {
   const toast = useToast()
+  const ask = useConfirm()
   const [docs, setDocs] = useState<Doc[]>([])
   const [learned, setLearned] = useState<Set<string>>(new Set())
   const [picked, setPicked] = useState<Set<number>>(new Set())
@@ -117,64 +119,75 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
       toast('학습할 공문을 골라 주세요.', 'err')
       return
     }
-    const ok = confirm(
-      `공문 ${chosen.length}건을 AI로 분석합니다.\n` +
-        `요청 약 ${calls}회 · 글자 ${totalChars.toLocaleString()}자\n\n` +
-        `사용량만큼 요금이 붙고 시간이 걸립니다. 계속할까요?\n` +
-        `(중간에 [멈추기] 로 세울 수 있고, 그때까지 찾은 것은 남습니다)`
-    )
+    const ok = await ask({
+      title: `공문 ${chosen.length}건을 AI로 분석할까요?`,
+      body: (
+        <>
+          요청 약 <b>{calls}회</b> · 글자 {totalChars.toLocaleString()}자
+          <br />
+          사용량만큼 요금이 붙고 시간이 걸립니다.
+          <br />
+          중간에 <b>[멈추기]</b> 로 세울 수 있고, 그때까지 찾은 것은 남습니다.
+        </>
+      ),
+      okText: '학습 시작'
+    })
     if (!ok) return
 
     startJob('보관 문서 학습', chosen.length)
     let found = 0
 
-    for (let i = 0; i < chosen.length; i++) {
-      if (isStopping()) break
-      const d = chosen[i]
-      setProgress({ now: d.filename, done: i })
+    // 도중에 무엇이 잘못되어도 '학습 중' 을 반드시 풀어야 한다.
+    // 안 풀리면 이 화면의 입력칸이 모두 잠긴 채로 남는다.
+    try {
+      for (let i = 0; i < chosen.length; i++) {
+        if (isStopping()) break
+        const d = chosen[i]
+        setProgress({ now: d.filename, done: i })
 
-      const full = await window.api.docs.get(d.id)
-      if (!full?.content?.trim()) {
-        addFailure(`${d.filename} — 원문이 비어 있습니다`)
-        continue
-      }
-
-      // 켜 두면 개인정보를 가린 글만 나간다. 보관된 원문은 손대지 않는다.
-      const text = scrub ? (await window.api.privacy.scrub(full.content)).text : full.content
-
-      const res = await window.api.ai.analyze({
-        filename: d.filename,
-        text,
-        kind,
-        jobTitle,
-        model: model ?? undefined
-      })
-
-      if (!res.ok) {
-        addFailure(`${d.filename} — ${res.error ?? '분석 실패'}`)
-        // 키가 잘못됐거나 한도에 걸린 것이면 계속해 봐야 다 실패한다
-        if (/키|한도|없습니다/.test(res.error ?? '')) {
-          toast(`${res.error} — 중단합니다.`, 'err')
-          break
+        const full = await window.api.docs.get(d.id)
+        if (!full?.content?.trim()) {
+          addFailure(`${d.filename} — 원문이 비어 있습니다`)
+          continue
         }
-      } else if (res.drafts.length === 0) {
-        addFailure(`${d.filename} — 뽑을 업무를 찾지 못했습니다`)
+
+        // 켜 두면 개인정보를 가린 글만 나간다. 보관된 원문은 손대지 않는다.
+        const text = scrub ? (await window.api.privacy.scrub(full.content)).text : full.content
+
+        const res = await window.api.ai.analyze({
+          filename: d.filename,
+          text,
+          kind,
+          jobTitle,
+          model: model ?? undefined
+        })
+
+        if (!res.ok) {
+          addFailure(`${d.filename} — ${res.error ?? '분석 실패'}`)
+          // 키가 잘못됐거나 한도에 걸린 것이면 계속해 봐야 다 실패한다
+          if (/키|한도|없습니다/.test(res.error ?? '')) {
+            toast(`${res.error} — 중단합니다.`, 'err')
+            break
+          }
+        } else if (res.drafts.length === 0) {
+          addFailure(`${d.filename} — 뽑을 업무를 찾지 못했습니다`)
+        }
+
+        // 이미 보관된 문서이므로 원문을 다시 넣지 않도록 id 를 달아 둔다.
+        // 학년도는 고른 값을 쓰되, "공문을 따름" 이면 그 공문에 매겨 둔 것을 쓴다.
+        addDrafts(
+          res.drafts.map((x) => ({
+            ...x,
+            document_id: d.id,
+            school_year: year === FOLLOW_DOC ? d.school_year : year
+          }))
+        )
+        found += res.drafts.length
+        setProgress({ done: i + 1 })
       }
-
-      // 이미 보관된 문서이므로 원문을 다시 넣지 않도록 id 를 달아 둔다.
-      // 학년도는 고른 값을 쓰되, "공문을 따름" 이면 그 공문에 매겨 둔 것을 쓴다.
-      addDrafts(
-        res.drafts.map((x) => ({
-          ...x,
-          document_id: d.id,
-          school_year: year === FOLLOW_DOC ? d.school_year : year
-        }))
-      )
-      found += res.drafts.length
-      setProgress({ done: i + 1 })
+    } finally {
+      finishJob()
     }
-
-    finishJob()
 
     if (found) {
       toast(`${found}건을 찾았습니다. 위쪽 목록에서 확인하고 등록해 주세요.`, 'ok')

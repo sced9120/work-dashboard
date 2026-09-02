@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CleanupPlan, YearSummary } from '../../shared/types'
 import { currentSchoolYear, schoolYearLabel } from '../../shared/types'
+import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 
 interface Props {
@@ -25,6 +26,7 @@ const KEEPS = [
  */
 export default function YearCleanup({ onChanged }: Props): JSX.Element {
   const toast = useToast()
+  const ask = useConfirm()
   const [years, setYears] = useState<YearSummary[]>([])
   const [target, setTarget] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
@@ -78,11 +80,18 @@ export default function YearCleanup({ onChanged }: Props): JSX.Element {
       return
     }
 
-    const ok = window.confirm(
-      `${label}의 ${what.join(', ')} 을(를) 지웁니다.\n\n` +
-        '워크플로우 · 서식 · 예시 · 가이드는 그대로 남습니다.\n' +
-        '지우기 전에 백업 파일을 자동으로 남기므로 되돌릴 수 있습니다.\n\n계속할까요?'
-    )
+    const ok = await ask({
+      title: `${label}의 ${what.join(', ')} 을(를) 지울까요?`,
+      body: (
+        <>
+          워크플로우 · 서식 · 예시 · 가이드는 그대로 남습니다.
+          <br />
+          지우기 전에 백업 파일을 자동으로 남기므로 되돌릴 수 있습니다.
+        </>
+      ),
+      okText: '지우기',
+      danger: true
+    })
     if (!ok) return
 
     setBusy(true)

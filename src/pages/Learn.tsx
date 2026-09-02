@@ -94,32 +94,35 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
     startJob('문서 분석', ready.length)
     let found = 0
 
-    for (let i = 0; i < ready.length; i++) {
-      if (isStopping()) break
-      const f = ready[i]
-      setJobProgress({ now: f.name, message: `${f.name} 분석 중` })
-      // 켜 두면 개인정보를 가린 글을 보낸다. 보관하는 원문은 그대로 둔다 —
-      // 학교 안에서는 원문이 필요하고, 밖으로 나가는 것만 가리면 되기 때문이다.
-      const text = scrub ? (await window.api.privacy.scrub(f.doc!.text)).text : f.doc!.text
-      const res = await window.api.ai.analyze({
-        filename: f.name,
-        text,
-        kind,
-        jobTitle,
-        model: model ?? undefined
-      })
-      if (!res.ok) {
-        toast(`${f.name}: ${res.error}`, 'err')
-      } else if (res.drafts.length === 0) {
-        toast(`${f.name}: 업무로 뽑을 내용을 찾지 못했습니다.`, 'err')
+    // 도중에 무엇이 잘못되어도 '학습 중' 을 반드시 풀어야 한다.
+    try {
+      for (let i = 0; i < ready.length; i++) {
+        if (isStopping()) break
+        const f = ready[i]
+        setJobProgress({ now: f.name, message: `${f.name} 분석 중` })
+        // 켜 두면 개인정보를 가린 글을 보낸다. 보관하는 원문은 그대로 둔다 —
+        // 학교 안에서는 원문이 필요하고, 밖으로 나가는 것만 가리면 되기 때문이다.
+        const text = scrub ? (await window.api.privacy.scrub(f.doc!.text)).text : f.doc!.text
+        const res = await window.api.ai.analyze({
+          filename: f.name,
+          text,
+          kind,
+          jobTitle,
+          model: model ?? undefined
+        })
+        if (!res.ok) {
+          toast(`${f.name}: ${res.error}`, 'err')
+        } else if (res.drafts.length === 0) {
+          toast(`${f.name}: 업무로 뽑을 내용을 찾지 못했습니다.`, 'err')
       }
       // 한 건이 끝날 때마다 바로 담는다. 도중에 화면을 옮겨도 남는다.
       addDrafts(res.drafts)
-      found += res.drafts.length
-      setJobProgress({ done: i + 1 })
+        found += res.drafts.length
+        setJobProgress({ done: i + 1 })
+      }
+    } finally {
+      finishJob()
     }
-
-    finishJob()
     if (found) toast(`${found}건을 찾았습니다. 확인 후 등록해 주세요.`, 'ok')
   }
 

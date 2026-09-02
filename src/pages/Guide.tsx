@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Task } from '../../shared/types'
+import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 import { sortTasks } from '../lib/util'
 
@@ -9,6 +10,7 @@ import { sortTasks } from '../lib/util'
  */
 export default function Guide(): JSX.Element {
   const toast = useToast()
+  const ask = useConfirm()
   const [tasks, setTasks] = useState<Task[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [query, setQuery] = useState('')
@@ -51,8 +53,16 @@ export default function Guide(): JSX.Element {
     toast('저장했습니다.', 'ok')
   }
 
-  const pick = (id: number): void => {
-    if (dirty && !window.confirm('저장하지 않은 수정 내용이 있습니다. 그냥 이동할까요?')) return
+  const pick = async (id: number): Promise<void> => {
+    if (dirty) {
+      const ok = await ask({
+        title: '저장하지 않은 내용이 있습니다',
+        body: '지금 옮기면 고친 것이 사라집니다. 그냥 이동할까요?',
+        okText: '그냥 이동',
+        danger: true
+      })
+      if (!ok) return
+    }
     setSelectedId(id)
   }
 

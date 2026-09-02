@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DocFull, SearchHit, Task, Workflow } from '../../shared/types'
 import { BLANK_WORKFLOW } from '../../shared/types'
 import WorkflowEditor, { draftWorkflow } from './WorkflowEditor'
+import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 import { groupByTopic, rosterMatcher, type TopicRenames } from '../lib/topics'
 import { monthOf, schoolOrder, todayStr, weekOf } from '../lib/util'
@@ -88,6 +89,7 @@ export default function TopicView({
   onChanged
 }: Props): JSX.Element {
   const toast = useToast()
+  const ask = useConfirm()
   const topics = useMemo(() => groupByTopic(tasks, renames), [tasks, renames])
   const [picked, setPicked] = useState<string | null>(initial ?? null)
   const [query, setQuery] = useState('')
@@ -247,11 +249,18 @@ export default function TopicView({
   const removeTopic = async (): Promise<void> => {
     if (!current) return
     const n = current.tasks.length
-    const ok = confirm(
-      `'${current.name}' 주제를 지웁니다.\n\n` +
-        `이 주제에 딸린 업무 ${n}건이 함께 지워집니다.\n` +
-        `보관된 공문 원문은 지워지지 않습니다.\n\n계속할까요?`
-    )
+    const ok = await ask({
+      title: `'${current.name}' 주제를 지울까요?`,
+      body: (
+        <>
+          이 주제에 딸린 <b>업무 {n}건</b>이 함께 지워집니다.
+          <br />
+          보관된 공문 원문은 지워지지 않습니다.
+        </>
+      ),
+      okText: '지우기',
+      danger: true
+    })
     if (!ok) return
 
     for (const t of current.tasks) await window.api.tasks.remove(t.id)
