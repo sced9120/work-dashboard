@@ -100,6 +100,7 @@ const api = {
   },
   privacy: {
     candidates: (text: string): Promise<string[]> => ipcRenderer.invoke('privacy:candidates', text),
+    ids: (text: string): Promise<string[]> => ipcRenderer.invoke('privacy:ids', text),
     aliases: (entries: { name: string; role: string }[]): Promise<AliasPair[]> =>
       ipcRenderer.invoke('privacy:aliases', entries),
     mask: (text: string, pairs: AliasPair[]): Promise<string> =>

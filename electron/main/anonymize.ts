@@ -63,7 +63,8 @@ const ROLE_MARKERS = [
   '보호자',
   '학부모',
   '신고자',
-  '목격자'
+  '목격자',
+  '상담사'
 ]
 
 /** 서식의 칸 이름. "성명: 홍길동" 처럼 뒤에 이름이 온다. */
@@ -80,6 +81,46 @@ const NAME_LABELS = [
   '작성',
   '기안자'
 ]
+
+/**
+ * 두 글자 성. 이름이 네 글자가 되는 것은 이때뿐이다.
+ */
+const DOUBLE_SURNAMES = ['남궁', '선우', '황보', '독고', '제갈', '사공', '서문', '을지']
+
+/**
+ * 이름 자리에 올 수 있는 토막.
+ *
+ * 길이를 세 글자로 묶어 둔다. 예전에는 네 글자까지 잡았는데,
+ * "인성부장 김택동입니다" 에서 '김택동입' 처럼 조사까지 삼켜 버렸다.
+ * 네 글자는 두 글자 성일 때뿐이므로 그때만 따로 허락한다.
+ */
+const NAME = `(?:(?:${DOUBLE_SURNAMES.join('|')})[가-힣]{1,2}|[가-힣]{2,3})`
+
+/**
+ * 표지 뒤에 붙는 조사. "학생이", "학생은", "학생에게" 처럼 붙여 쓴다.
+ *
+ * 예전에는 표지 뒤에 한글이 오면 무조건 이름이 아닌 것으로 보았다.
+ * 그런데 우리말은 조사가 붙는 말이라, 그러면 "이동현 학생이" 처럼
+ * 가장 흔한 꼴을 통째로 놓친다. 조사만 허락하고
+ * "학생회"·"학생부" 처럼 낱말이 이어지는 것은 그대로 막는다.
+ */
+const AFTER =
+  '(?:님)?(?:들)?(?:께서|에게|으로|입니다|이며|이라|이고|은|는|이|가|을|를|의|에|와|과|도|만|로|께|임)?(?![가-힣])'
+
+/** 이름 뒤에 바로 붙는 서술격조사. "김택동입니다" */
+const COPULA = '(?=입니다|이며|이고|이라|임)'
+
+/** "이정숙 님", "홍길동님" 처럼 뒤에 높임말만 오는 것도 이름의 끝이다. */
+const HONORIFIC = '(?=[ \\t]*님)'
+
+/**
+ * 서식의 칸에 적힌 값은 이름 하나로 끝난다.
+ *
+ * 대본은 "■ 인성부장 : 반갑습니다…" 처럼 쌍점 뒤에 대사가 이어지는데,
+ * 이것이 "보호자: 홍판서" 와 생김새가 같다. 뒤에 말이 이어지면
+ * 이름이 아닌 것으로 본다. 이 조건이 없으면 대본의 대사가 통째로 지워진다.
+ */
+const VALUE_END = '(?=[ \\t]*(?:$|[,、·/|()\\[\\]])|[ \\t]{2,})'
 
 /**
  * 우리나라에서 흔한 성(姓).
@@ -188,46 +229,190 @@ const NOT_NAMES = new Set([
   '연번',
   '소속',
   '직위',
-  '직급'
+  '직급',
+  // 회의 대본·진행 절차에 흔히 나오는 말
+  '선도',
+  '진행',
+  '절차',
+  '진술',
+  '개요',
+  '개회',
+  '폐회',
+  '사안',
+  '차례',
+  '인사',
+  '성원',
+  '질의',
+  '응답',
+  '통보',
+  '입장',
+  '퇴장',
+  '발언',
+  '동의',
+  '의사',
+  '규정',
+  '조항',
+  '징계',
+  '금품',
+  '흡연',
+  '폭행',
+  '폭언',
+  '욕설',
+  '적발',
+  '누계',
+  '결석',
+  '지각',
+  '조퇴',
+  '미인',
+  '본교',
+  '우리',
+  '이제',
+  '먼저',
+  '이것',
+  '지금',
+  '수고',
+  '교육',
+  '교무',
+  '상담',
+  '생활',
+  '안전',
+  '인성',
+  '학교',
+  '교실',
+  '사건',
+  '사항',
+  '전달',
+  '설명',
+  '논의',
+  '심사',
+  '서면',
+  '비밀',
+  '유지',
+  '의무',
+  '변화',
+  '갈등',
+  '의견',
+  '표결',
+  '찬성',
+  '반대',
+  '기권',
+  '불복',
+  '신고',
+  '목격',
+  '최후',
+  '경위',
+  '조사서'
 ])
+
+/** 이름이라면 이렇게 끝나지 않는다. 부서·기구 이름을 걸러 낸다. */
+const NOT_NAME_TAIL = /[회실팀청과별]$/
+
+/**
+ * 직위나 칸 이름으로 끝나면 이름이 아니다.
+ * "교감선생님 / 위원 김미영" 에서 '선생님' 이 이름으로 잡히는 것을 막는다.
+ */
+const ROLE_TAIL = new RegExp('(?:' + [...ROLE_MARKERS, ...NAME_LABELS].join('|') + ')$')
+
+/**
+ * "이상인 학생" 의 '이상인' 처럼, 흔한 말에 어미가 붙어 이름꼴이 된 것.
+ * 앞 두 글자가 이름이 아닌 말이고 끝이 어미면 이름으로 보지 않는다.
+ * '이상현' 같은 진짜 이름은 끝 글자가 어미가 아니므로 그대로 남는다.
+ */
+const ENDING = /[은는인한된할이가의도만과와로]$/
+function looksLikeWord(name: string): boolean {
+  return name.length === 3 && NOT_NAMES.has(name.slice(0, 2)) && ENDING.test(name)
+}
+
+/** 성이 맞는지 따져 본다. 두 글자 성이면 그것으로 갈음한다. */
+function looksLikeSurname(name: string): boolean {
+  return SURNAMES.has(name[0]) || DOUBLE_SURNAMES.some((s) => name.startsWith(s))
+}
 
 /**
  * 글에서 사람 이름으로 보이는 것을 추려 낸다.
  * 확실하지 않으므로 화면에서 사람이 확인하도록 후보만 돌려준다.
  */
 export function findNameCandidates(text: string): string[] {
-  const found = new Set<string>()
   const tight = TIGHT_MARKERS.join('|')
   const role = ROLE_MARKERS.join('|')
   const all = [...TIGHT_MARKERS, ...ROLE_MARKERS, ...NAME_LABELS].join('|')
 
-  const scan = (re: RegExp): void => {
-    for (const m of text.matchAll(re)) found.add(m[1])
+  /** 자리가 분명해서 성을 따지지 않아도 되는 것 */
+  const sure = new Set<string>()
+  /** 성이 맞는지 따져 봐야 하는 것 */
+  const maybe = new Set<string>()
+
+  const scan = (re: RegExp, into: Set<string>): void => {
+    for (const m of text.matchAll(re)) if (m[1]) into.add(m[1])
   }
 
-  // 1) "홍길동 학생", "김철수군" — 붙여 써도 된다.
+  // 1) "1727 홍길동 학생" — 학번이 앞에 붙으면 자리가 분명하다.
+  //    귀화 학생처럼 우리 성이 아닌 이름도 여기서 잡힌다.
+  scan(new RegExp(`(?:^|[\\s.)])\\d{4,5}\\s+(${NAME})\\s*(?:${tight})${AFTER}`, 'gm'), sure)
+
+  // 2) "홍길동 학생", "김철수군" — 붙여 써도 된다.
   //    앞에 경계를 두어 "일반학생회" 같은 데서 잘려 나오지 않게 한다.
-  scan(new RegExp(`(?:^|[\\s,·:：(\\[/])([가-힣]{2,4})\\s*(?:${tight})(?![가-힣])`, 'gm'))
+  scan(new RegExp(`(?:^|[\\s,·:：(\\[/])(${NAME})\\s*(?:${tight})${AFTER}`, 'gm'), maybe)
 
-  // 2) "박정민 위원장" — 직위가 뒤에 올 때는 반드시 띄어 쓴 것만
-  scan(new RegExp(`([가-힣]{2,4})\\s+(?:${role})(?![가-힣])`, 'g'))
+  // 3) "박정민 위원장" — 직위가 뒤에 올 때는 반드시 띄어 쓴 것만
+  scan(new RegExp(`(${NAME})\\s+(?:${role})${AFTER}`, 'g'), maybe)
 
-  // 3) "학생 홍길동", "담임교사 이지훈" — 표지가 앞에 올 때도 띄어 쓴 것만
-  scan(new RegExp(`(?:${all})\\s+([가-힣]{2,4})`, 'g'))
+  // "위원 김미영 교무지원부장" — 앞뒤가 모두 직위면 가운데는 이름이다.
+  const between = `(?=[ \\t]+[가-힣]{0,4}(?:${role})${AFTER})`
 
-  // 4) "보호자: 홍판서", "성명: 김영수" — 쌍점으로 이어진 칸
-  scan(new RegExp(`(?:${all})\\s*[:：]\\s*([가-힣]{2,4})`, 'g'))
-
-  // 5) "홍길동 (인)" 처럼 서명란에 적힌 경우
-  scan(/([가-힣]{2,4})\s*\(\s*(?:인|서명)\s*\)/g)
-
-  // 6) "2학년 3반 15번 홍길동" — 명부나 표에서 학번 뒤에 이름만 오는 경우
-  scan(/(?:\d+\s*[반번])\s+([가-힣]{2,4})/g)
-
-  // 성으로 시작하지 않는 것, 흔한 낱말, 이미 가려 둔 것은 뺀다.
-  return [...found].filter(
-    (n) => SURNAMES.has(n[0]) && !NOT_NAMES.has(n) && !n.includes('○') && !n.includes('*')
+  // 4) "인성부장 김택동입니다", "위원장 홍길동" — 표지가 앞에 올 때.
+  //    뒤에 말이 이어지면 이름이 아니라 대사다.
+  scan(
+    new RegExp(
+      `(?:${all})\\s+(${NAME})(?:${COPULA}|${HONORIFIC}|${between}|${VALUE_END})`,
+      'gm'
+    ),
+    maybe
   )
+
+  // 5) "보호자: 홍판서", "성명: 김영수" — 쌍점으로 이어진 칸
+  scan(new RegExp(`(?:${all})\\s*[:：]\\s*(${NAME})${VALUE_END}`, 'gm'), maybe)
+
+  // 6) "홍길동 (인)" 처럼 서명란에 적힌 경우
+  scan(new RegExp(`(${NAME})\\s*\\(\\s*(?:인|서명)\\s*\\)`, 'g'), maybe)
+
+  // 7) "2학년 3반 15번 홍길동" — 명부나 표에서 학번 뒤에 이름만 오는 경우
+  scan(new RegExp(`(?:\\d+\\s*[반번])\\s+(${NAME})(?:${COPULA}|${VALUE_END})`, 'gm'), maybe)
+
+  const usable = (n: string): boolean =>
+    !NOT_NAMES.has(n) &&
+    !NOT_NAME_TAIL.test(n) &&
+    !ROLE_TAIL.test(n) &&
+    !looksLikeWord(n) &&
+    !n.includes('○') &&
+    !n.includes('*')
+
+  return [
+    ...new Set([
+      ...[...sure].filter(usable),
+      ...[...maybe].filter((n) => usable(n) && looksLikeSurname(n))
+    ])
+  ]
+}
+
+/**
+ * 학번처럼 사람을 곧바로 가리키는 번호를 찾는다.
+ *
+ * 이름을 가려도 학번이 남으면 명부 한 장으로 누구인지 알 수 있다.
+ * 이름과 함께 가명으로 바꿔 보내고, 돌아온 결과에서 되돌린다.
+ */
+export function findIdNumbers(text: string): string[] {
+  const found = new Set<string>()
+  const tight = TIGHT_MARKERS.join('|')
+
+  // "3616 이동현 학생" — 이름 앞에 붙은 번호
+  const front = new RegExp(`(?:^|[\\s.)])(\\d{4,5})\\s+${NAME}\\s*(?:${tight})${AFTER}`, 'gm')
+  for (const m of text.matchAll(front)) found.add(m[1])
+
+  // "학번: 30612"
+  for (const m of text.matchAll(/학번\s*[:：]?\s*(\d{4,10})/g)) found.add(m[1])
+
+  return [...found]
 }
 
 /* ---------- 싹 가리기 ---------- */
@@ -251,6 +436,13 @@ const SCRUB_RULES: { label: string; re: RegExp; to: string }[] = [
   { label: '반·번호', re: /(\d\s*학년)\s*\d+\s*반/g, to: '$1 ○반' },
   { label: '반·번호', re: /(?<![\d가-힣])\d{1,2}\s*반\s*\d{1,2}\s*번/g, to: '○반 ○번' },
   { label: '학번', re: /(학번)(\s*[:：]?\s*)\d{4,10}/g, to: '$1$2○○○○○' },
+  // 이름을 가려도 학번이 남으면 명부 한 장으로 누구인지 알 수 있다.
+  // "3616 ○○○ 학생" 처럼 이름 앞에 붙은 번호는 함께 가린다.
+  {
+    label: '학번',
+    re: /(?<![\d\-.])\d{4,5}(?=\s+[가-힣○]{2,4}\s*(?:학생|군|양))/g,
+    to: '○○○○'
+  },
   {
     label: '생년월일',
     re: /(생년월일|생일)(\s*[:：]?\s*)\d{2,4}\s*[.\-/년]\s*\d{1,2}\s*[.\-/월]\s*\d{1,2}\s*일?\.?/g,
@@ -282,7 +474,7 @@ export function scrubPersonal(text: string): ScrubResult {
   const names = findNameCandidates(out)
   // 긴 이름부터 바꿔야 '김철' 이 '김철수' 를 깨뜨리지 않는다.
   for (const name of [...names].sort((a, b) => b.length - a.length)) {
-    const re = new RegExp(escapeRe(name), 'g')
+    const re = new RegExp(nameRe(name), 'g')
     bump('이름', (out.match(re) ?? []).length)
     out = out.replace(re, '○○○')
   }
@@ -318,6 +510,18 @@ export function buildAliases(entries: { name: string; role: string }[]): AliasPa
   return out
 }
 
+/**
+ * 이름을 낱말 첫머리에서만 바꾸도록 묶는다.
+ *
+ * 뒤는 묶지 않는다. "김택동입니다" 처럼 조사가 붙어도 바꿔야 하기 때문이다.
+ * 앞을 묶지 않으면 잘못 잡힌 두 글자가 "학생선도위원회" 한가운데를 파먹는다.
+ */
+function nameRe(name: string): string {
+  // 학번 같은 번호는 더 긴 번호의 한 토막일 때 건드리면 안 된다.
+  if (/^\d+$/.test(name)) return '(?<!\\d)' + escapeRe(name) + '(?!\\d)'
+  return '(?<![가-힣])' + escapeRe(name)
+}
+
 /** 정규식에 쓰일 수 있는 글자를 막아 준다. */
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -333,7 +537,7 @@ export function maskText(text: string, pairs: AliasPair[]): string {
   const ordered = [...pairs].sort((a, b) => b.real.length - a.real.length)
   for (const p of ordered) {
     if (!p.real) continue
-    out = out.replace(new RegExp(escapeRe(p.real), 'g'), p.alias)
+    out = out.replace(new RegExp(nameRe(p.real), 'g'), p.alias)
   }
 
   for (const rule of AUTO_RULES) out = out.replace(rule.re, rule.to)

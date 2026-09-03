@@ -21,7 +21,13 @@ import {
   generateDocDraft,
   testConnection
 } from './ai'
-import { buildAliases, findNameCandidates, maskText, scrubPersonal } from './anonymize'
+import {
+  buildAliases,
+  findIdNumbers,
+  findNameCandidates,
+  maskText,
+  scrubPersonal
+} from './anonymize'
 import { buildBriefing } from './briefing'
 import { checkForUpdate } from './update'
 import { downloadUpdate, installUpdate, wireAutoUpdate } from './autoupdate'
@@ -246,6 +252,7 @@ function registerIpc(): void {
 
   /* ---------- 가명처리 ---------- */
   ipcMain.handle('privacy:candidates', (_e, text: string) => findNameCandidates(text))
+  ipcMain.handle('privacy:ids', (_e, text: string) => findIdNumbers(text))
   ipcMain.handle('privacy:aliases', (_e, entries: { name: string; role: string }[]) =>
     buildAliases(entries)
   )

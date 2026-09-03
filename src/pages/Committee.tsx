@@ -108,7 +108,14 @@ export default function Committee({ onGo }: Props): JSX.Element {
   /* 만들기 */
   const [formId, setFormId] = useState('')
   const [values, setValues] = useState<Record<string, string>>({})
-  const [exampleIds, setExampleIds] = useState<number[]>([])
+  /**
+   * 예시는 넣어 둔 것을 모두 쓰는 것이 기본이다.
+   * 여기에는 사람이 일부러 **끈** 것만 담는다.
+   *
+   * 예전에는 켠 것을 담았는데, 그러면 예시를 새로 넣어도 목록에 들어가지
+   * 않아 그대로 만들기를 누르면 예시 없이 만들어졌다.
+   */
+  const [offIds, setOffIds] = useState<number[]>([])
   const [result, setResult] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -153,7 +160,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
   const loadTemplates = useCallback(async () => {
     const list = await window.api.templates.list()
     setTemplates(list)
-    setExampleIds((prev) => prev.filter((id) => list.some((t) => t.id === id)))
+    setOffIds((prev) => prev.filter((id) => list.some((t) => t.id === id)))
   }, [])
 
   const loadCustomForms = useCallback(async () => {
@@ -189,6 +196,12 @@ export default function Committee({ onGo }: Props): JSX.Element {
     [templates, formId]
   )
 
+  /** 이 문서 종류로 저장해 둔 예시 가운데, 끄지 않은 것 */
+  const exampleIds = useMemo(
+    () => myExamples.filter((t) => !offIds.includes(t.id)).map((t) => t.id),
+    [myExamples, offIds]
+  )
+
   const allText = (): string => Object.values(values).join('\n')
 
   /* ---------- 문서 종류 고르기 ---------- */
@@ -199,23 +212,32 @@ export default function Committee({ onGo }: Props): JSX.Element {
     setResult('')
     setShowPreview(false)
     setShowNames(!!f.personal)
-    // 이 종류로 넣어 둔 예시는 처음부터 켜 둔다. 넣어 둔 이유가 쓰려는 것이기 때문이다.
-    setExampleIds(templates.filter((t) => t.kind === f.id).map((t) => t.id))
+    // 이 종류로 넣어 둔 예시는 모두 켠 채로 시작한다. 넣어 둔 이유가 쓰려는 것이기 때문이다.
+    setOffIds([])
   }
 
   /* ---------- 가명처리 ---------- */
 
   const findNames = async (): Promise<void> => {
-    const found = await window.api.privacy.candidates(allText())
-    if (!found.length) {
+    const text = allText()
+    // 학번도 함께 가린다. 이름만 가려도 학번이 남으면 누구인지 알 수 있다.
+    const [found, ids] = await Promise.all([
+      window.api.privacy.candidates(text),
+      window.api.privacy.ids(text)
+    ])
+    const rows: NameRow[] = [
+      ...found.map((n) => ({ name: n, role: '학생' })),
+      ...ids.map((n) => ({ name: n, role: '학번' }))
+    ]
+    if (!rows.length) {
       toast('이름으로 보이는 것을 찾지 못했습니다. 직접 넣어 주세요.', 'err')
       return
     }
     setNames((prev) => {
       const have = new Set(prev.map((n) => n.name))
-      return [...prev, ...found.filter((n) => !have.has(n)).map((n) => ({ name: n, role: '학생' }))]
+      return [...prev, ...rows.filter((r) => !have.has(r.name))]
     })
-    toast(`${found.length}개를 찾았습니다. 역할을 확인해 주세요.`, 'ok')
+    toast(`${rows.length}개를 찾았습니다. 역할을 확인해 주세요.`, 'ok')
   }
 
   const buildPreview = async (): Promise<void> => {
@@ -325,15 +347,9 @@ export default function Committee({ onGo }: Props): JSX.Element {
     }
     if (editingId === null) await window.api.templates.add(editing)
     else await window.api.templates.update(editingId, editing)
-    const kind = editing.kind
     setEditing(null)
     setEditingId(null)
     await loadTemplates()
-    // 지금 만들고 있는 문서의 예시를 새로 넣었으면 바로 켜 준다.
-    if (kind === formId) {
-      const list = await window.api.templates.list()
-      setExampleIds(list.filter((t) => t.kind === kind).map((t) => t.id))
-    }
     toast('예시를 저장했습니다.', 'ok')
   }
 
@@ -963,8 +979,8 @@ export default function Committee({ onGo }: Props): JSX.Element {
                           type="checkbox"
                           checked={exampleIds.includes(t.id)}
                           onChange={(e) =>
-                            setExampleIds((p) =>
-                              e.target.checked ? [...p, t.id] : p.filter((x) => x !== t.id)
+                            setOffIds((p) =>
+                              e.target.checked ? p.filter((x) => x !== t.id) : [...p, t.id]
                             )
                           }
                           style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
@@ -1133,8 +1149,12 @@ export default function Committee({ onGo }: Props): JSX.Element {
               >
                 {busy ? '만드는 중…' : `${form.name} 만들기`}
               </button>
-              {exampleIds.length > 0 && (
+              {exampleIds.length > 0 ? (
                 <span className="badge badge-accent">예시 {exampleIds.length}건을 따릅니다</span>
+              ) : myExamples.length > 0 ? (
+                <span className="badge badge-warn">예시를 모두 껐습니다 · 기본 뼈대로 만듭니다</span>
+              ) : (
+                <span className="badge">기본 뼈대로 만듭니다</span>
               )}
               {!hasKey && (
                 <span className="muted small">

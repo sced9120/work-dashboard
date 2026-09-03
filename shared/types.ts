@@ -306,7 +306,7 @@ export interface DocDraftResult {
   error?: string
 }
 
-export const ROLES = ['학생', '보호자', '교사', '위원', '관계자'] as const
+export const ROLES = ['학생', '보호자', '교사', '위원', '관계자', '학번'] as const
 
 /* ---------- 업무 일지 ---------- */
 
