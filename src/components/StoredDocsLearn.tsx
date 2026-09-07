@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Doc, DocKind, ModelChoice, TaskDraft } from '../../shared/types'
+import type { Doc, DocKind, ModelChoice, Task, TaskDraft } from '../../shared/types'
+import { groupNotices, joinNotice } from '../../shared/notice'
 import { currentSchoolYear, schoolYearLabel } from '../../shared/types'
 import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
@@ -33,8 +34,10 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
   const toast = useToast()
   const ask = useConfirm()
   const [docs, setDocs] = useState<Doc[]>([])
-  const [learned, setLearned] = useState<Set<string>>(new Set())
+  const [tasks, setTasks] = useState<Task[]>([])
   const [picked, setPicked] = useState<Set<number>>(new Set())
+  /** 문서번호가 같은 본문·첨부를 한 공문으로 묶을지 */
+  const [groupDocs, setGroupDocs] = useState(true)
   const [limit, setLimit] = useState(DEFAULT_LIMIT)
   const [query, setQuery] = useState('')
 
@@ -59,25 +62,71 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
   const [year, setYear] = useState<number>(FOLLOW_DOC)
 
   const load = useCallback(async () => {
-    const [list, tasks] = await Promise.all([window.api.docs.list(), window.api.tasks.list()])
+    const [list, rows] = await Promise.all([window.api.docs.list(), window.api.tasks.list()])
     setDocs(list)
-    // 이미 그 파일에서 업무를 뽑아 둔 적이 있으면 "학습함" 으로 본다
-    setLearned(new Set(tasks.map((t) => t.filename).filter(Boolean)))
+    setTasks(rows)
   }, [])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const shown = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return docs
-    return docs.filter((d) => d.filename.toLowerCase().includes(q))
-  }, [docs, query])
+  /**
+   * 보관해 둔 공문을 공문 단위로 묶는다.
+   *
+   * 파일 경로가 남아 있지 않으므로 학년도로 자리를 가른다.
+   * 문서번호는 해마다 다시 매겨지기 때문이다.
+   */
+  const allGroups = useMemo(
+    () =>
+      groupDocs
+        ? groupNotices(
+            docs,
+            (d) => d.filename,
+            (d) => String(d.school_year ?? 0)
+          )
+        : docs.map((d) => ({ key: String(d.id), number: '', label: d.filename, items: [d] })),
+    [docs, groupDocs]
+  )
 
-  const notYet = useMemo(() => docs.filter((d) => !learned.has(d.filename)), [docs, learned])
+  /**
+   * 이미 업무를 뽑아 둔 문서. 묶음 안에서 하나라도 뽑았으면 그 공문은 한 것으로 본다.
+   * 묶어서 학습하면 업무가 본문에만 매달리기 때문이다.
+   */
+  const learned = useMemo(() => {
+    const byId = new Set(tasks.map((t) => t.document_id).filter(Boolean))
+    const byName = new Set(tasks.map((t) => t.filename).filter(Boolean))
+    const out = new Set<number>()
+    for (const g of allGroups) {
+      if (g.items.some((d) => byId.has(d.id) || byName.has(d.filename))) {
+        for (const d of g.items) out.add(d.id)
+      }
+    }
+    return out
+  }, [allGroups, tasks])
+
+  const shownGroups = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return allGroups
+    return allGroups.filter(
+      (g) =>
+        g.label.toLowerCase().includes(q) ||
+        g.items.some((d) => d.filename.toLowerCase().includes(q))
+    )
+  }, [allGroups, query])
+
+  const notYetGroups = useMemo(
+    () => allGroups.filter((g) => !g.items.some((d) => learned.has(d.id))),
+    [allGroups, learned]
+  )
 
   const chosen = useMemo(() => docs.filter((d) => picked.has(d.id)), [docs, picked])
+
+  /** 고른 문서를 다시 공문 단위로 묶은 것 — 이 덩어리마다 한 번씩 보낸다 */
+  const runGroups = useMemo(
+    () => allGroups.filter((g) => g.items.some((d) => picked.has(d.id))),
+    [allGroups, picked]
+  )
 
   /**
    * 고르개에 세울 학년도들.
@@ -92,35 +141,47 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
 
   /** 실제로 몇 번 요청이 나가는지 — 긴 문서는 나눠 보내므로 건수보다 많다 */
   const calls = useMemo(
-    () => chosen.reduce((s, d) => s + Math.max(1, Math.ceil(d.chars / CHUNK)), 0),
-    [chosen]
+    () =>
+      runGroups.reduce(
+        (s, g) => s + Math.max(1, Math.ceil(g.items.reduce((n, d) => n + d.chars, 0) / CHUNK)),
+        0
+      ),
+    [runGroups]
   )
   const totalChars = useMemo(() => chosen.reduce((s, d) => s + d.chars, 0), [chosen])
 
-  const toggle = (id: number): void => {
+  /** 묶음 하나를 통째로 켜고 끈다. 본문만 골라 보내면 첨부가 빠지기 때문이다. */
+  const toggleGroup = (key: string): void => {
+    const g = allGroups.find((x) => x.key === key)
+    if (!g) return
     setPicked((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      const on = g.items.every((d) => next.has(d.id))
+      for (const d of g.items) {
+        if (on) next.delete(d.id)
+        else next.add(d.id)
+      }
       return next
     })
   }
 
-  const selectNotYet = (): void => {
-    setPicked(new Set(notYet.slice(0, limit).map((d) => d.id)))
+  const pickGroups = (list: typeof allGroups): void => {
+    const next = new Set<number>()
+    for (const g of list.slice(0, limit)) for (const d of g.items) next.add(d.id)
+    setPicked(next)
   }
-  const selectAll = (): void => {
-    setPicked(new Set(shown.slice(0, limit).map((d) => d.id)))
-  }
+
+  const selectNotYet = (): void => pickGroups(notYetGroups)
+  const selectAll = (): void => pickGroups(shownGroups)
   const selectNone = (): void => setPicked(new Set())
 
   const run = async (): Promise<void> => {
-    if (!chosen.length) {
+    if (!runGroups.length) {
       toast('학습할 공문을 골라 주세요.', 'err')
       return
     }
     const ok = await ask({
-      title: `공문 ${chosen.length}건을 AI로 분석할까요?`,
+      title: `공문 ${runGroups.length}건을 AI로 분석할까요?`,
       body: (
         <>
           요청 약 <b>{calls}회</b> · 글자 {totalChars.toLocaleString()}자
@@ -134,28 +195,36 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
     })
     if (!ok) return
 
-    startJob('보관 문서 학습', chosen.length)
+    startJob('보관 문서 학습', runGroups.length)
     let found = 0
 
     // 도중에 무엇이 잘못되어도 '학습 중' 을 반드시 풀어야 한다.
     // 안 풀리면 이 화면의 입력칸이 모두 잠긴 채로 남는다.
     try {
-      for (let i = 0; i < chosen.length; i++) {
+      for (let i = 0; i < runGroups.length; i++) {
         if (isStopping()) break
-        const d = chosen[i]
-        setProgress({ now: d.filename, done: i })
+        const g = runGroups[i]
+        // 묶음을 대표하는 것은 본문이다. 뽑은 업무가 이 문서에 매달린다.
+        const head = g.items[0]
+        setProgress({ now: g.label, done: i })
 
-        const full = await window.api.docs.get(d.id)
-        if (!full?.content?.trim()) {
-          addFailure(`${d.filename} — 원문이 비어 있습니다`)
+        // 묶인 파일의 원문을 모아 한 덩어리로 잇는다.
+        const parts: { name: string; text: string }[] = []
+        for (const d of g.items) {
+          const full = await window.api.docs.get(d.id)
+          if (full?.content?.trim()) parts.push({ name: d.filename, text: full.content })
+        }
+        if (!parts.length) {
+          addFailure(`${g.label} — 원문이 비어 있습니다`)
           continue
         }
 
+        const joined = joinNotice(parts)
         // 켜 두면 개인정보를 가린 글만 나간다. 보관된 원문은 손대지 않는다.
-        const text = scrub ? (await window.api.privacy.scrub(full.content)).text : full.content
+        const text = scrub ? (await window.api.privacy.scrub(joined)).text : joined
 
         const res = await window.api.ai.analyze({
-          filename: d.filename,
+          filename: head.filename,
           text,
           kind,
           jobTitle,
@@ -163,14 +232,14 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
         })
 
         if (!res.ok) {
-          addFailure(`${d.filename} — ${res.error ?? '분석 실패'}`)
+          addFailure(`${g.label} — ${res.error ?? '분석 실패'}`)
           // 키가 잘못됐거나 한도에 걸린 것이면 계속해 봐야 다 실패한다
           if (/키|한도|없습니다/.test(res.error ?? '')) {
             toast(`${res.error} — 중단합니다.`, 'err')
             break
           }
         } else if (res.drafts.length === 0) {
-          addFailure(`${d.filename} — 뽑을 업무를 찾지 못했습니다`)
+          addFailure(`${g.label} — 뽑을 업무를 찾지 못했습니다`)
         }
 
         // 이미 보관된 문서이므로 원문을 다시 넣지 않도록 id 를 달아 둔다.
@@ -178,8 +247,8 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
         addDrafts(
           res.drafts.map((x) => ({
             ...x,
-            document_id: d.id,
-            school_year: year === FOLLOW_DOC ? d.school_year : year
+            document_id: head.id,
+            school_year: year === FOLLOW_DOC ? head.school_year : year
           }))
         )
         found += res.drafts.length
@@ -200,9 +269,32 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
   return (
     <div>
       <p className="hint" style={{ marginTop: 0 }}>
-        이미 보관해 둔 공문 <b>{docs.length}건</b> 을 파일 고르기 없이 그대로 AI에 넘깁니다. 아직
-        학습하지 않은 것은 <b>{notYet.length}건</b> 입니다.
+        이미 보관해 둔 파일 <b>{docs.length}개</b>
+        {groupDocs && allGroups.length !== docs.length && (
+          <>
+            {' '}
+            를 공문 <b>{allGroups.length}건</b>으로 묶어
+          </>
+        )}{' '}
+        파일 고르기 없이 그대로 AI에 넘깁니다. 아직 학습하지 않은 것은{' '}
+        <b>{notYetGroups.length}건</b> 입니다.
       </p>
+
+      {kind === '개별 공문' && (
+        <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 10 }}>
+          <input
+            type="checkbox"
+            checked={groupDocs}
+            onChange={(e) => setGroupDocs(e.target.checked)}
+            disabled={busy}
+            style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+          />
+          <span className="small">
+            같은 문서번호끼리 <b>한 공문으로 묶기</b>{' '}
+            <span className="muted">— (본문)·(첨부) 를 한 건으로 봅니다</span>
+          </span>
+        </label>
+      )}
 
       <div className="row" style={{ marginBottom: 10 }}>
         <input
@@ -227,8 +319,12 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
       </div>
 
       <div className="row" style={{ marginBottom: 10 }}>
-        <button className="btn btn-sm" onClick={selectNotYet} disabled={busy || !notYet.length}>
-          아직 안 한 것 고르기 ({Math.min(notYet.length, limit)})
+        <button
+          className="btn btn-sm"
+          onClick={selectNotYet}
+          disabled={busy || !notYetGroups.length}
+        >
+          아직 안 한 것 고르기 ({Math.min(notYetGroups.length, limit)})
         </button>
         <button className="btn btn-sm" onClick={selectAll} disabled={busy}>
           보이는 것 고르기
@@ -238,10 +334,11 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
         </button>
       </div>
 
-      {chosen.length > 0 && (
+      {runGroups.length > 0 && (
         <div className="note note-info" style={{ marginBottom: 10 }}>
-          <b>{chosen.length}건</b> 선택 · 글자 {totalChars.toLocaleString()}자 · AI 요청 약{' '}
-          <b>{calls}회</b>
+          공문 <b>{runGroups.length}건</b>
+          {runGroups.length !== chosen.length && <> (파일 {chosen.length}개)</>} 선택 · 글자{' '}
+          {totalChars.toLocaleString()}자 · AI 요청 약 <b>{calls}회</b>
           <div className="small muted" style={{ marginTop: 4 }}>
             긴 공문은 여러 조각으로 나눠 보내므로 요청 수가 건수보다 많습니다. 사용량만큼 요금이
             붙습니다.
@@ -253,7 +350,7 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
         <div className="note note-warn" style={{ marginBottom: 10 }}>
           <div className="row">
             <b>
-              {at}/{chosen.length}
+              {at}/{runGroups.length}
             </b>
             <span className="small" style={{ flex: 1, minWidth: 0 }}>
               {now}
@@ -269,32 +366,42 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
             </button>
           </div>
           <div className="info-bar" style={{ marginTop: 8, maxWidth: 'none' }}>
-            <div style={{ width: `${chosen.length ? (at / chosen.length) * 100 : 0}%` }} />
+            <div style={{ width: `${runGroups.length ? (at / runGroups.length) * 100 : 0}%` }} />
           </div>
         </div>
       )}
 
       <div className="storedlist">
-        {shown.length === 0 ? (
+        {shownGroups.length === 0 ? (
           <div className="empty">보관된 공문이 없습니다.</div>
         ) : (
-          shown.map((d) => (
-            <label key={d.id} className={`storeditem ${picked.has(d.id) ? 'on' : ''}`}>
-              <input
-                type="checkbox"
-                checked={picked.has(d.id)}
-                onChange={() => toggle(d.id)}
-                disabled={busy}
-              />
-              <span className="storeditem-name">{d.filename}</span>
-              {learned.has(d.filename) && <span className="badge">학습함</span>}
-              <span className="muted small">{d.doc_date || '날짜 미상'}</span>
-              <span className={`badge ${d.school_year ? '' : 'badge-warn'}`}>
-                {schoolYearLabel(d.school_year)}
-              </span>
-              <span className="muted small">{d.chars.toLocaleString()}자</span>
-            </label>
-          ))
+          shownGroups.map((g) => {
+            const head = g.items[0]
+            const on = g.items.every((d) => picked.has(d.id))
+            const chars = g.items.reduce((n, d) => n + d.chars, 0)
+            return (
+              <label key={g.key} className={`storeditem ${on ? 'on' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() => toggleGroup(g.key)}
+                  disabled={busy}
+                />
+                <span className="storeditem-name" title={g.items.map((d) => d.filename).join('\n')}>
+                  {g.label}
+                </span>
+                {g.items.length > 1 && (
+                  <span className="badge badge-accent">본문+첨부 {g.items.length}</span>
+                )}
+                {g.items.some((d) => learned.has(d.id)) && <span className="badge">학습함</span>}
+                <span className="muted small">{head.doc_date || '날짜 미상'}</span>
+                <span className={`badge ${head.school_year ? '' : 'badge-warn'}`}>
+                  {schoolYearLabel(head.school_year)}
+                </span>
+                <span className="muted small">{chars.toLocaleString()}자</span>
+              </label>
+            )
+          })
         )}
       </div>
 
@@ -358,9 +465,9 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
         <button
           className="btn btn-primary"
           onClick={() => void run()}
-          disabled={busy || !chosen.length}
+          disabled={busy || !runGroups.length}
         >
-          {busy ? '분석 중…' : `🤖 고른 ${chosen.length}건 학습하기`}
+          {busy ? '분석 중…' : `🤖 고른 공문 ${runGroups.length}건 학습하기`}
         </button>
       </div>
     </div>

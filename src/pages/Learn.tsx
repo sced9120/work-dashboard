@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DocKind, ExtractedDoc, ModelChoice, TaskDraft } from '../../shared/types'
 import { currentSchoolYear, schoolYearLabel } from '../../shared/types'
+import { groupNotices, joinNotice, parseNoticeName } from '../../shared/notice'
+import type { NoticeGroup } from '../../shared/notice'
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
 import {
@@ -20,6 +22,17 @@ import StoredDocsLearn from '../components/StoredDocsLearn'
 interface Props {
   jobTitle: string
   onGo: (p: PageId) => void
+}
+
+/**
+ * 같은 공문의 파일은 늘 같은 폴더에 있다.
+ *
+ * 문서번호는 해마다 1번부터 다시 매겨져서, 번호만 보고 묶으면 지난해 4169번과
+ * 올해 4169번이 한 덩어리가 된다. 폴더까지 함께 봐야 섞이지 않는다.
+ */
+function folderOf(path: string): string {
+  const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return i < 0 ? '' : path.slice(0, i)
 }
 
 interface FileRow {
@@ -60,6 +73,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   const [roster, setRoster] = useState('')
   /** 검토 목록에서 다른 부서 것을 감출지 */
   const [onlyMine, setOnlyMine] = useState(false)
+  /** 문서번호가 같은 본문·첨부를 한 공문으로 묶을지 */
+  const [groupFiles, setGroupFiles] = useState(true)
 
   useEffect(() => {
     void (async () => {
@@ -89,39 +104,69 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
     }
   }, [])
 
+  const ready = useMemo(
+    () => files.filter((f) => f.state === '읽음' && f.doc?.text),
+    [files]
+  )
+
+  /**
+   * 분석에 넘길 덩어리.
+   *
+   * 공문은 본문 하나에 첨부 몇 개로 내려오고 그 전체가 하나의 일이다.
+   * 이름 앞머리의 문서번호가 같으면 한 공문이므로 묶어서 한 번에 보낸다.
+   * 길라잡이는 파일마다 따로 본다.
+   */
+  const groups = useMemo(() => {
+    if (kind !== '개별 공문' || !groupFiles) {
+      return ready.map((f): NoticeGroup<FileRow> => ({ key: f.path, number: '', label: f.name, items: [f] }))
+    }
+    return groupNotices(
+      ready,
+      (f) => f.name,
+      (f) => folderOf(f.path)
+    )
+  }, [ready, kind, groupFiles])
+
+  /** 묶여서 줄어든 건수. 0 이면 묶인 것이 없다. */
+  const gathered = ready.length - groups.length
+
   const analyze = async (): Promise<void> => {
-    const ready = files.filter((f) => f.state === '읽음' && f.doc)
-    if (!ready.length) {
+    if (!groups.length) {
       toast('먼저 읽을 수 있는 문서를 올려 주세요.', 'err')
       return
     }
 
-    startJob('문서 분석', ready.length)
+    startJob('문서 분석', groups.length)
     let found = 0
 
     // 도중에 무엇이 잘못되어도 '학습 중' 을 반드시 풀어야 한다.
     try {
-      for (let i = 0; i < ready.length; i++) {
+      for (let i = 0; i < groups.length; i++) {
         if (isStopping()) break
-        const f = ready[i]
-        setJobProgress({ now: f.name, message: `${f.name} 분석 중` })
+        const g = groups[i]
+        // 묶음을 대표하는 것은 본문이다. 뽑은 업무가 이 파일에 매달린다.
+        const head = g.items[0]
+        setJobProgress({ now: g.label, message: `${g.label} 분석 중` })
+
+        const joined = joinNotice(g.items.map((f) => ({ name: f.name, text: f.doc!.text })))
         // 켜 두면 개인정보를 가린 글을 보낸다. 보관하는 원문은 그대로 둔다 —
         // 학교 안에서는 원문이 필요하고, 밖으로 나가는 것만 가리면 되기 때문이다.
-        const text = scrub ? (await window.api.privacy.scrub(f.doc!.text)).text : f.doc!.text
+        const text = scrub ? (await window.api.privacy.scrub(joined)).text : joined
+
         const res = await window.api.ai.analyze({
-          filename: f.name,
+          filename: head.name,
           text,
           kind,
           jobTitle,
           model: model ?? undefined
         })
         if (!res.ok) {
-          toast(`${f.name}: ${res.error}`, 'err')
+          toast(`${g.label}: ${res.error}`, 'err')
         } else if (res.drafts.length === 0) {
-          toast(`${f.name}: 업무로 뽑을 내용을 찾지 못했습니다.`, 'err')
-      }
-      // 한 건이 끝날 때마다 바로 담는다. 도중에 화면을 옮겨도 남는다.
-      addDrafts(res.drafts)
+          toast(`${g.label}: 업무로 뽑을 내용을 찾지 못했습니다.`, 'err')
+        }
+        // 한 건이 끝날 때마다 바로 담는다. 도중에 화면을 옮겨도 남는다.
+        addDrafts(res.drafts)
         found += res.drafts.length
         setJobProgress({ done: i + 1 })
       }
@@ -256,6 +301,23 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
 
   const readyCount = files.filter((f) => f.state === '읽음').length
 
+  /** 묶음이 눈에 보이도록 같은 공문끼리 붙여 세운다 */
+  const shownFiles = useMemo(() => {
+    if (kind !== '개별 공문' || !groupFiles) return files
+    const order = new Map<string, number>()
+    groups.forEach((g, i) => g.items.forEach((f) => order.set(f.path, i)))
+    // 아직 읽는 중인 파일은 묶음에 없다. 맨 뒤로 보낸다.
+    return [...files].sort(
+      (a, b) => (order.get(a.path) ?? 1e9) - (order.get(b.path) ?? 1e9)
+    )
+  }, [files, groups, kind, groupFiles])
+
+  /** 파일 이름에서 읽어낸 문서번호·본문/첨부. 공문 이름이 아니면 null */
+  const noticeTag = (f: FileRow): { number: string; part: string } | null => {
+    if (kind !== '개별 공문' || !groupFiles) return null
+    return parseNoticeName(f.name)
+  }
+
   /* 업무분장과 맞춰 본 결과. 분장을 안 적었으면 모두 '내 업무' 가 된다. */
   const mineCount = drafts.filter((d) => d.mine !== false).length
   const otherCount = drafts.length - mineCount
@@ -351,6 +413,30 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             hint="해가 바뀌어 넘겨줄 때 학년도별로 골라 지울 수 있습니다. 전임자에게 받은 묵은 공문이면 그 해로 바꿔 주세요."
           />
 
+          {kind === '개별 공문' && (
+            <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 6 }}>
+              <input
+                type="checkbox"
+                checked={groupFiles}
+                onChange={(e) => setGroupFiles(e.target.checked)}
+                style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+              />
+              <span className="small">
+                같은 문서번호끼리 <b>한 공문으로 묶기</b>{' '}
+                <span className="muted">
+                  — 나이스에서 받은 (본문)·(첨부) 파일을 한 건으로 봅니다
+                </span>
+              </span>
+            </label>
+          )}
+
+          {kind === '개별 공문' && groupFiles && gathered > 0 && (
+            <div className="note note-info" style={{ marginBottom: 10 }}>
+              파일 <b>{ready.length}개</b>를 공문 <b>{groups.length}건</b>으로 묶었습니다. AI 요청도
+              그만큼만 나갑니다.
+            </div>
+          )}
+
           <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 6 }}>
             <input
               type="checkbox"
@@ -383,11 +469,22 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             <div className="empty">아직 올린 파일이 없습니다.</div>
           ) : (
             <div className="list">
-              {files.map((f) => (
+              {shownFiles.map((f) => (
                 <div className="item" key={f.path}>
                   <div className="item-head">
-                    <div>
-                      <div className="item-title">{f.name}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="item-title">
+                        {noticeTag(f) && (
+                          <span
+                            className={`badge ${noticeTag(f)!.part === '본문' ? 'badge-accent' : ''}`}
+                            title={noticeTag(f)!.number}
+                            style={{ marginRight: 6 }}
+                          >
+                            {noticeTag(f)!.number.split('-').pop()} {noticeTag(f)!.part}
+                          </span>
+                        )}
+                        {f.name}
+                      </div>
                       <div className="item-meta">
                         {f.state === '읽음' && `${f.doc?.chars.toLocaleString()}자 읽음`}
                         {f.state === '읽는 중' && '읽는 중…'}
@@ -442,9 +539,13 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             <button
               className="btn btn-primary"
               onClick={() => void analyze()}
-              disabled={busy || !hasKey || readyCount === 0}
+              disabled={busy || !hasKey || groups.length === 0}
             >
-              {busy ? '분석 중…' : `${readyCount}개 문서 분석 시작`}
+              {busy
+                ? '분석 중…'
+                : gathered > 0
+                  ? `공문 ${groups.length}건 분석 시작`
+                  : `${groups.length}개 문서 분석 시작`}
             </button>
             <button
               className="btn"
@@ -461,7 +562,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
           </p>
           {busy && (
             <div className="progress" style={{ marginTop: 12 }}>
-              <div style={{ width: `${readyCount ? (done / readyCount) * 100 : 0}%` }} />
+              <div style={{ width: `${groups.length ? (done / groups.length) * 100 : 0}%` }} />
             </div>
           )}
         </div>
