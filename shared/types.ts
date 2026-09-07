@@ -129,6 +129,17 @@ export interface TaskDraft {
   document_id?: number
   /** 근거가 된 공문에 매겨 둔 학년도. 없으면 화면에서 고른 값을 쓴다. */
   school_year?: number
+  /**
+   * 내 업무분장에 드는 일인가.
+   *
+   * 길라잡이에는 부서 전체의 일이 실려 있어 그대로 다 등록하면
+   * 내가 맡지도 않은 일까지 쌓인다. 설정에 업무분장을 적어 두면
+   * AI가 이것을 매겨 주고, 검토 목록에서 내 일만 켜 둔 채로 보여 준다.
+   * 분장을 안 적었으면 모두 true 다.
+   */
+  mine?: boolean
+  /** 내 일이 아니면, 문서가 적어 둔 담당 부서 */
+  owner?: string
 }
 
 export type DocKind = '길라잡이/매뉴얼' | '개별 공문'

@@ -56,11 +56,16 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   const [model, setModel] = useState<ModelChoice | null>(null)
   /** 파일을 새로 올릴지, 이미 보관한 공문을 학습할지 */
   const [source, setSource] = useState<'파일' | '보관함'>('파일')
+  /** 설정에 적어 둔 업무분장. 있으면 뽑아낸 것을 내 일과 남의 일로 갈라 준다. */
+  const [roster, setRoster] = useState('')
+  /** 검토 목록에서 다른 부서 것을 감출지 */
+  const [onlyMine, setOnlyMine] = useState(false)
 
   useEffect(() => {
     void (async () => {
       const s = await window.api.local.load()
       setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key))
+      setRoster(await window.api.setting.get('duty_roster'))
     })()
   }, [])
 
@@ -251,6 +256,14 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
 
   const readyCount = files.filter((f) => f.state === '읽음').length
 
+  /* 업무분장과 맞춰 본 결과. 분장을 안 적었으면 모두 '내 업무' 가 된다. */
+  const mineCount = drafts.filter((d) => d.mine !== false).length
+  const otherCount = drafts.length - mineCount
+  /** 감추기를 켜도 원래 자리(i)는 그대로 들고 다녀야 고칠 수 있다 */
+  const rows = drafts
+    .map((d, i) => ({ d, i }))
+    .filter(({ d }) => !onlyMine || d.mine !== false)
+
   return (
     <>
       <div className="page-head">
@@ -302,9 +315,19 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         </div>
         <p className="hint" style={{ marginTop: 8 }}>
           {kind === '길라잡이/매뉴얼'
-            ? '문서 안의 모든 업무를 뽑아 연간 로드맵을 만듭니다.'
-            : '접수일자와 제출 기한을 찾아 “○월 ○주”로 시기를 잡습니다.'}
+            ? '문서 안의 모든 업무를 뽑아 연간 로드맵을 만듭니다. 업무분장을 적어 두었으면 내 일만 골라 둡니다.'
+            : '공문 한 건을 업무 한 건으로 정리합니다. 붙임과 세부 항목은 그 업무의 “절차”로 들어갑니다.'}
         </p>
+
+        {kind === '길라잡이/매뉴얼' && !roster.trim() && (
+          <div className="note note-warn" style={{ marginTop: 10 }}>
+            <b>업무분장을 적어 두지 않았습니다.</b> 길라잡이에는 부서 전체의 일이 실려 있어, 적어
+            두지 않으면 내가 맡지 않은 일까지 함께 뽑힙니다.{' '}
+            <button className="link" onClick={() => onGo('설정')}>
+              설정에서 적기
+            </button>
+          </div>
+        )}
       </div>
 
       {source === '파일' ? (
@@ -468,6 +491,16 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             </span>
           </div>
 
+          {otherCount > 0 && (
+            <div className="note note-info" style={{ marginBottom: 10 }}>
+              업무분장과 맞춰 보니 <b>내 업무 {mineCount}건</b> · <b>다른 부서 {otherCount}건</b>{' '}
+              입니다. 내 업무만 켜 두었습니다.
+              <div className="small muted" style={{ marginTop: 4 }}>
+                가려낸 것이 어긋나면 그냥 켜고 끄시면 됩니다. 등록되는 것은 켜 둔 것뿐입니다.
+              </div>
+            </div>
+          )}
+
           <div className="row" style={{ marginBottom: 12 }}>
             <button
               className="btn btn-sm"
@@ -481,6 +514,27 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             >
               전체 해제
             </button>
+            {otherCount > 0 && (
+              <>
+                <button
+                  className="btn btn-sm"
+                  onClick={() =>
+                    setDrafts(drafts.map((d) => ({ ...d, selected: d.mine !== false })))
+                  }
+                >
+                  내 업무만 선택
+                </button>
+                <label className="row" style={{ gap: 6, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={onlyMine}
+                    onChange={(e) => setOnlyMine(e.target.checked)}
+                    style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+                  />
+                  <span className="small">다른 부서 것 감추기</span>
+                </label>
+              </>
+            )}
             <span className="spacer" />
             <button className="btn btn-primary" onClick={() => void registerSelected()}>
               선택한 항목 등록
@@ -488,7 +542,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
           </div>
 
           <div className="list">
-            {drafts.map((d, i) => (
+            {rows.map(({ d, i }) => (
               <div className="item" key={`${d.filename}-${i}`}>
                 <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
                   <input
@@ -518,6 +572,11 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
                         placeholder="시기"
                         style={{ flex: 1, minWidth: 110 }}
                       />
+                      {d.mine === false && (
+                        <span className="badge badge-warn" title="업무분장에서 찾지 못했습니다">
+                          {d.owner || '다른 부서'}
+                        </span>
+                      )}
                     </div>
                     <div className="item-meta" style={{ marginTop: 6 }}>
                       출처: {d.filename}

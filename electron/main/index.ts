@@ -423,7 +423,9 @@ function registerIpc(): void {
         args.filename,
         args.text,
         args.kind,
-        (msg) => send('ai:progress', msg),
+        // 길라잡이에서 뽑은 업무가 내 분장에 드는지 AI가 가려 준다
+        db.getSetting('duty_roster', ''),
+        (msg: string) => send('ai:progress', msg),
         args.model
       )
   )

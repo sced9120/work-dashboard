@@ -37,22 +37,84 @@ function chunk(text: string): string[] {
   return out
 }
 
-function buildPrompt(
-  jobTitle: string,
-  filename: string,
-  body: string,
-  kind: DocKind,
-  part: string
-): string {
+/** 지시문에 실어 보내는 업무분장의 최대 길이 */
+const ROSTER_BUDGET = 4000
+
+/**
+ * 공문 한 건을 업무 한 건으로 정리하라는 지시문.
+ *
+ * 공문은 보통 본문 하나에 붙임 몇 개로 이루어지고, 그 전체가 하나의 일이다.
+ * 예전에는 길라잡이와 같은 지시문을 써서 붙임마다 업무를 하나씩 뽑았고,
+ * 공문 한 건에서 수십 건이 쏟아져 로드맵이 어지러워졌다.
+ */
+function noticePrompt(jobTitle: string, filename: string, body: string, part: string): string {
   const year = new Date().getFullYear()
 
-  const role =
-    kind === '길라잡이/매뉴얼'
-      ? `이 문서는 '${jobTitle}' 담당자의 업무 길라잡이(매뉴얼)입니다. 문서에 나오는 개별 업무를 빠짐없이 모두 뽑아 주세요. 시기는 문서 내용을 근거로 "3월 1주", "학기 초", "수시" 같은 형태로 적습니다.`
-      : `이 문서는 '${jobTitle}' 담당자에게 온 공문입니다. 접수일자나 제출 기한을 찾아 수행 시기를 정하세요. 시기는 "MM월 N주" 형식으로 적습니다. 기준 연도는 ${year}년입니다. 기한을 알 수 없으면 "수시"로 적습니다.`
+  return `당신은 대한민국 학교 행정 업무를 잘 아는 실무자입니다.
+이 문서는 '${jobTitle}' 담당자에게 온 공문 한 건입니다.
 
-  return `당신은 대한민국 학교 행정 업무를 잘 아는 실무자입니다. ${role}
+**공문 한 건은 업무 한 건입니다. 업무를 하나만 적으세요.**
+공문 안에 붙임이나 세부 항목이 여러 개 있어도 나누지 마세요.
+그것들은 따로 떨어진 일이 아니라 이 한 업무를 하는 차례이므로 "절차" 에 넣습니다.
 
+칸마다 이렇게 적습니다:
+- 제목 — 공문의 제목을 그대로 씁니다. 제목이 없으면 무슨 일인지 한 줄로 적습니다.
+- 시기_표시 — 접수일자나 제출 기한을 찾아 "MM월 N주" 로 적습니다.
+  기준 연도는 ${year}년입니다. 기한을 알 수 없으면 "수시" 로 적습니다.
+- 시기_원본 — 문서에 적힌 날짜 표현을 그대로 옮깁니다.
+- 본문 — 원문 내용을 최대한 살려 적습니다. 과하게 요약하지 마세요.
+- 절차 — 해야 할 일을 차례대로 번호를 붙여 적습니다. 붙임과 세부 항목도 여기에 넣습니다.
+- 포인트 — 기한, 제출처, 놓치면 안 되는 것을 짧게 적습니다.
+
+규칙:
+- 반드시 아래 JSON 형식만 출력합니다. 설명 문장이나 코드블록 표시를 붙이지 마세요.
+- 문서에 없는 내용을 지어내지 마세요. 근거가 없으면 빈 문자열로 둡니다.
+
+JSON 형식:
+{"task":{"제목":"","시기_표시":"","시기_원본":"","본문":"","절차":"","포인트":""}}
+
+파일명: ${filename}${part}
+
+문서 내용:
+${body}`
+}
+
+/**
+ * 길라잡이·매뉴얼에서 업무를 모두 뽑으라는 지시문.
+ *
+ * 길라잡이에는 부서 전체의 일이 실려 있어, 그대로 다 등록하면
+ * 내가 맡지도 않은 일까지 로드맵에 쌓인다. 그래서 업무분장을 함께 보내
+ * 내 일인지 아닌지를 함께 매기게 하고, 화면에서 그것만 골라 두게 한다.
+ */
+function guidePrompt(
+  jobTitle: string,
+  roster: string,
+  filename: string,
+  body: string,
+  part: string
+): string {
+  const mineRule = roster.trim()
+    ? `
+아래가 이 담당자의 업무분장입니다. 뽑아낸 업무마다 이 분장에 드는지 가려 주세요.
+
+- "내업무" — 분장에 그대로 적혀 있거나, 이름만 다를 뿐 같은 일이면 true
+- 다른 부서나 다른 담당자가 맡는 일이면 false 로 하고,
+  "담당" 에 문서가 적어 둔 부서나 담당을 적습니다
+- 헷갈리면 true 로 두세요. 마지막에 고르는 것은 사람이 합니다.
+
+--- 업무분장 ---
+${roster.trim().slice(0, ROSTER_BUDGET)}
+--- 업무분장 끝 ---
+`
+    : `
+업무분장을 적어 두지 않았으므로 "내업무" 는 모두 true, "담당" 은 빈 문자열로 두세요.
+`
+
+  return `당신은 대한민국 학교 행정 업무를 잘 아는 실무자입니다.
+이 문서는 '${jobTitle}' 담당자의 업무 길라잡이(매뉴얼)입니다.
+문서에 나오는 개별 업무를 빠짐없이 모두 뽑아 주세요.
+시기는 문서 내용을 근거로 "3월 1주", "학기 초", "수시" 같은 형태로 적습니다.
+${mineRule}
 규칙:
 - 반드시 아래 JSON 형식만 출력합니다. 설명 문장이나 코드블록 표시를 붙이지 마세요.
 - 문서에 없는 내용을 지어내지 마세요. 근거가 없으면 빈 문자열로 둡니다.
@@ -60,12 +122,25 @@ function buildPrompt(
 - 업무가 하나도 없으면 tasks를 빈 배열로 둡니다.
 
 JSON 형식:
-{"tasks":[{"제목":"","시기_표시":"","시기_원본":"","본문":"","절차":"","포인트":""}]}
+{"tasks":[{"제목":"","시기_표시":"","시기_원본":"","본문":"","절차":"","포인트":"","담당":"","내업무":true}]}
 
 파일명: ${filename}${part}
 
 문서 내용:
 ${body}`
+}
+
+function buildPrompt(
+  jobTitle: string,
+  roster: string,
+  filename: string,
+  body: string,
+  kind: DocKind,
+  part: string
+): string {
+  return kind === '개별 공문'
+    ? noticePrompt(jobTitle, filename, body, part)
+    : guidePrompt(jobTitle, roster, filename, body, part)
 }
 
 interface RawTask {
@@ -75,6 +150,8 @@ interface RawTask {
   본문?: unknown
   절차?: unknown
   포인트?: unknown
+  담당?: unknown
+  내업무?: unknown
 }
 
 function str(v: unknown): string {
@@ -83,7 +160,18 @@ function str(v: unknown): string {
   return String(v)
 }
 
-function parseTasks(raw: string, filename: string): TaskDraft[] {
+/** 모델이 true 를 "true"·"예" 처럼 글자로 보내오기도 한다. */
+function bool(v: unknown, dflt: boolean): boolean {
+  if (typeof v === 'boolean') return v
+  if (typeof v === 'string') {
+    const t = v.trim().toLowerCase()
+    if (['true', 'yes', 'y', '예', '맞음', '내업무'].includes(t)) return true
+    if (['false', 'no', 'n', '아니오', '아니요', '아님'].includes(t)) return false
+  }
+  return dflt
+}
+
+function parseTasks(raw: string, filename: string, kind: DocKind): TaskDraft[] {
   const cleaned = raw
     .replace(/^\s*```(?:json)?/i, '')
     .replace(/```\s*$/, '')
@@ -100,24 +188,63 @@ function parseTasks(raw: string, filename: string): TaskDraft[] {
     parsed = JSON.parse(cleaned.slice(start, end + 1))
   }
 
-  const list = (parsed as { tasks?: unknown }).tasks
-  if (!Array.isArray(list)) throw new Error('AI 응답에 업무 목록이 없습니다.')
+  // 길라잡이는 여럿({"tasks":[…]}), 공문은 하나({"task":{…}}) 로 받는다.
+  const box = parsed as { tasks?: unknown; task?: unknown }
+  const list = Array.isArray(box.tasks)
+    ? box.tasks
+    : box.task && typeof box.task === 'object'
+      ? [box.task]
+      : null
+  if (!list) throw new Error('AI 응답에 업무 목록이 없습니다.')
+
+  // 공문 한 건은 업무 한 건이므로, 제목을 못 뽑았다고 버리면 그 공문이 통째로 빠진다.
+  // 그럴 때는 파일 이름을 제목으로 쓴다.
+  const fallback = kind === '개별 공문' ? filename.replace(/\.[^.]+$/, '') : '(제목 없음)'
 
   return list
     .map((item): TaskDraft => {
       const t = item as RawTask
+      // 분장을 안 적었으면 모델이 "내업무" 를 빼고 보낼 수 있다. 그때는 내 일로 본다.
+      const mine = bool(t.내업무, true)
       return {
-        title: str(t.제목) || '(제목 없음)',
+        title: str(t.제목) || fallback,
         task_date_display: str(t.시기_표시) || '수시',
         task_date_raw: str(t.시기_원본),
         workflow: str(t.절차),
         draft_full: str(t.본문),
         key_points: str(t.포인트),
         filename,
-        selected: true
+        owner: str(t.담당),
+        mine,
+        // 내 분장 밖의 일은 꺼 둔 채로 보여 준다. 켜는 것은 사람이 한다.
+        selected: mine
       }
     })
     .filter((t) => t.title !== '(제목 없음)' || t.draft_full.length > 0)
+}
+
+/**
+ * 공문 하나에서 나온 조각들을 업무 한 건으로 합친다.
+ *
+ * 긴 공문은 여러 번 나눠 보내므로 조각마다 업무가 하나씩 돌아온다.
+ * 공문 한 건은 업무 한 건이므로 뒤 조각의 내용을 앞 업무에 이어 붙인다.
+ */
+function mergeToOne(drafts: TaskDraft[]): TaskDraft[] {
+  if (drafts.length <= 1) return drafts
+
+  const join = (a: string, b: string): string => [a, b].filter(Boolean).join('\n\n')
+  const out = { ...drafts[0] }
+  for (const d of drafts.slice(1)) {
+    out.draft_full = join(out.draft_full, d.draft_full)
+    out.workflow = join(out.workflow, d.workflow)
+    out.key_points = join(out.key_points, d.key_points)
+    if (!out.task_date_raw) out.task_date_raw = d.task_date_raw
+    // 앞 조각에서 기한을 못 찾았으면 뒤 조각이 찾은 것을 쓴다.
+    if (out.task_date_display === '수시' && d.task_date_display !== '수시') {
+      out.task_date_display = d.task_date_display
+    }
+  }
+  return [out]
 }
 
 /** 한 번에 받을 답의 최대 토큰 수. Claude 는 이 값을 반드시 요구한다. */
@@ -360,6 +487,7 @@ export async function analyzeDocument(
   filename: string,
   text: string,
   kind: DocKind,
+  roster: string,
   onProgress?: (msg: string) => void,
   override?: ModelChoice
 ): Promise<AnalyzeResult> {
@@ -374,17 +502,20 @@ export async function analyzeDocument(
         settings,
         'analyze',
         override,
-        buildPrompt(jobTitle, filename, parts[i], kind, label)
+        buildPrompt(jobTitle, roster, filename, parts[i], kind, label)
       )
-      drafts.push(...parseTasks(raw, filename))
+      drafts.push(...parseTasks(raw, filename, kind))
     }
   } catch (e) {
     return {
       ok: false,
-      drafts,
+      drafts: kind === '개별 공문' ? mergeToOne(drafts) : drafts,
       error: e instanceof Error ? e.message : String(e)
     }
   }
+
+  // 공문은 몇 조각으로 나눠 보냈든 업무 한 건으로 돌려준다.
+  if (kind === '개별 공문') return { ok: true, drafts: mergeToOne(drafts) }
 
   // 같은 업무가 여러 조각에서 중복으로 나오는 경우를 정리한다.
   const seen = new Set<string>()
