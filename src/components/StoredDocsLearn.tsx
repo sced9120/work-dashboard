@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Doc, DocKind, ModelChoice, Task, TaskDraft } from '../../shared/types'
-import { groupNotices, joinNotice } from '../../shared/notice'
+import { groupNotices, joinNotice, parseNoticeName } from '../../shared/notice'
 import { currentSchoolYear, schoolYearLabel } from '../../shared/types'
 import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
@@ -19,6 +19,8 @@ interface Props {
   jobTitle: string
   kind: DocKind
   model: ModelChoice | null
+  /** 공문을 길라잡이로 돌리려 할 때 종류를 바로잡아 주려고 */
+  onKind: (k: DocKind) => void
 }
 
 /** 한 번에 돌릴 기본 건수. 실수로 수백 건을 한꺼번에 돌리지 않게 막아 둔다. */
@@ -30,7 +32,7 @@ const CHUNK = 28000
 /** 학년도 고르개에서 "공문에 매겨 둔 것을 그대로 쓴다" 를 뜻하는 값 */
 const FOLLOW_DOC = -1
 
-export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.Element {
+export default function StoredDocsLearn({ jobTitle, kind, model, onKind }: Props): JSX.Element {
   const toast = useToast()
   const ask = useConfirm()
   const [docs, setDocs] = useState<Doc[]>([])
@@ -121,6 +123,12 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
   )
 
   const chosen = useMemo(() => docs.filter((d) => picked.has(d.id)), [docs, picked])
+
+  /** 고른 것 가운데 공문 이름인 것 */
+  const noticeChosen = useMemo(
+    () => chosen.filter((d) => parseNoticeName(d.filename)),
+    [chosen]
+  )
 
   /** 고른 문서를 다시 공문 단위로 묶은 것 — 이 덩어리마다 한 번씩 보낸다 */
   const runGroups = useMemo(
@@ -279,6 +287,24 @@ export default function StoredDocsLearn({ jobTitle, kind, model }: Props): JSX.E
         파일 고르기 없이 그대로 AI에 넘깁니다. 아직 학습하지 않은 것은{' '}
         <b>{notYetGroups.length}건</b> 입니다.
       </p>
+
+      {kind === '길라잡이/매뉴얼' && noticeChosen.length > 0 && (
+        <div className="note note-warn" style={{ marginBottom: 10 }}>
+          <b>고르신 것 가운데 {noticeChosen.length}개가 공문입니다.</b> 지금은
+          [길라잡이·매뉴얼] 로 되어 있어 <b>파일마다 업무를 여러 건</b> 뽑습니다.
+          [개별 공문] 으로 바꾸면 문서번호가 같은 것끼리 묶어 <b>공문 한 건에 업무 하나</b>로
+          만듭니다.
+          <div className="row" style={{ marginTop: 8 }}>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={() => onKind('개별 공문')}
+              disabled={busy}
+            >
+              📃 개별 공문으로 바꾸기
+            </button>
+          </div>
+        </div>
+      )}
 
       {kind === '개별 공문' && (
         <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 10 }}>

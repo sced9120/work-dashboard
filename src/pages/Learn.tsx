@@ -45,6 +45,14 @@ interface FileRow {
 export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   const toast = useToast()
   const [kind, setKind] = useState<DocKind>('길라잡이/매뉴얼')
+  /**
+   * 사람이 문서 종류를 손수 고른 적이 있는가.
+   *
+   * 고른 적이 없으면 올린 파일을 보고 알아서 맞춰 준다. 기본값이
+   * [길라잡이] 라, 공문을 올리고 그대로 두면 파일마다 업무가 여러 건 쏟아진다.
+   * 손수 고른 뒤에는 마음대로 바꾸지 않고 알려 주기만 한다.
+   */
+  const [kindPicked, setKindPicked] = useState(false)
   const [files, setFiles] = useState<FileRow[]>([])
   // 진행 상태와 찾아낸 업무는 화면 밖에 둔다. 다른 화면으로 넘어갔다 돌아와도
   // 이어서 보이고, 위쪽 띠에 "학습 중" 이 계속 떠 있다.
@@ -102,7 +110,13 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         )
       )
     }
-  }, [])
+
+    // 나이스에서 받은 공문 이름이면 종류를 알아서 맞춘다.
+    if (!kindPicked && rows.every((r) => parseNoticeName(r.name))) {
+      setKind('개별 공문')
+      toast('공문 이름이라 [개별 공문] 으로 맞췄습니다.', 'ok')
+    }
+  }, [kindPicked, toast])
 
   const ready = useMemo(
     () => files.filter((f) => f.state === '읽음' && f.doc?.text),
@@ -301,6 +315,9 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
 
   const readyCount = files.filter((f) => f.state === '읽음').length
 
+  /** 올린 것 가운데 공문 이름인 것 */
+  const noticeFiles = useMemo(() => ready.filter((f) => parseNoticeName(f.name)), [ready])
+
   /** 묶음이 눈에 보이도록 같은 공문끼리 붙여 세운다 */
   const shownFiles = useMemo(() => {
     if (kind !== '개별 공문' || !groupFiles) return files
@@ -369,7 +386,10 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             <button
               key={k}
               className={`btn ${kind === k ? 'btn-primary' : ''}`}
-              onClick={() => setKind(k)}
+              onClick={() => {
+                setKind(k)
+                setKindPicked(true)
+              }}
             >
               {k === '길라잡이/매뉴얼' ? '📚 길라잡이 · 매뉴얼' : '📃 개별 공문'}
             </button>
@@ -380,6 +400,26 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             ? '문서 안의 모든 업무를 뽑아 연간 로드맵을 만듭니다. 업무분장을 적어 두었으면 내 일만 골라 둡니다.'
             : '공문 한 건을 업무 한 건으로 정리합니다. 붙임과 세부 항목은 그 업무의 “절차”로 들어갑니다.'}
         </p>
+
+        {kind === '길라잡이/매뉴얼' && noticeFiles.length > 0 && (
+          <div className="note note-warn" style={{ marginTop: 10 }}>
+            <b>올리신 파일 {noticeFiles.length}개는 공문 이름입니다.</b> 지금은
+            [길라잡이·매뉴얼] 로 되어 있어 <b>파일마다 업무를 여러 건</b> 뽑습니다.
+            [개별 공문] 으로 바꾸면 문서번호가 같은 것끼리 묶어{' '}
+            <b>공문 한 건에 업무 하나</b>로 만듭니다.
+            <div className="row" style={{ marginTop: 8 }}>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => {
+                  setKind('개별 공문')
+                  setKindPicked(true)
+                }}
+              >
+                📃 개별 공문으로 바꾸기
+              </button>
+            </div>
+          </div>
+        )}
 
         {kind === '길라잡이/매뉴얼' && !roster.trim() && (
           <div className="note note-warn" style={{ marginTop: 10 }}>
@@ -579,6 +619,10 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             jobTitle={jobTitle}
             kind={kind}
             model={model}
+            onKind={(k) => {
+              setKind(k)
+              setKindPicked(true)
+            }}
           />
         </div>
       )}
