@@ -46,12 +46,24 @@ const ROSTER_BUDGET = 4000
  * 공문은 보통 본문 하나에 붙임 몇 개로 이루어지고, 그 전체가 하나의 일이다.
  * 예전에는 길라잡이와 같은 지시문을 써서 붙임마다 업무를 하나씩 뽑았고,
  * 공문 한 건에서 수십 건이 쏟아져 로드맵이 어지러워졌다.
+ *
+ * 도교육청 공문은 학교와 교육지원청에 한꺼번에 내려오는 일이 흔하다.
+ * 그러면 한 공문 안에 제출처도 기한도 다른 두 벌의 지시가 들어 있고,
+ * 붙임도 학교용과 지원청용이 섞인다. 우리 학교가 할 일만 남기지 않으면
+ * 남의 기관 일과 참고 자료까지 업무가 되어 버린다.
  */
-function noticePrompt(jobTitle: string, filename: string, body: string, part: string): string {
+function noticePrompt(
+  jobTitle: string,
+  schoolName: string,
+  filename: string,
+  body: string,
+  part: string
+): string {
   const year = new Date().getFullYear()
+  const who = schoolName ? `'${schoolName}'` : '우리 학교'
 
   return `당신은 대한민국 학교 행정 업무를 잘 아는 실무자입니다.
-이 문서는 '${jobTitle}' 담당자에게 온 공문 한 건입니다.
+이 문서는 ${who} 의 '${jobTitle}' 담당자에게 온 공문 한 건입니다.
 
 **공문 한 건은 업무 한 건입니다. 업무를 하나만 적으세요.**
 공문 안에 붙임이나 세부 항목이 여러 개 있어도 나누지 마세요.
@@ -65,14 +77,23 @@ function noticePrompt(jobTitle: string, filename: string, body: string, part: st
 모두 **한 공문**입니다. 제목과 기한은 **본문**에서 찾고, 첨부는 그 업무를 하는 데
 필요한 서식·명단·안내이므로 "절차" 와 "포인트" 를 채우는 데 쓰세요.
 
+**${who} 가 할 일만 적으세요.** 이 공문은 여러 기관에 함께 보낸 것일 수 있습니다.
+- 제출처·제출방법·기한이 표로 나뉘어 있으면 **학교 줄만** 보세요.
+  교육지원청·교육청 줄의 기한을 우리 기한으로 적지 마세요.
+- 붙임 이름에 (지원청)·(지역청)·(교육청) 이 붙은 것은 **우리가 낼 서식이 아닙니다.**
+  (학교)·(학교 제출용) 이 붙은 붙임이 우리가 채울 서식입니다.
+- 담당자 연락처 표나 (참고) 자료는 업무가 아닙니다. 필요하면 "포인트" 에 한 줄로만 적으세요.
+- 그래서 이 업무의 알맹이는 보통 **"어느 서식을, 어디에, 언제까지, 어떻게 내는가"** 입니다.
+
 칸마다 이렇게 적습니다:
 - 제목 — 공문의 제목을 그대로 씁니다. 제목이 없으면 무슨 일인지 한 줄로 적습니다.
-- 시기_표시 — 접수일자나 제출 기한을 찾아 "MM월 N주" 로 적습니다.
+- 시기_표시 — **학교의** 제출 기한을 찾아 "MM월 N주" 로 적습니다.
   기준 연도는 ${year}년입니다. 기한을 알 수 없으면 "수시" 로 적습니다.
 - 시기_원본 — 문서에 적힌 날짜 표현을 그대로 옮깁니다.
-- 본문 — 원문 내용을 최대한 살려 적습니다. 과하게 요약하지 마세요.
-- 절차 — 해야 할 일을 차례대로 번호를 붙여 적습니다. 붙임과 세부 항목도 여기에 넣습니다.
-- 포인트 — 기한, 제출처, 놓치면 안 되는 것을 짧게 적습니다.
+- 본문 — ${who} 가 무엇을 해야 하는지를 원문의 말로 적습니다. 과하게 요약하지 마세요.
+- 절차 — 담당자가 그대로 따라 할 수 있게 차례대로 번호를 붙여 적습니다.
+  어떤 서식을 채워 어디에 어떻게 내는지가 여기 들어갑니다.
+- 포인트 — 기한, 제출처, 제출 방법, 놓치면 안 되는 것을 짧게 적습니다.
 
 규칙:
 - 반드시 아래 JSON 형식만 출력합니다. 설명 문장이나 코드블록 표시를 붙이지 마세요.
@@ -140,6 +161,7 @@ ${body}`
 
 function buildPrompt(
   jobTitle: string,
+  schoolName: string,
   roster: string,
   filename: string,
   body: string,
@@ -147,7 +169,7 @@ function buildPrompt(
   part: string
 ): string {
   return kind === '개별 공문'
-    ? noticePrompt(jobTitle, filename, body, part)
+    ? noticePrompt(jobTitle, schoolName, filename, body, part)
     : guidePrompt(jobTitle, roster, filename, body, part)
 }
 
@@ -495,6 +517,7 @@ export async function analyzeDocument(
   filename: string,
   text: string,
   kind: DocKind,
+  schoolName: string,
   roster: string,
   onProgress?: (msg: string) => void,
   override?: ModelChoice
@@ -510,7 +533,7 @@ export async function analyzeDocument(
         settings,
         'analyze',
         override,
-        buildPrompt(jobTitle, roster, filename, parts[i], kind, label)
+        buildPrompt(jobTitle, schoolName, roster, filename, parts[i], kind, label)
       )
       drafts.push(...parseTasks(raw, filename, kind))
     }

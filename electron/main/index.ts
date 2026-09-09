@@ -423,6 +423,8 @@ function registerIpc(): void {
         args.filename,
         args.text,
         args.kind,
+        // 여러 기관에 함께 온 공문에서 우리 학교 몫만 가려내는 데 쓴다
+        db.getSetting('school_name', ''),
         // 길라잡이에서 뽑은 업무가 내 분장에 드는지 AI가 가려 준다
         db.getSetting('duty_roster', ''),
         (msg: string) => send('ai:progress', msg),
