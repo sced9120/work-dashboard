@@ -15,6 +15,7 @@ import Committee from './pages/Committee'
 import Deadlines from './pages/Deadlines'
 import Journal from './pages/Journal'
 import LearnBanner from './components/LearnBanner'
+import UpdateNotice, { alreadySeen, markSeen } from './components/UpdateNotice'
 import Data from './pages/Data'
 import Settings from './pages/Settings'
 
@@ -81,6 +82,8 @@ function Shell(): JSX.Element {
   const [version, setVersion] = useState('')
   const [update, setUpdate] = useState<UpdateInfo | null>(null)
   const [updateHidden, setUpdateHidden] = useState(false)
+  /** 무엇이 달라졌는지 보여 주는 팝업. 한 버전에 한 번만 뜬다. */
+  const [updatePopup, setUpdatePopup] = useState(false)
   /** null이면 아직 안 받는 중, 숫자면 진행률, 'done'이면 받아 놓은 상태 */
   const [dlProgress, setDlProgress] = useState<number | 'done' | null>(null)
   const [dlError, setDlError] = useState('')
@@ -107,7 +110,10 @@ function Shell(): JSX.Element {
   useEffect(() => {
     void (async () => {
       const info = await window.api.update.check()
-      if (info.available) setUpdate(info)
+      if (!info.available) return
+      setUpdate(info)
+      // 이미 닫아 본 버전이면 위쪽 띠만 남기고 팝업은 띄우지 않는다.
+      if (!alreadySeen(info.latest)) setUpdatePopup(true)
     })()
   }, [])
 
@@ -157,6 +163,32 @@ function Shell(): JSX.Element {
 
         <div className="sidebar-foot">버전 {version}</div>
       </nav>
+
+      {/* 새 버전이 나오면 무엇이 달라졌는지 먼저 보여 준다 */}
+      {update && updatePopup && (
+        <UpdateNotice
+          info={update}
+          progress={dlProgress}
+          error={dlError}
+          onDownload={() =>
+            void (async () => {
+              setDlError('')
+              setDlProgress(0)
+              const res = await window.api.update.download()
+              if (!res.ok) {
+                setDlError(res.error ?? '받지 못했습니다.')
+                setDlProgress(null)
+              }
+            })()
+          }
+          onInstall={() => void window.api.update.install()}
+          onOpenPage={() => void window.api.shell.open(update.url)}
+          onLater={() => {
+            markSeen(update.latest)
+            setUpdatePopup(false)
+          }}
+        />
+      )}
 
       <main className="main">
         {/* 학습이 도는 동안 어느 화면에 있든 붙어 있는 띠 */}
@@ -216,6 +248,9 @@ function Shell(): JSX.Element {
                   onClick={() => void window.api.shell.open(update.url)}
                 >
                   받으러 가기
+                </button>
+                <button className="btn btn-sm btn-ghost" onClick={() => setUpdatePopup(true)}>
+                  무엇이 달라졌나
                 </button>
                 <button className="btn btn-sm btn-ghost" onClick={() => setUpdateHidden(true)}>
                   나중에

@@ -20,6 +20,24 @@ const API = `https://api.github.com/repos/${REPO}/releases/latest`
 /** 학교망에서 막히면 오래 기다리지 않고 포기한다. */
 const TIMEOUT_MS = 6000
 
+/**
+ * 릴리스 설명에서 사람이 읽을 것만 남긴다.
+ *
+ * 커밋 메시지 끝에 붙는 Co-Authored-By 나 GitHub 이 덧붙이는
+ * "Full Changelog" 줄은 팝업에서 볼 것이 아니다.
+ */
+export function tidyNotes(body: string): string {
+  return body
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .filter((line) => !/^\s*(Co-Authored-By|Signed-off-by):/i.test(line))
+    .filter((line) => !/^\s*\*\*Full Changelog\*\*/i.test(line))
+    .filter((line) => !/^\s*🤖\s*Generated with/i.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 /** "v1.2.0" / "1.2" 같은 표기를 숫자 셋으로 바꾼다. */
 function parts(v: string): number[] {
   return v
@@ -63,7 +81,11 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
     })
     if (!res.ok) return { ...base, error: `GitHub 응답 ${res.status}` }
 
-    const data = (await res.json()) as { tag_name?: unknown; html_url?: unknown }
+    const data = (await res.json()) as {
+      tag_name?: unknown
+      html_url?: unknown
+      body?: unknown
+    }
     const tag = typeof data.tag_name === 'string' ? data.tag_name : ''
     if (!tag) return { ...base, error: '릴리스 정보를 읽지 못했습니다.' }
 
@@ -71,7 +93,8 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
       ...base,
       available: isNewer(tag, current),
       latest: tag.replace(/^v/i, ''),
-      url: typeof data.html_url === 'string' ? data.html_url : RELEASES_PAGE
+      url: typeof data.html_url === 'string' ? data.html_url : RELEASES_PAGE,
+      notes: typeof data.body === 'string' ? tidyNotes(data.body) : ''
     }
   } catch (e) {
     // 인터넷이 없거나 학교망이 막은 경우. 조용히 넘긴다.

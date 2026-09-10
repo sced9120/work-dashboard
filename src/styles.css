@@ -1387,6 +1387,59 @@ textarea {
   word-break: keep-all;
 }
 
+/* 새 버전 팝업 — 달라진 것을 목록으로 보여 주므로 확인창보다 넓다 */
+.update-ask {
+  max-width: 560px;
+}
+
+.update-ver {
+  color: var(--accent);
+}
+
+.update-head {
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+.update-notes {
+  margin-top: 10px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.update-para {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin-top: 8px;
+  word-break: keep-all;
+}
+
+.update-item {
+  position: relative;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  margin-top: 5px;
+  padding-left: 14px;
+  word-break: keep-all;
+}
+
+.update-item::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 9px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 .sheet-back {
   position: fixed;
   inset: 0;
