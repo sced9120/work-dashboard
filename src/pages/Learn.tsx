@@ -124,6 +124,19 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   )
 
   /**
+   * 읽지 못한 파일. 옛날 엑셀(.xls)이나 온나라 문서(.ozd)가 여기 든다.
+   *
+   * 예전에는 그냥 빠뜨렸다. 그런데 내부결재 공문은 본문에 제목만 있고
+   * 알맹이가 전부 붙임에 있어서, 그 붙임을 못 읽으면 절차가
+   * "제출한다" 한 줄로 끝나 버린다. 왜 그런지도 화면에 안 떴다.
+   * 이제는 이름이라도 함께 넘기고, 몇 개를 못 읽었는지 알려 준다.
+   */
+  const unread = useMemo(
+    () => files.filter((f) => f.state === '실패'),
+    [files]
+  )
+
+  /**
    * 분석에 넘길 덩어리.
    *
    * 공문은 본문 하나에 첨부 몇 개로 내려오고 그 전체가 하나의 일이다.
@@ -134,15 +147,24 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
     if (kind !== '개별 공문' || !groupFiles) {
       return ready.map((f): NoticeGroup<FileRow> => ({ key: f.path, number: '', label: f.name, items: [f] }))
     }
-    return groupNotices(
-      ready,
+    // 못 읽은 것도 함께 묶는다. 이름만이라도 AI 에 넘기기 위해서다.
+    const all = groupNotices(
+      [...ready, ...unread],
       (f) => f.name,
       (f) => folderOf(f.path)
     )
-  }, [ready, kind, groupFiles])
+    // 읽은 것이 하나도 없는 묶음은 보낼 것이 없으므로 뺀다.
+    return all.filter((g) => g.items.some((f) => f.doc?.text))
+  }, [ready, unread, kind, groupFiles])
 
   /** 묶여서 줄어든 건수. 0 이면 묶인 것이 없다. */
   const gathered = ready.length - groups.length
+
+  /** 묶음에 이름만 실려 가는 붙임 */
+  const carriedUnread = useMemo(
+    () => groups.flatMap((g) => g.items.filter((f) => !f.doc?.text)),
+    [groups]
+  )
 
   const analyze = async (): Promise<void> => {
     if (!groups.length) {
@@ -162,7 +184,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
         const head = g.items[0]
         setJobProgress({ now: g.label, message: `${g.label} 분석 중` })
 
-        const joined = joinNotice(g.items.map((f) => ({ name: f.name, text: f.doc!.text })))
+        // 못 읽은 붙임은 글이 빈 채로 넘어가 이름만 실린다.
+        const joined = joinNotice(g.items.map((f) => ({ name: f.name, text: f.doc?.text ?? '' })))
         // 켜 두면 개인정보를 가린 글을 보낸다. 보관하는 원문은 그대로 둔다 —
         // 학교 안에서는 원문이 필요하고, 밖으로 나가는 것만 가리면 되기 때문이다.
         const text = scrub ? (await window.api.privacy.scrub(joined)).text : joined
@@ -474,6 +497,28 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             <div className="note note-info" style={{ marginBottom: 10 }}>
               파일 <b>{ready.length}개</b>를 공문 <b>{groups.length}건</b>으로 묶었습니다. AI 요청도
               그만큼만 나갑니다.
+            </div>
+          )}
+
+          {unread.length > 0 && (
+            <div className="note note-warn" style={{ marginBottom: 10 }}>
+              <b>{unread.length}개는 글을 읽지 못했습니다.</b>{' '}
+              {carriedUnread.length > 0 && (
+                <>
+                  그중 <b>{carriedUnread.length}개</b>는 같은 공문으로 묶여 <b>이름만</b> 함께
+                  넘어갑니다.{' '}
+                </>
+              )}
+              내부결재 공문처럼 <b>알맹이가 붙임에만 있는 경우</b> 절차가 부실해집니다.
+              <div className="small" style={{ marginTop: 6 }}>
+                {unread.map((f) => (
+                  <div key={f.path}>· {f.name}</div>
+                ))}
+              </div>
+              <div className="small" style={{ marginTop: 6 }}>
+                옛날 엑셀(.xls)은 <b>엑셀에서 [다른 이름으로 저장] → .xlsx</b> 로 바꿔 다시
+                올리시면 내용까지 읽습니다.
+              </div>
             </div>
           )}
 

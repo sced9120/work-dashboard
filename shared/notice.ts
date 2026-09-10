@@ -99,17 +99,28 @@ export function groupNotices<T>(
  * 본문은 통째로 넣는다. 붙임은 남은 만큼만 넣고, 다 못 넣은 것은
  * 이름만이라도 적어 둔다. 붙임이 두꺼우면 요청이 몇 배로 늘어 요금이
  * 붙기 때문이다. 원문 전체는 어차피 보관함에 그대로 남는다.
+ *
+ * **글이 비어 있는 것(text: '')은 프로그램이 못 읽은 붙임이다.**
+ * 옛날 엑셀(.xls)이나 온나라 문서(.ozd)가 그렇다. 그런 것도 버리지 않고
+ * 이름을 적어 넘긴다. 내부결재 공문은 본문에 제목만 있고 알맹이가 전부
+ * 붙임에 있어서, 이름조차 없으면 "제출한다" 한 줄밖에 나오지 않는다.
  */
 export const NOTICE_BUDGET = 40000
 
 export function joinNotice(parts: { name: string; text: string }[]): string {
-  if (parts.length === 1) return parts[0].text
+  const readable = parts.filter((p) => p.text.trim())
+  const unreadable = parts.filter((p) => !p.text.trim())
+
+  const label = (name: string): string => parseNoticeName(name)?.title ?? name
+
+  // 읽은 것이 하나뿐이고 못 읽은 것도 없으면 그대로 넘긴다.
+  if (readable.length === 1 && !unreadable.length) return readable[0].text
 
   const out: string[] = []
   const skipped: string[] = []
   let left = NOTICE_BUDGET
 
-  for (const [i, p] of parts.entries()) {
+  for (const [i, p] of readable.entries()) {
     const parsed = parseNoticeName(p.name)
     const head = parsed ? `=== ${parsed.part}: ${parsed.title} ===` : `=== ${p.name} ===`
 
@@ -132,7 +143,14 @@ export function joinNotice(parts: { name: string; text: string }[]): string {
   }
 
   if (skipped.length) {
-    out.push(`=== 함께 온 붙임 (글은 싣지 않음) ===\n${skipped.join('\n')}`)
+    out.push(`=== 함께 온 붙임 (너무 길어 싣지 않음) ===\n${skipped.join('\n')}`)
+  }
+  if (unreadable.length) {
+    out.push(
+      `=== 프로그램이 못 읽은 붙임 (이름만 압니다) ===\n${unreadable
+        .map((p) => label(p.name))
+        .join('\n')}`
+    )
   }
   return out.join('\n\n')
 }
