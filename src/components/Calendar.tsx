@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react'
 import type { CalEvent, CalEventInput, Deadline, Task } from '../../shared/types'
 import { BLANK_EVENT, EVENT_COLORS } from '../../shared/types'
 import { holidayLabel, holidayMap, lunarKnown, LUNAR_TO } from '../lib/holidays'
@@ -13,6 +14,8 @@ interface Props {
   compact?: boolean
   /** 홈에서 [크게 보기] 를 눌렀을 때 */
   onOpenFull?: () => void
+  /** 달력 화면에서 [작게] 를 눌렀을 때 — 홈의 작은 달력으로 돌아간다 */
+  onShrink?: () => void
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
@@ -23,6 +26,139 @@ function pad(n: number): string {
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** 날짜에 며칠을 더한다. 우리나라는 서머타임이 없어 하루는 늘 하루다. */
+function addDays(day: string, n: number): string {
+  const d = new Date(`${day}T00:00:00`)
+  d.setDate(d.getDate() + n)
+  return ymd(d)
+}
+
+/** a 에서 b 까지 며칠인지. b 가 앞이면 음수 */
+function diffDays(a: string, b: string): number {
+  const x = new Date(`${a}T00:00:00`).getTime()
+  const y = new Date(`${b}T00:00:00`).getTime()
+  return Math.round((y - x) / 86400000)
+}
+
+/** "2026-09-09" → "9. 9." */
+function short(day: string): string {
+  return `${Number(day.slice(5, 7))}. ${Number(day.slice(8, 10))}.`
+}
+
+/** 한 주 안에 그릴 막대 하나 */
+export interface WeekBar {
+  key: string
+  /** 몇째 칸에서 시작하는지 (0=일요일) */
+  start: number
+  /** 몇 칸에 걸치는지 */
+  span: number
+  /** 몇째 줄에 놓는지 (0부터) */
+  lane: number
+  /** 앞 주에서 이어져 들어오는가 — 왼쪽 모서리를 각지게 그린다 */
+  fromPrev: boolean
+  /** 다음 주로 이어져 나가는가 — 오른쪽 모서리를 각지게 그린다 */
+  toNext: boolean
+  label: string
+  /** 색 이름. 절차 기한이면 'deadline' */
+  color: string
+  done: boolean
+  /** 일정이면 그 일정. 절차 기한은 끌어 옮기지 않으므로 비어 있다 */
+  event?: CalEvent
+}
+
+/**
+ * 한 주(일~토)에 들어오는 일정을 막대로 늘어놓는다.
+ *
+ * 예전에는 날짜 칸마다 일정을 따로 그려서, 9일부터 15일까지인 일정이
+ * 일곱 칸에 똑같은 이름으로 일곱 번 찍혔다. 이제는 이어진 날을 한 줄의
+ * 막대로 그린다. 주가 바뀌면 거기서 끊고, 다음 주 첫 칸에서 이어 그린다.
+ *
+ * 줄은 위에서부터 채운다. 겹치지 않는 가장 윗줄에 놓고, 줄이 모자라면
+ * 그 날들에 "＋몇" 을 센다. 절차 기한은 놓치면 안 되므로 맨 먼저 자리를 준다.
+ */
+export function layoutWeek(
+  days: string[],
+  events: CalEvent[],
+  deadlines: Deadline[],
+  lanes: number
+): { bars: WeekBar[]; hidden: number[] } {
+  const first = days[0]
+  const last = days[days.length - 1]
+
+  interface Item extends Omit<WeekBar, 'lane'> {
+    rank: number
+  }
+  const items: Item[] = []
+
+  for (const d of deadlines) {
+    const i = days.indexOf(d.due_date)
+    if (i < 0) continue
+    items.push({
+      key: `d${d.id}`,
+      start: i,
+      span: 1,
+      fromPrev: false,
+      toNext: false,
+      label: `⏰ ${d.title}`,
+      color: 'deadline',
+      done: false,
+      rank: 0
+    })
+  }
+
+  for (const e of events) {
+    const from = e.event_date
+    const to = e.end_date && e.end_date >= from ? e.end_date : from
+    if (to < first || from > last) continue
+    const s = from < first ? 0 : days.indexOf(from)
+    const t = to > last ? days.length - 1 : days.indexOf(to)
+    if (s < 0 || t < 0) continue
+    const fromPrev = from < first
+    items.push({
+      key: `e${e.id}`,
+      start: s,
+      span: t - s + 1,
+      fromPrev,
+      toNext: to > last,
+      // 시각은 첫 토막에만 붙인다. 이어진 토막에까지 붙이면 다시 시작하는 것처럼 읽힌다.
+      label: `${!fromPrev && e.start_time ? `${e.start_time} ` : ''}${e.title}`,
+      color: `c-${e.color || 'blue'}`,
+      done: e.done === 1,
+      event: e,
+      rank: 1
+    })
+  }
+
+  // 기한 먼저, 그다음 일찍 시작하는 것, 같으면 긴 것 — 긴 막대가 위에 서야 덜 얽힌다
+  items.sort(
+    (a, b) =>
+      a.rank - b.rank ||
+      a.start - b.start ||
+      b.span - a.span ||
+      a.label.localeCompare(b.label, 'ko')
+  )
+
+  const taken: boolean[][] = Array.from({ length: lanes }, () =>
+    Array.from({ length: days.length }, () => false)
+  )
+  const hidden = Array.from({ length: days.length }, () => 0)
+  const bars: WeekBar[] = []
+
+  for (const it of items) {
+    const cols = Array.from({ length: it.span }, (_, k) => it.start + k)
+    const lane = taken.findIndex((row) => cols.every((c) => !row[c]))
+    if (lane < 0) {
+      for (const c of cols) hidden[c]++
+      continue
+    }
+    for (const c of cols) taken[lane][c] = true
+    const { rank: _rank, ...bar } = it
+    bars.push({ ...bar, lane })
+  }
+
+  return { bars, hidden }
 }
 
 /** 그 날짜가 일정 기간 안에 드는가 */
@@ -49,7 +185,13 @@ function ddayLabel(due: string): string {
   return `D-${d}`
 }
 
-export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JSX.Element {
+export default function Calendar({
+  tasks,
+  big,
+  compact,
+  onOpenFull,
+  onShrink
+}: Props): JSX.Element {
   const toast = useToast()
   const today = todayStr()
 
@@ -63,6 +205,19 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
 
   /** 편집 중인 일정. id 가 없으면 새로 넣는 중 */
   const [form, setForm] = useState<(CalEventInput & { id?: number }) | null>(null)
+
+  /**
+   * 끌어 옮기는 중인 일정과, 어느 날을 붙잡았는지.
+   *
+   * 여러 날짜리 일정은 가운데를 잡고 끌 수도 있다. 잡은 날에서 놓은 날까지의
+   * 차이만큼 시작일과 종료일을 함께 민다. 그래야 기간이 그대로 유지된다.
+   */
+  const drag = useRef<{ id: number; grab: string } | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const [dropDay, setDropDay] = useState<string | null>(null)
+
+  /** 한 주에 막대를 몇 줄까지 그릴지 */
+  const lanes = compact ? 2 : big ? 4 : 3
 
   const load = useCallback(async () => {
     const [ev, dl] = await Promise.all([
@@ -100,6 +255,13 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
     }
     return cells
   }, [cursor])
+
+  /** 격자를 일주일씩 자른다. 막대는 주 단위로 그린다. */
+  const weeks = useMemo(() => {
+    const out: (typeof grid)[] = []
+    for (let i = 0; i < grid.length; i += 7) out.push(grid.slice(i, i + 7))
+    return out
+  }, [grid])
 
   /**
    * 공휴일. 달력 격자에는 앞뒤 달이 함께 나오므로 해도 앞뒤로 한 해씩 담는다.
@@ -198,6 +360,69 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
     toast(`'${e.title}' 을(를) 지웠습니다.`)
   }
 
+  /** 막대 위에서 누른 자리가 몇째 날인지 — 막대 폭을 칸 수로 나누어 셈한다 */
+  const dayUnder = (
+    e: { clientX: number; currentTarget: Element },
+    bar: WeekBar,
+    days: string[]
+  ): string => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const w = r.width / bar.span
+    const k = Math.max(0, Math.min(bar.span - 1, Math.floor((e.clientX - r.left) / w)))
+    return days[bar.start + k]
+  }
+
+  const startDrag = (e: ReactDragEvent, id: number, grab: string): void => {
+    drag.current = { id, grab }
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(id))
+    // 막대를 바로 투명하게 하면 끌기가 끊긴다. 한 박자 늦게 표시한다.
+    setTimeout(() => setDragging(true), 0)
+  }
+
+  const endDrag = (): void => {
+    drag.current = null
+    setDragging(false)
+    setDropDay(null)
+  }
+
+  const dropOn = async (day: string): Promise<void> => {
+    const d = drag.current
+    endDrag()
+    if (!d) return
+    const ev = events.find((x) => x.id === d.id)
+    if (!ev) return
+    const delta = diffDays(d.grab, day)
+    if (delta === 0) return
+
+    const from = addDays(ev.event_date, delta)
+    const to = addDays(ev.end_date || ev.event_date, delta)
+    await window.api.events.update(ev.id, { event_date: from, end_date: to })
+    setSelected(day)
+    await load()
+    toast(
+      `'${ev.title}' 을(를) ${short(from)}${to !== from ? ` ~ ${short(to)}` : ''} 로 옮겼습니다.`,
+      'ok'
+    )
+  }
+
+  /** 날짜 칸이 끌어 온 것을 받을 수 있게 */
+  const dropProps = (day: string) => ({
+    onDragOver: (e: ReactDragEvent) => {
+      if (!drag.current) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      if (dropDay !== day) setDropDay(day)
+    },
+    onDragLeave: () => {
+      if (dropDay === day) setDropDay(null)
+    },
+    onDrop: (e: ReactDragEvent) => {
+      e.preventDefault()
+      void dropOn(day)
+    }
+  })
+
   const toggleDone = async (e: CalEvent): Promise<void> => {
     await window.api.events.update(e.id, { done: e.done === 1 ? 0 : 1 })
     await load()
@@ -229,6 +454,11 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
             ⛶ 크게
           </button>
         )}
+        {big && onShrink && (
+          <button className="btn btn-sm" onClick={onShrink} title="홈의 작은 달력으로 돌아갑니다">
+            ⊟ 작게
+          </button>
+        )}
         <button className="btn btn-sm btn-primary" onClick={() => openNew(selected || today)}>
           ＋ 일정
         </button>
@@ -243,59 +473,103 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
         ))}
       </div>
 
-      {/* ── 날짜 격자 ── */}
-      <div className="cal-grid">
-        {grid.map((cell) => {
-          const evs = eventsOn(cell.date)
-          const dls = deadlinesOn(cell.date)
-          const hol = holidays.get(cell.date)
-          const isToday = cell.date === today
-          const isSel = cell.date === selected
-          // 공휴일이면 한 줄을 이름에 내주므로 일정은 두 개까지만 보인다
-          const shown = evs.slice(0, hol ? 2 : 3)
-          const rest = evs.length + dls.length - shown.length
+      {/* ── 날짜 격자 — 주마다 한 줄. 여러 날짜리 일정은 막대로 이어 그린다 ── */}
+      <div className={`cal-weeks ${dragging ? 'dragging' : ''}`}>
+        {weeks.map((week) => {
+          const days = week.map((c) => c.date)
+          const { bars, hidden } = layoutWeek(days, events, deadlines, lanes)
 
           return (
-            <button
-              key={cell.date}
-              className={`cal-cell ${cell.inMonth ? '' : 'out'} ${isToday ? 'today' : ''} ${isSel ? 'sel' : ''}`}
-              onClick={() => setSelected(cell.date)}
-              onDoubleClick={() => openNew(cell.date)}
-              title={hol ? holidayLabel(hol) : undefined}
+            <div
+              key={days[0]}
+              className="cal-week"
+              style={{
+                gridTemplateRows: `var(--cal-top) repeat(${lanes}, var(--cal-lane)) minmax(var(--cal-more), 1fr)`
+              }}
             >
-              <span className="cal-top">
-                <span
-                  className={`cal-num ${cell.dow === 0 || hol ? 'sun' : ''} ${
-                    cell.dow === 6 && !hol ? 'sat' : ''
-                  }`}
-                >
-                  {Number(cell.date.slice(8, 10))}
-                </span>
-                {hol && <span className="cal-hol">{hol.name}</span>}
-              </span>
-
-              <span className="cal-chips">
-                {dls.map((d) => (
-                  <span key={`d${d.id}`} className="cal-chip deadline" title={d.title}>
-                    ⏰ {d.title}
-                  </span>
-                ))}
-                {shown.map((e) => (
-                  <span
-                    key={e.id}
-                    className={`cal-chip c-${e.color} ${e.done === 1 ? 'done' : ''}`}
-                    title={e.title}
+              {week.map((cell, ci) => {
+                const hol = holidays.get(cell.date)
+                const isToday = cell.date === today
+                const isSel = cell.date === selected
+                return (
+                  <button
+                    key={cell.date}
+                    className={`cal-cell ${cell.inMonth ? '' : 'out'} ${isToday ? 'today' : ''} ${
+                      isSel ? 'sel' : ''
+                    } ${dropDay === cell.date ? 'drop' : ''}`}
+                    style={{ gridColumn: ci + 1 }}
+                    onClick={() => setSelected(cell.date)}
+                    onDoubleClick={() => openNew(cell.date)}
+                    title={hol ? holidayLabel(hol) : undefined}
+                    {...dropProps(cell.date)}
                   >
-                    {e.start_time ? `${e.start_time} ` : ''}
-                    {e.title}
-                  </span>
-                ))}
-                {rest > 0 && <span className="cal-more">＋{rest}</span>}
-              </span>
-            </button>
+                    <span className="cal-top">
+                      <span
+                        className={`cal-num ${cell.dow === 0 || hol ? 'sun' : ''} ${
+                          cell.dow === 6 && !hol ? 'sat' : ''
+                        }`}
+                      >
+                        {Number(cell.date.slice(8, 10))}
+                      </span>
+                      {hol && <span className="cal-hol">{hol.name}</span>}
+                    </span>
+                  </button>
+                )
+              })}
+
+              {bars.map((b) => (
+                <div
+                  key={b.key}
+                  className={`cal-ev ${b.color} ${b.done ? 'done' : ''} ${b.fromPrev ? 'from-prev' : ''} ${
+                    b.toNext ? 'to-next' : ''
+                  }`}
+                  style={{ gridColumn: `${b.start + 1} / span ${b.span}`, gridRow: b.lane + 2 }}
+                  title={
+                    b.event
+                      ? `${b.event.title}${
+                          b.event.end_date && b.event.end_date !== b.event.event_date
+                            ? ` (${short(b.event.event_date)} ~ ${short(b.event.end_date)})`
+                            : ''
+                        } — 끌어서 다른 날로 옮길 수 있습니다`
+                      : b.label
+                  }
+                  draggable={!!b.event}
+                  onDragStart={
+                    b.event
+                      ? (e) => startDrag(e, b.event!.id, dayUnder(e, b, days))
+                      : undefined
+                  }
+                  onDragEnd={endDrag}
+                  onClick={(e: ReactMouseEvent) => setSelected(dayUnder(e, b, days))}
+                  onDoubleClick={() => b.event && openEdit(b.event)}
+                >
+                  {b.label}
+                </div>
+              ))}
+
+              {hidden.map(
+                (n, ci) =>
+                  n > 0 && (
+                    <span
+                      key={`more${ci}`}
+                      className="cal-more"
+                      style={{ gridColumn: ci + 1, gridRow: lanes + 2 }}
+                    >
+                      ＋{n}
+                    </span>
+                  )
+              )}
+            </div>
           )
         })}
       </div>
+
+      {!compact && (
+        <p className="hint" style={{ margin: '6px 2px 0' }}>
+          일정을 <b>끌어서</b> 다른 날에 놓으면 옮겨집니다. 여러 날짜리 일정은 기간을 그대로
+          두고 통째로 옮겨집니다.
+        </p>
+      )}
 
       {/* ── 고른 날 상세 ── */}
       <div className="card cal-day">
@@ -335,7 +609,14 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
             ))}
 
             {selectedEvents.map((e) => (
-              <div className="item" key={e.id}>
+              <div
+                className="item cal-drag-item"
+                key={e.id}
+                draggable
+                onDragStart={(ev) => startDrag(ev, e.id, selected)}
+                onDragEnd={endDrag}
+                title="끌어서 달력의 다른 날에 놓으면 옮겨집니다"
+              >
                 <div className="item-head">
                   <div style={{ minWidth: 0, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                     <input
@@ -432,7 +713,18 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
       {/* ── 넣기·수정 시트 (갤럭시 달력식) ── */}
       {form && (
         <div className="sheet-back" onClick={() => setForm(null)}>
-          <div className="sheet" onClick={(ev) => ev.stopPropagation()}>
+          <div
+            className="sheet"
+            onClick={(ev) => ev.stopPropagation()}
+            onKeyDown={(ev) => {
+              // 어느 칸에 있든 Ctrl+Enter 로 바로 저장한다. 메모 칸에서도 된다.
+              if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
+                ev.preventDefault()
+                void save()
+              }
+              if (ev.key === 'Escape') setForm(null)
+            }}
+          >
             <div className="sheet-grip" />
             <div className="sheet-title">{form.id ? '일정 고치기' : '새 일정'}</div>
 
@@ -535,6 +827,7 @@ export default function Calendar({ tasks, big, compact, onOpenFull }: Props): JS
                 </button>
               )}
               <span className="spacer" />
+              <span className="muted small">Ctrl+Enter 저장</span>
               <button className="btn" onClick={() => setForm(null)}>
                 취소
               </button>

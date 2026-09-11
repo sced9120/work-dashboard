@@ -1269,6 +1269,7 @@ textarea {
 
 /* 일정 색 — 칩·점·고르개가 같은 값을 쓴다 */
 .cal-chip.c-blue,
+.cal-ev.c-blue,
 .cal-dot.c-blue,
 .cal-swatch.c-blue {
   background: #e8f0fe;
@@ -1276,6 +1277,7 @@ textarea {
   border-left-color: #2563eb;
 }
 .cal-chip.c-green,
+.cal-ev.c-green,
 .cal-dot.c-green,
 .cal-swatch.c-green {
   background: #e6f6ec;
@@ -1283,6 +1285,7 @@ textarea {
   border-left-color: #15803d;
 }
 .cal-chip.c-orange,
+.cal-ev.c-orange,
 .cal-dot.c-orange,
 .cal-swatch.c-orange {
   background: #fef3e2;
@@ -1290,6 +1293,7 @@ textarea {
   border-left-color: #d97706;
 }
 .cal-chip.c-red,
+.cal-ev.c-red,
 .cal-dot.c-red,
 .cal-swatch.c-red {
   background: #fdeaea;
@@ -1297,6 +1301,7 @@ textarea {
   border-left-color: #dc2626;
 }
 .cal-chip.c-purple,
+.cal-ev.c-purple,
 .cal-dot.c-purple,
 .cal-swatch.c-purple {
   background: #f1ebfd;
@@ -1304,6 +1309,7 @@ textarea {
   border-left-color: #7c3aed;
 }
 .cal-chip.c-gray,
+.cal-ev.c-gray,
 .cal-dot.c-gray,
 .cal-swatch.c-gray {
   background: #eef0f3;
@@ -1336,6 +1342,112 @@ textarea {
 
 .cal-day {
   margin-top: 14px;
+}
+
+/* ---------- 주 단위 격자 — 여러 날짜리 일정을 막대로 잇는다 ---------- */
+
+.cal-weeks {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
+  overflow: hidden;
+  /* 한 주의 줄 높이. 달력 크기마다 아래에서 바꾼다 */
+  --cal-top: 27px;
+  --cal-lane: 20px;
+  --cal-more: 14px;
+}
+
+.cal-head {
+  margin-bottom: 0;
+}
+
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  column-gap: 1px;
+  background: var(--border);
+  min-height: 96px;
+}
+
+/* 날짜 칸은 한 주의 모든 줄에 걸쳐 바탕이 되고, 막대가 그 위에 얹힌다 */
+.cal-week > .cal-cell {
+  grid-row: 1 / -1;
+  min-height: 0;
+}
+
+.cal-cell.drop {
+  background: var(--accent-soft, #e8f0fe);
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+}
+
+.cal-ev {
+  z-index: 1;
+  align-self: center;
+  margin: 0 3px;
+  padding: 0 6px;
+  height: calc(var(--cal-lane) - 3px);
+  line-height: calc(var(--cal-lane) - 3px);
+  font-size: 11px;
+  border-radius: 4px;
+  border-left: 3px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grab;
+  user-select: none;
+}
+
+.cal-ev:active {
+  cursor: grabbing;
+}
+
+/* 앞 주에서 이어져 온 토막은 왼쪽을, 다음 주로 이어지는 토막은 오른쪽을 각지게 */
+.cal-ev.from-prev {
+  margin-left: 0;
+  border-left-width: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.cal-ev.to-next {
+  margin-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.cal-ev.done {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.cal-ev.deadline {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-left-color: var(--warn);
+  font-weight: 600;
+  cursor: default;
+}
+
+/* 끄는 동안에는 막대가 칸을 가리지 않게 해야 놓을 칸을 알아챈다 */
+.cal-weeks.dragging .cal-ev {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.cal-week > .cal-more {
+  z-index: 1;
+  align-self: start;
+  pointer-events: none;
+  padding-left: 6px;
+}
+
+.cal-drag-item {
+  cursor: grab;
 }
 
 .cal-tasklist {
@@ -2197,8 +2309,17 @@ textarea {
 
 /* ---------- 달력 크기 ---------- */
 
-.cal-big .cal-cell {
+.cal-big .cal-week {
   min-height: 128px;
+}
+
+.cal-big .cal-weeks {
+  --cal-top: 30px;
+  --cal-lane: 22px;
+}
+
+.cal-big .cal-ev {
+  font-size: 12px;
 }
 
 .cal-big .cal-chip {
@@ -2216,9 +2337,24 @@ textarea {
   height: 24px;
 }
 
-.cal-compact .cal-cell {
+.cal-compact .cal-week {
   min-height: 62px;
+}
+
+.cal-compact .cal-cell {
   padding: 3px;
+}
+
+.cal-compact .cal-weeks {
+  --cal-top: 22px;
+  --cal-lane: 17px;
+  --cal-more: 12px;
+}
+
+.cal-compact .cal-ev {
+  font-size: 10px;
+  padding: 0 4px;
+  margin: 0 2px;
 }
 
 .cal-compact .cal-chip {
@@ -2243,6 +2379,88 @@ textarea {
 
 .cal-compact .cal-bar {
   margin-bottom: 8px;
+}
+
+/* ---------- 주제: 찾은 것 묶기 · 옮기기 ---------- */
+
+.topic-found {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.topic-task-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.topic-task-tools select {
+  width: auto;
+  max-width: 220px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+.tl-hide {
+  flex: none;
+  opacity: 0.55;
+}
+
+.tl-hide:hover {
+  opacity: 1;
+}
+
+.topic-sheet {
+  max-width: 620px;
+}
+
+.topic-pick-list {
+  max-height: 44vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.topic-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.topic-pick:last-child {
+  border-bottom: 0;
+}
+
+.topic-pick.on {
+  background: var(--surface-2);
+}
+
+.topic-pick input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  flex: none;
+}
+
+.topic-pick-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------- 문서 종류 고르개 ---------- */

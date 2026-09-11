@@ -94,6 +94,33 @@ export interface Topic {
 /** 자동으로 붙인 이름 → 사람이 고쳐 붙인 이름 */
 export type TopicRenames = Record<string, string>
 
+/**
+ * 업무 id → 사람이 넣어 둔 주제 이름.
+ *
+ * 자동 묶음은 제목의 낱말로만 가르므로, 엉뚱한 곳에 들어가거나 원하는 주제가
+ * 아예 없을 때 손쓸 방법이 없었다. 여기 적힌 업무는 자동 묶음을 건너뛰고
+ * 적힌 주제로 곧장 간다.
+ */
+export type TopicPins = Record<string, string>
+
+/** 주제에서 뺀 업무가 모이는 곳. 목록 맨 끝에 선다. */
+export const UNSORTED = '미분류'
+
+/** 설정에 저장된 표를 읽는다. 깨져 있으면 없는 셈 친다. */
+export function parsePins(raw: string): TopicPins {
+  try {
+    const v = JSON.parse(raw) as unknown
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
+    const out: TopicPins = {}
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (/^\d+$/.test(k) && typeof val === 'string' && val.trim()) out[k] = val.trim()
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
 /** 설정에 저장된 이름표를 읽는다. 깨져 있으면 없는 셈 친다. */
 export function parseRenames(raw: string): TopicRenames {
   try {
@@ -119,8 +146,14 @@ export function parseRenames(raw: string): TopicRenames {
  * 처럼 더 좁은 말이 뽑혀 같은 업무가 서너 조각으로 흩어진다. 빈도를 앞세우고
  * 비슷할 때만 제목 앞에 오는 말·긴 말을 택하도록 했다.
  */
-export function groupByTopic(tasks: Task[], renames: TopicRenames = {}): Topic[] {
-  // 1) 후보가 몇 개의 제목에 걸치는지 센다
+export function groupByTopic(
+  tasks: Task[],
+  renames: TopicRenames = {},
+  pins: TopicPins = {}
+): Topic[] {
+  // 1) 후보가 몇 개의 제목에 걸치는지 센다.
+  //    손으로 넣은 업무도 함께 센다. 빼고 세면 하나를 옮기는 순간
+  //    나머지 업무들의 주제까지 덩달아 흔들린다.
   const freq = new Map<string, number>()
   const perTask = new Map<number, Map<string, boolean>>()
 
@@ -130,10 +163,15 @@ export function groupByTopic(tasks: Task[], renames: TopicRenames = {}): Topic[]
     for (const key of cands.keys()) freq.set(key, (freq.get(key) ?? 0) + 1)
   }
 
-  // 2) 업무마다 가장 좋은 후보를 고른다
+  // 2) 업무마다 가장 좋은 후보를 고른다. 손으로 넣은 업무는 건너뛴다.
   const buckets = new Map<string, Task[]>()
+  const pinned: Task[] = []
 
   for (const t of tasks) {
+    if (pins[String(t.id)]) {
+      pinned.push(t)
+      continue
+    }
     const cands = perTask.get(t.id) ?? new Map<string, boolean>()
     let best = ''
     let bestScore = -1
@@ -165,9 +203,21 @@ export function groupByTopic(tasks: Task[], renames: TopicRenames = {}): Topic[]
     else merged.set(name, { name, autoName, tasks: [...list] })
   }
 
-  return [...merged.values()].sort(
-    (a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name, 'ko')
-  )
+  // 4) 손으로 넣은 업무는 적힌 주제로 곧장 간다.
+  //    같은 이름의 자동 주제가 있으면 거기 합쳐지고, 없으면 새 주제가 선다.
+  for (const t of pinned) {
+    const name = pins[String(t.id)]
+    const found = merged.get(name)
+    if (found) found.tasks.push(t)
+    else merged.set(name, { name, autoName: name, tasks: [t] })
+  }
+
+  // 미분류는 늘 맨 끝. 나머지는 많은 순, 같으면 가나다순.
+  return [...merged.values()].sort((a, b) => {
+    if (a.name === UNSORTED) return 1
+    if (b.name === UNSORTED) return -1
+    return b.tasks.length - a.tasks.length || a.name.localeCompare(b.name, 'ko')
+  })
 }
 
 /* ---------- 업무분장표와 맞춰 보기 ---------- */

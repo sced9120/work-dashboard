@@ -267,7 +267,7 @@ function Shell(): JSX.Element {
         )}
 
         {page === '홈' && <Home jobTitle={jobTitle} onGo={setPage} />}
-        {page === '달력' && <CalendarPage />}
+        {page === '달력' && <CalendarPage onGo={setPage} />}
         {page === '로드맵' && <Roadmap />}
         {page === '워크플로우' && <Workflows onGo={setPage} />}
         {page === '가이드' && <Guide />}

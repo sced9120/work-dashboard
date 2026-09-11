@@ -5,10 +5,18 @@ import RoadmapInfographic from '../components/RoadmapInfographic'
 import TopicView from '../components/TopicView'
 import { useToast } from '../lib/toast'
 import { monthLabel, monthOf, schoolOrder, sortTasks } from '../lib/util'
-import { parseRenames, type TopicRenames } from '../lib/topics'
+import { parsePins, parseRenames, type TopicPins, type TopicRenames } from '../lib/topics'
 
 /** 주제 이름표는 DB 설정에 담아 인수인계 파일과 함께 넘어가게 한다. */
 const RENAME_KEY = 'topic_renames'
+/** 업무를 손으로 넣은 주제. 이것도 설정에 담겨 인수인계 파일에 함께 넘어간다. */
+const PIN_KEY = 'topic_pins'
+
+/** 목록에서 검색한 것을 한 주제로 묶으러 [업무별] 로 넘길 때 들고 가는 것 */
+export interface GroupSeed {
+  name: string
+  ids: number[]
+}
 
 type ViewMode = '인포그래픽' | '업무별' | '목록'
 
@@ -24,6 +32,8 @@ export default function Roadmap(): JSX.Element {
   const [view, setView] = useState<ViewMode>('인포그래픽')
   const [topic, setTopic] = useState<string | null>(null)
   const [renames, setRenames] = useState<TopicRenames>({})
+  const [pins, setPins] = useState<TopicPins>({})
+  const [seed, setSeed] = useState<GroupSeed | null>(null)
   const [tab, setTab] = useState<number | 'all'>('all')
   const [openId, setOpenId] = useState<number | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -31,17 +41,51 @@ export default function Roadmap(): JSX.Element {
   const [query, setQuery] = useState('')
 
   const load = useCallback(async () => {
-    const [list, raw] = await Promise.all([
+    const [list, raw, rawPins] = await Promise.all([
       window.api.tasks.list(),
-      window.api.setting.get(RENAME_KEY, '')
+      window.api.setting.get(RENAME_KEY, ''),
+      window.api.setting.get(PIN_KEY, '')
     ])
     setTasks(list)
     setRenames(parseRenames(raw))
+    // 지워진 업무의 자리는 치운다. 남겨 두면 표가 끝없이 불어난다.
+    const alive = new Set(list.map((t) => String(t.id)))
+    const kept: TopicPins = {}
+    for (const [id, name] of Object.entries(parsePins(rawPins))) if (alive.has(id)) kept[id] = name
+    setPins(kept)
   }, [])
 
-  /** 자동으로 붙은 이름을 사람이 고친 이름으로 바꿔 둔다. */
+  const savePins = useCallback(async (next: TopicPins): Promise<void> => {
+    setPins(next)
+    await window.api.setting.set(PIN_KEY, JSON.stringify(next))
+  }, [])
+
+  /**
+   * 업무들을 한 주제에 넣는다. name 이 비어 있으면 손으로 넣은 것을 풀어
+   * 자동 묶음으로 돌려보낸다.
+   */
+  const pinTasks = useCallback(
+    async (ids: number[], name: string): Promise<void> => {
+      const next = { ...pins }
+      const trimmed = name.trim()
+      for (const id of ids) {
+        if (trimmed) next[String(id)] = trimmed
+        else delete next[String(id)]
+      }
+      await savePins(next)
+    },
+    [pins, savePins]
+  )
+
+  /**
+   * 주제 이름을 바꾼다.
+   *
+   * 자동으로 묶인 업무는 이름표(renames)로, 손으로 넣은 업무는 넣어 둔 표(pins)
+   * 로 따로 기억하므로 둘 다 새 이름으로 옮겨야 한다. 한쪽만 옮기면 주제가
+   * 두 조각으로 갈라진다.
+   */
   const renameTopic = useCallback(
-    async (autoName: string, next: string): Promise<void> => {
+    async (autoName: string, oldName: string, next: string): Promise<void> => {
       const trimmed = next.trim()
       const merged = { ...renames }
       // 원래 이름으로 되돌리면 이름표를 지운다
@@ -49,8 +93,18 @@ export default function Roadmap(): JSX.Element {
       else merged[autoName] = trimmed
       setRenames(merged)
       await window.api.setting.set(RENAME_KEY, JSON.stringify(merged))
+
+      const movedPins = { ...pins }
+      let touched = false
+      for (const [id, name] of Object.entries(movedPins)) {
+        if (name !== oldName) continue
+        touched = true
+        if (trimmed) movedPins[id] = trimmed
+        else delete movedPins[id]
+      }
+      if (touched) await savePins(movedPins)
     },
-    [renames]
+    [renames, pins, savePins]
   )
 
   useEffect(() => {
@@ -123,6 +177,7 @@ export default function Roadmap(): JSX.Element {
         <RoadmapInfographic
           tasks={tasks}
           renames={renames}
+          pins={pins}
           onPickTopic={(name) => {
             setTopic(name)
             setView('업무별')
@@ -135,7 +190,11 @@ export default function Roadmap(): JSX.Element {
           tasks={tasks}
           initial={topic}
           renames={renames}
+          pins={pins}
           onRename={renameTopic}
+          onPin={pinTasks}
+          seed={seed}
+          onSeedUsed={() => setSeed(null)}
           onChanged={load}
           onOpenTask={(t) => {
             setView('목록')
@@ -165,6 +224,24 @@ export default function Roadmap(): JSX.Element {
         {adding && (
           <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
             <TaskForm onSave={add} onCancel={() => setAdding(false)} saveLabel="등록" />
+          </div>
+        )}
+
+        {query.trim() && visible.length > 0 && (
+          <div className="row" style={{ marginTop: 10 }}>
+            <span className="muted small">
+              '{query.trim()}' 로 찾은 업무 <b>{visible.length}건</b>
+            </span>
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                setSeed({ name: query.trim(), ids: visible.map((t) => t.id) })
+                setView('업무별')
+              }}
+              title="찾은 업무를 한 주제로 모읍니다. 이름은 다음 화면에서 고칠 수 있습니다"
+            >
+              🗂 이 {visible.length}건을 한 주제로 묶기
+            </button>
           </div>
         )}
       </div>
