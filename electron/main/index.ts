@@ -36,6 +36,7 @@ import fs from 'node:fs'
 import type {
   AliasPair,
   CalEventInput,
+  ChatFile,
   ChatTurn,
   CleanupPlan,
   DocDraftInput,
@@ -447,11 +448,33 @@ function registerIpc(): void {
   ipcMain.handle('ai:test', () => testConnection(loadLocalSettings()))
   ipcMain.handle(
     'ai:chat',
-    async (_e, args: { jobTitle: string; history: ChatTurn[]; model?: ModelChoice }) => {
+    async (_e, args: {
+      jobTitle: string
+      history: ChatTurn[]
+      files?: ChatFile[]
+      model?: ModelChoice
+    }) => {
       // 가장 최근 질문을 근거로 관련 자료를 골라 함께 넘긴다.
       const lastUser = [...args.history].reverse().find((t) => t.role === 'user')
-      const sources = lastUser ? db.retrieveForChat(lastUser.content) : []
-      return chatAnswer(loadLocalSettings(), args.jobTitle, args.history, sources, args.model)
+      const found = lastUser ? db.retrieveForChat(lastUser.content) : []
+
+      // 방금 올린 파일이 지금 이야기의 알맹이다. 맨 앞에 넉넉히 싣는다.
+      const attached = (args.files ?? [])
+        .filter((f) => f.text.trim())
+        .map((f) => ({ label: `올린 파일: ${f.name}`, text: f.text, room: 12000 }))
+
+      const today = new Date()
+      const p = (n: number): string => String(n).padStart(2, '0')
+      const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`
+
+      return chatAnswer(
+        loadLocalSettings(),
+        args.jobTitle,
+        args.history,
+        [...attached, ...found],
+        todayStr,
+        args.model
+      )
     }
   )
 

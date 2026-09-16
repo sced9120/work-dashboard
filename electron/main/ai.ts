@@ -15,6 +15,7 @@ import type {
   Template
 } from '../../shared/types'
 import { leakCheck, maskText, unmaskText } from './anonymize'
+import { actionGuide } from '../../shared/agent'
 
 /** 한 번에 모델에 보내는 글자 수. 긴 매뉴얼은 여러 번 나눠 보낸다. */
 const CHUNK_SIZE = 28000
@@ -570,6 +571,13 @@ export async function analyzeDocument(
 export interface SourceItem {
   label: string
   text: string
+  /**
+   * 이 자료에 내줄 글자 수. 없으면 기본값을 쓴다.
+   *
+   * 담당자가 방금 올린 파일은 지금 이야기의 알맹이이므로, 보관해 둔 공문보다
+   * 넉넉히 실어야 한다.
+   */
+  room?: number
 }
 
 /** 근거로 넘기는 글의 총량 상한. 넘으면 앞쪽부터 잘라 담는다. */
@@ -858,6 +866,7 @@ export async function chatAnswer(
   jobTitle: string,
   history: ChatTurn[],
   sources: SourceItem[],
+  today: string,
   override?: ModelChoice
 ): Promise<ChatReply> {
   const turns = history.slice(-CHAT_HISTORY).filter((t) => t.content.trim())
@@ -873,7 +882,7 @@ export async function chatAnswer(
   const usedLabels: string[] = []
   for (let i = 0; i < sources.length; i++) {
     if (used >= CHAT_BUDGET) break
-    const room = Math.min(CHAT_BUDGET - used, 5000)
+    const room = Math.min(CHAT_BUDGET - used, sources[i].room ?? 5000)
     const body = sources[i].text.slice(0, room)
     blocks.push(`[${usedLabels.length + 1}] ${sources[i].label}\n${body}`)
     usedLabels.push(sources[i].label)
@@ -893,6 +902,8 @@ export async function chatAnswer(
 - 확실하지 않으면 모른다고 말하고, 어디를 확인하면 되는지 알려 주세요.
 - 학생 실명·주민번호·연락처 같은 개인정보를 새로 지어내지 마세요.
 - 한국어로, 담당자가 바로 활용할 수 있도록 간결하고 실무적으로 답하세요.
+
+${actionGuide(today)}
 
 ${refs}`
 

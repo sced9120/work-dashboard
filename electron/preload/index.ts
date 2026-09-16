@@ -10,6 +10,7 @@ import type {
   DocDraftResult,
   FormSketch,
   ChatReply,
+  ChatFile,
   ChatTurn,
   Deadline,
   DeadlineInput,
@@ -161,6 +162,7 @@ const api = {
     chat: (args: {
       jobTitle: string
       history: ChatTurn[]
+      files?: ChatFile[]
       model?: ModelChoice
     }): Promise<ChatReply> => ipcRenderer.invoke('ai:chat', args),
     test: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('ai:test'),
