@@ -9,8 +9,26 @@ interface Props {
   onDownload: () => void
   onInstall: () => void
   onOpenPage: () => void
-  /** 이번 판은 그만 보겠다 */
+  /** 받기 전에 [나중에] — 이번 판은 그만 묻는다 */
   onLater: () => void
+  /** 받기 시작한 뒤 [닫기] — 창만 닫는다. 받기는 뒤에서 계속된다 */
+  onClose: () => void
+}
+
+/** 지금 어느 단계인가 */
+export type UpdatePhase = '받기 전' | '받는 중' | '확인 중' | '다 받음'
+
+/**
+ * 진행 값을 단계로 바꾼다.
+ *
+ * 100% 를 채웠는데 아직 "다 받음" 이 아니면 확인 중이다. electron-updater 는
+ * 받은 뒤 서명을 확인하고 파일 이름을 바꾸는데, 백신이 새 exe 를 붙잡으면
+ * 이름 바꾸기를 30초까지 다시 시도한다. 그동안 100% 만 떠 있으면 멈춘 줄 안다.
+ */
+export function phaseOf(progress: number | 'done' | null): UpdatePhase {
+  if (progress === null) return '받기 전'
+  if (progress === 'done') return '다 받음'
+  return progress >= 100 ? '확인 중' : '받는 중'
 }
 
 /** 이 버전의 팝업을 이미 닫았는지 기억해 둘 곳 */
@@ -118,21 +136,25 @@ export default function UpdateNotice({
   onDownload,
   onInstall,
   onOpenPage,
-  onLater
+  onLater,
+  onClose
 }: Props): JSX.Element {
   const { head, blocks } = splitNotes(info.notes ?? '')
+  const phase = phaseOf(progress)
+  /** 받기를 누른 뒤에는 [나중에] 가 아니라 [닫기] 다 */
+  const dismiss = phase === '받기 전' ? onLater : onClose
 
   // Esc 로 닫는다.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onLater()
+      if (e.key === 'Escape') dismiss()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onLater])
+  }, [dismiss])
 
   return (
-    <div className="ask-back" onClick={onLater}>
+    <div className="ask-back" onClick={dismiss}>
       <div
         className="ask update-ask"
         role="dialog"
@@ -164,10 +186,37 @@ export default function UpdateNotice({
               </div>
             )}
 
-        <div className="note note-info" style={{ marginTop: 14, marginBottom: 0 }}>
-          업데이트해도 <b>정리해 둔 업무·공문·기한은 그대로 남습니다.</b>
-          {!info.canAutoInstall && ' 무설치(Portable)로 쓰고 계셔서 직접 받아 바꿔야 합니다.'}
-        </div>
+        {phase === '받기 전' && (
+          <div className="note note-info" style={{ marginTop: 14, marginBottom: 0 }}>
+            업데이트해도 <b>정리해 둔 업무·공문·기한은 그대로 남습니다.</b>
+            {!info.canAutoInstall && ' 무설치(Portable)로 쓰고 계셔서 직접 받아 바꿔야 합니다.'}
+          </div>
+        )}
+
+        {(phase === '받는 중' || phase === '확인 중') && (
+          <div className="update-progress">
+            <div className="row" style={{ marginBottom: 6 }}>
+              <b className="small">
+                {phase === '받는 중' ? `받는 중… ${progress as number}%` : '받은 파일을 확인하는 중…'}
+              </b>
+            </div>
+            <div className="progress">
+              <div style={{ width: `${Math.min(100, progress as number)}%` }} />
+            </div>
+            <div className="small muted" style={{ marginTop: 6 }}>
+              {phase === '받는 중'
+                ? '받는 동안 창을 닫고 다른 일을 하셔도 됩니다. 프로그램은 끄지 마세요.'
+                : '백신이 받은 파일을 검사하면 30초쯤 걸릴 수 있습니다. 프로그램은 끄지 마세요.'}
+            </div>
+          </div>
+        )}
+
+        {phase === '다 받음' && (
+          <div className="note note-info" style={{ marginTop: 14, marginBottom: 0 }}>
+            <b>다 받았습니다.</b> 지금 다시 시작해 설치하시거나, 창을 닫고 쓰시다가{' '}
+            <b>프로그램을 끌 때 설치됩니다.</b>
+          </div>
+        )}
 
         {error && (
           <div className="note note-danger" style={{ marginTop: 10, marginBottom: 0 }}>
@@ -180,26 +229,39 @@ export default function UpdateNotice({
             자세히 보기
           </button>
           <span className="spacer" />
-          <button className="btn" onClick={onLater}>
-            나중에
-          </button>
 
-          {progress === 'done' ? (
-            <button className="btn btn-primary" autoFocus onClick={onInstall}>
-              다시 시작하고 설치
+          {phase === '받기 전' && (
+            <>
+              <button className="btn" onClick={onLater}>
+                나중에
+              </button>
+              {info.canAutoInstall ? (
+                <button className="btn btn-primary" autoFocus onClick={onDownload}>
+                  지금 받아서 설치
+                </button>
+              ) : (
+                <button className="btn btn-primary" autoFocus onClick={onOpenPage}>
+                  받으러 가기
+                </button>
+              )}
+            </>
+          )}
+
+          {(phase === '받는 중' || phase === '확인 중') && (
+            <button className="btn btn-primary" autoFocus onClick={onClose}>
+              닫기
             </button>
-          ) : typeof progress === 'number' ? (
-            <span className="small" style={{ minWidth: 96, textAlign: 'right' }}>
-              받는 중… {progress}%
-            </span>
-          ) : info.canAutoInstall ? (
-            <button className="btn btn-primary" autoFocus onClick={onDownload}>
-              지금 받아서 설치
-            </button>
-          ) : (
-            <button className="btn btn-primary" autoFocus onClick={onOpenPage}>
-              받으러 가기
-            </button>
+          )}
+
+          {phase === '다 받음' && (
+            <>
+              <button className="btn" onClick={onClose}>
+                닫기
+              </button>
+              <button className="btn btn-primary" autoFocus onClick={onInstall}>
+                다시 시작하고 설치
+              </button>
+            </>
           )}
         </div>
       </div>

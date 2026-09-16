@@ -1541,6 +1541,21 @@ textarea {
   word-break: keep-all;
 }
 
+.update-progress {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.update-bar-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+}
+
 .update-item::before {
   content: '';
   position: absolute;

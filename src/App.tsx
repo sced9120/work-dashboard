@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { UpdateInfo } from '../shared/types'
 import { ConfirmProvider } from './lib/confirm'
 import { ToastProvider } from './lib/toast'
@@ -15,7 +15,7 @@ import Committee from './pages/Committee'
 import Deadlines from './pages/Deadlines'
 import Journal from './pages/Journal'
 import LearnBanner from './components/LearnBanner'
-import UpdateNotice, { alreadySeen, markSeen } from './components/UpdateNotice'
+import UpdateNotice, { alreadySeen, markSeen, phaseOf } from './components/UpdateNotice'
 import Data from './pages/Data'
 import Settings from './pages/Settings'
 
@@ -87,6 +87,12 @@ function Shell(): JSX.Element {
   /** null이면 아직 안 받는 중, 숫자면 진행률, 'done'이면 받아 놓은 상태 */
   const [dlProgress, setDlProgress] = useState<number | 'done' | null>(null)
   const [dlError, setDlError] = useState('')
+  /**
+   * 다 받았는지를 곧바로 알 수 있게 따로 쥐고 있는다.
+   * 상태(dlProgress)는 다음 그리기 때에야 바뀌므로, 그 사이에 늦게 도착한
+   * 오류 신호가 "다 받음" 을 덮어쓰지 못하게 막는 데 쓴다.
+   */
+  const dlDone = useRef(false)
 
   const reloadProfile = useCallback(async () => {
     const [job, school] = await Promise.all([
@@ -118,9 +124,17 @@ function Shell(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    const offProgress = window.api.update.onProgress((p) => setDlProgress(p))
-    const offDone = window.api.update.onDownloaded(() => setDlProgress('done'))
+    // 한 번 "다 받음" 이 되면 뒤늦게 온 진행률이나 오류로 되돌리지 않는다.
+    // 되돌리면 [다시 시작하고 설치] 가 사라져 설치할 길이 없어진다.
+    const offProgress = window.api.update.onProgress((p) =>
+      setDlProgress((prev) => (prev === 'done' ? prev : p))
+    )
+    const offDone = window.api.update.onDownloaded(() => {
+      dlDone.current = true
+      setDlProgress('done')
+    })
     const offError = window.api.update.onError((msg) => {
+      if (dlDone.current) return
       setDlError(msg)
       setDlProgress(null)
     })
@@ -128,6 +142,27 @@ function Shell(): JSX.Element {
       offProgress()
       offDone()
       offError()
+    }
+  }, [])
+
+  /**
+   * 새 버전을 받는다. 팝업과 위쪽 띠가 함께 쓴다.
+   *
+   * 받기가 끝나야 돌아오므로, ok 면 update:downloaded 신호를 기다리지 않고
+   * 바로 "다 받음" 으로 바꾼다. 예전에는 그 신호 하나만 믿었는데, 그것을
+   * 놓치면 100% 에서 멈춘 채 [다시 시작하고 설치] 가 끝내 뜨지 않았다.
+   */
+  const startDownload = useCallback(async (): Promise<void> => {
+    dlDone.current = false
+    setDlError('')
+    setDlProgress(0)
+    const res = await window.api.update.download()
+    if (res.ok) {
+      dlDone.current = true
+      setDlProgress('done')
+    } else {
+      setDlError(res.error ?? '받지 못했습니다.')
+      setDlProgress(null)
     }
   }, [])
 
@@ -170,20 +205,14 @@ function Shell(): JSX.Element {
           info={update}
           progress={dlProgress}
           error={dlError}
-          onDownload={() =>
-            void (async () => {
-              setDlError('')
-              setDlProgress(0)
-              const res = await window.api.update.download()
-              if (!res.ok) {
-                setDlError(res.error ?? '받지 못했습니다.')
-                setDlProgress(null)
-              }
-            })()
-          }
+          onDownload={() => void startDownload()}
           onInstall={() => void window.api.update.install()}
           onOpenPage={() => void window.api.shell.open(update.url)}
           onLater={() => {
+            markSeen(update.latest)
+            setUpdatePopup(false)
+          }}
+          onClose={() => {
             markSeen(update.latest)
             setUpdatePopup(false)
           }}
@@ -206,40 +235,37 @@ function Shell(): JSX.Element {
               </div>
             </div>
             {/* 받아 놓은 뒤 */}
-            {dlProgress === 'done' && (
-              <button
-                className="btn btn-sm btn-primary"
-                onClick={() => void window.api.update.install()}
-              >
-                다시 시작하고 설치
-              </button>
+            {phaseOf(dlProgress) === '다 받음' && (
+              <>
+                <span className="small muted">끌 때 설치됩니다</span>
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={() => void window.api.update.install()}
+                >
+                  다시 시작하고 설치
+                </button>
+              </>
             )}
 
-            {/* 받는 중 */}
-            {typeof dlProgress === 'number' && (
-              <span className="small" style={{ minWidth: 90 }}>
-                받는 중… {dlProgress}%
-              </span>
+            {/* 받는 중 · 확인 중 */}
+            {(phaseOf(dlProgress) === '받는 중' || phaseOf(dlProgress) === '확인 중') && (
+              <div className="update-bar-progress">
+                <span className="small">
+                  {phaseOf(dlProgress) === '받는 중'
+                    ? `받는 중… ${dlProgress as number}%`
+                    : '받은 파일 확인 중…'}
+                </span>
+                <div className="progress">
+                  <div style={{ width: `${Math.min(100, dlProgress as number)}%` }} />
+                </div>
+              </div>
             )}
 
             {/* 아직 시작 안 함 */}
             {dlProgress === null && (
               <>
                 {update.canAutoInstall && (
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={() =>
-                      void (async () => {
-                        setDlError('')
-                        setDlProgress(0)
-                        const res = await window.api.update.download()
-                        if (!res.ok) {
-                          setDlError(res.error ?? '받지 못했습니다.')
-                          setDlProgress(null)
-                        }
-                      })()
-                    }
-                  >
+                  <button className="btn btn-sm btn-primary" onClick={() => void startDownload()}>
                     지금 받아서 설치
                   </button>
                 )}
