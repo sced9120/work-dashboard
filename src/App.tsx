@@ -12,6 +12,7 @@ import Learn from './pages/Learn'
 import Search from './pages/Search'
 import Chat from './pages/Chat'
 import Committee from './pages/Committee'
+import Slides from './pages/Slides'
 import Deadlines from './pages/Deadlines'
 import Journal from './pages/Journal'
 import LearnBanner from './components/LearnBanner'
@@ -29,6 +30,7 @@ export type PageId =
   | '검색'
   | '도우미'
   | '위원회'
+  | '발표'
   | '기한'
   | '일지'
   | '데이터'
@@ -62,7 +64,8 @@ const NAV: { section: string; items: { id: PageId; icon: string; label: string }
     section: '자료 만들기',
     items: [
       { id: '학습', icon: '📥', label: '문서로 업무 만들기' },
-      { id: '위원회', icon: '📑', label: '학교 문서 만들기' }
+      { id: '위원회', icon: '📑', label: '학교 문서 만들기' },
+      { id: '발표', icon: '🖥', label: '발표자료 만들기' }
     ]
   },
   {
@@ -301,6 +304,7 @@ function Shell(): JSX.Element {
         {page === '도우미' && <Chat jobTitle={jobTitle} onGo={setPage} />}
         {page === '학습' && <Learn jobTitle={jobTitle} onGo={setPage} />}
         {page === '위원회' && <Committee onGo={setPage} />}
+        {page === '발표' && <Slides onGo={setPage} />}
         {page === '기한' && <Deadlines />}
         {page === '일지' && <Journal />}
         {page === '데이터' && <Data onChanged={reloadProfile} />}

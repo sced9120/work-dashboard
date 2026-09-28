@@ -124,7 +124,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   )
 
   /**
-   * 읽지 못한 파일. 옛날 엑셀(.xls)이나 온나라 문서(.ozd)가 여기 든다.
+   * 읽지 못한 파일. 온나라 문서(.ozd)나 그림만 있는 스캔 문서가 여기 든다.
    *
    * 예전에는 그냥 빠뜨렸다. 그런데 내부결재 공문은 본문에 제목만 있고
    * 알맹이가 전부 붙임에 있어서, 그 붙임을 못 읽으면 절차가
@@ -465,7 +465,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
             </button>
           </div>
           <p className="hint" style={{ marginTop: 0 }}>
-            PDF · 한글(hwp, hwpx) · 엑셀(xlsx) · 워드(docx) · 텍스트를 지원합니다. PDF가 가장
+            PDF · 한글(hwp, hwpx) · 엑셀(xlsx, xls) · 워드(docx) · 텍스트를 지원합니다. PDF가 가장
             정확합니다.
           </p>
 
@@ -516,8 +516,8 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
                 ))}
               </div>
               <div className="small" style={{ marginTop: 6 }}>
-                옛날 엑셀(.xls)은 <b>엑셀에서 [다른 이름으로 저장] → .xlsx</b> 로 바꿔 다시
-                올리시면 내용까지 읽습니다.
+                온나라 문서(.ozd)처럼 읽지 못하는 파일은 <b>PDF로 인쇄해</b> 다시 올리시면
+                내용까지 읽습니다.
               </div>
             </div>
           )}

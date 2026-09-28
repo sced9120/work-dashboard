@@ -346,6 +346,8 @@ electron/
     db.ts         SQLite(sql.js) 자료 저장 — 예전 .db 파일과 호환
     secrets.ts    API 키를 OS 보안 저장소에 보관 (인수인계 파일과 분리)
     ai.ts         OpenAI / Gemini 호출, 긴 문서 분할, 응답 검증
+    hwpdoc.ts     학교 한글 양식(.hwp/.hwpx)에 글자만 바꿔 넣기 (kordoc)
+    slides.ts     발표자료(.pptx) 만들기 — 기본 디자인 / 참고 PPT 의 마스터 그대로 쓰기
     extract/
       index.ts    PDF · 엑셀 · 워드 · 텍스트에서 글자 뽑기
       hwp.ts      한글 파일(.hwp 5.0 / .hwpx) 해석

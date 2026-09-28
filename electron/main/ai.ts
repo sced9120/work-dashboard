@@ -14,8 +14,12 @@ import type {
   TaskDraft,
   Template
 } from '../../shared/types'
-import { leakCheck, maskText, unmaskText } from './anonymize'
+import { leakCheck, maskText, scrubPersonal, unmaskText } from './anonymize'
 import { actionGuide } from '../../shared/agent'
+import type { FormEdit, FormPlan, FormSpot } from '../../shared/hwpform'
+import { outlineOf } from './hwpdoc'
+import type { Deck } from '../../shared/slides'
+import { normalizeDeck } from '../../shared/slides'
 
 /** 한 번에 모델에 보내는 글자 수. 긴 매뉴얼은 여러 번 나눠 보낸다. */
 const CHUNK_SIZE = 28000
@@ -284,8 +288,11 @@ function mergeToOne(drafts: TaskDraft[]): TaskDraft[] {
   return [out]
 }
 
-/** 한 번에 받을 답의 최대 토큰 수. Claude 는 이 값을 반드시 요구한다. */
-const MAX_OUTPUT_TOKENS = 4096
+/**
+ * 한 번에 받을 답의 최대 토큰 수. Claude 는 이 값을 반드시 요구한다.
+ * 회의록처럼 긴 글을 양식 칸에 옮겨 담으면 4096 으로는 답이 잘린다.
+ */
+const MAX_OUTPUT_TOKENS = 8192
 
 /**
  * JSON 모드일 때 시스템 지시에 "json" 이라는 낱말이 반드시 들어가게 만든다.
@@ -847,6 +854,181 @@ ${sample.slice(0, 12000)}`
       guide: '',
       error: e instanceof Error ? e.message : String(e)
     }
+  }
+}
+
+/* ---------- 학교 한글 양식 채우기 ---------- */
+
+function parseJson(raw: string): unknown {
+  const cleaned = raw
+    .replace(/^\s*```(?:json)?/i, '')
+    .replace(/```\s*$/, '')
+    .trim()
+  try {
+    return JSON.parse(cleaned)
+  } catch {
+    // 앞뒤에 말을 붙여 보낸 경우 가장 바깥 { } 만 떼어 본다
+    const a = cleaned.indexOf('{')
+    const b = cleaned.lastIndexOf('}')
+    if (a >= 0 && b > a) return JSON.parse(cleaned.slice(a, b + 1))
+    throw new Error('AI 답을 읽지 못했습니다. 답이 너무 길어 잘렸을 수 있습니다. 넣을 내용을 줄여 다시 해 보세요.')
+  }
+}
+
+/**
+ * 학교 양식 한글 파일의 어느 자리에 무엇을 넣을지 AI 에게 정하게 한다.
+ *
+ * AI 에게는 파일이 아니라 **자리 목록**(P3, T0.1.2 …)만 보낸다. 답도 자리 이름과
+ * 넣을 글만 받는다. 실제로 파일에 넣는 일은 이 PC 에서 한다(hwpdoc.ts).
+ *
+ * 개인정보: 넣을 내용은 화면에서 정한 가명으로 바꿔 보내고, 받은 뒤 되돌린다.
+ * 양식에 지난번 학생 이름이 남아 있을 수 있어 양식 쪽은 ○○○ 로 싹 가려 보낸다.
+ */
+export async function planFormFill(
+  settings: LocalSettings,
+  args: {
+    formName: string
+    spots: FormSpot[]
+    content: string
+    aliases: AliasPair[]
+    schoolName: string
+    override?: ModelChoice
+  }
+): Promise<FormPlan> {
+  const { formName, content, aliases, schoolName, override } = args
+  // 양식 자리도 가명으로 먼저 바꾸고, 남은 이름·번호는 ○ 로 지운다
+  const shown = args.spots.map((sp) => ({
+    ...sp,
+    text: scrubPersonal(maskText(sp.text, aliases)).text,
+    ...(sp.label ? { label: scrubPersonal(maskText(sp.label, aliases)).text } : {})
+  }))
+  const sentText = new Map(shown.map((sp) => [sp.id, sp.text]))
+  const outline = outlineOf(shown)
+  const masked = maskText(content, aliases)
+
+  const prompt = `당신은 대한민국 학교에서 행정 문서를 오래 다뤄 온 교사입니다.${schoolName ? `
+학교명은 '${schoolName}' 입니다.` : ''}
+
+아래 [양식]은 학교에서 쓰는 한글 문서 '${formName}' 의 글자 자리 목록입니다.
+[P3] 처럼 대괄호로 시작하는 줄은 본문 문단이고, T0.1.2= 처럼 적힌 것은 표의 칸입니다(표 번호.행.열).
+[넣을 내용]을 이 양식에 옮겨 담으려고 합니다. **바꿔야 할 자리만** 골라, 그 자리에 들어갈 새 글을 주세요.
+
+반드시 지킬 것:
+- 양식의 틀은 그대로 두세요. 제목의 틀, 항목 이름, 표의 머리 칸("일시", "성명" 같은 칸), 학교 이름, 늘 같은 인사말·안내문은 고치지 마세요.
+- 빈칸이거나, 지난번 내용이 들어 있어 이번 것으로 바꿔야 하는 자리만 고치세요.
+- 자리의 원래 모양을 살리세요. "위반 내용: 절도" 를 고친다면 "위반 내용: " 머리말과 띄어쓰기는 두고 내용만 바꿉니다. 번호·기호(1. 가. □ ○ ◆)도 그대로 둡니다.
+- [넣을 내용]에 없는 사실·날짜·숫자를 지어내지 마세요. 알 수 없는데 지난번 내용이 남으면 안 되는 자리는 "(   )" 로 비워 두세요.
+- '학생A', '위원B', '○○○' 처럼 가려진 이름은 그대로 쓰세요. 실제 이름을 만들어 넣지 마세요.
+- 한 자리에 여러 줄을 넣으려면 글 안에서 줄을 바꾸세요(\\n). 회의 내용처럼 긴 글은 표의 넓은 칸 하나에 여러 줄로 넣으면 됩니다.
+- 양식에 알맞은 자리가 없어 넣지 못한 내용은 "남은내용" 에 짧게 적으세요. 억지로 엉뚱한 칸에 넣지 마세요.
+
+JSON 형식:
+{"채우기":[{"자리":"T0.0.1","글":"2026. 10. 7.(수) 16:30"}],"남은내용":""}
+
+--- 양식 ---
+${outline}
+
+--- 넣을 내용 ---
+${masked.slice(0, 20000)}`
+
+  const leaked = leakCheck(prompt, aliases)
+  if (leaked.length) {
+    return {
+      ok: false,
+      edits: [],
+      leftover: '',
+      sentToAi: '',
+      error: `가명처리가 끝나지 않아 보내지 않았습니다. 남아 있는 이름: ${leaked.join(', ')}`
+    }
+  }
+
+  try {
+    const raw = await callModel(settings, 'scenario', override, prompt, true)
+    const parsed = parseJson(raw) as { 채우기?: unknown; 남은내용?: unknown }
+    const list = Array.isArray(parsed.채우기) ? parsed.채우기 : []
+    const known = new Set(args.spots.map((sp) => sp.id))
+    const edits: FormEdit[] = []
+    for (const item of list) {
+      const r = (item ?? {}) as { 자리?: unknown; 글?: unknown }
+      const id = str(r.자리).replace(/^\[|\]$/g, '')
+      if (!known.has(id) || edits.some((e) => e.id === id)) continue
+      const text = typeof r.글 === 'string' ? r.글.replace(/\\n/g, '\n') : str(r.글)
+      // 보낸 글(가린 글)을 그대로 돌려보낸 자리는 고칠 뜻이 없는 것이다.
+      // 그대로 넣으면 원래 있던 이름이 ○○○ 으로 바뀌어 버린다.
+      if (text.replace(/\s+/g, ' ').trim() === (sentText.get(id) ?? '').replace(/\s+/g, ' ').trim()) continue
+      edits.push({ id, text: unmaskText(text, aliases) })
+    }
+    return { ok: true, edits, leftover: unmaskText(str(parsed.남은내용), aliases), sentToAi: prompt }
+  } catch (e) {
+    return { ok: false, edits: [], leftover: '', sentToAi: prompt, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/* ---------- 발표자료 ---------- */
+
+export interface SlideDraftInput {
+  topic: string
+  audience: string
+  count: number
+  minutes: number
+  material: string
+  notes: boolean
+}
+
+/**
+ * 발표자료의 내용(슬라이드마다 제목·글·발표 메모)을 짠다. 모양은 프로그램이 입힌다.
+ * 자료에 실명이 있으면 화면에서 먼저 가린 뒤 보낸다(Slides 화면 참고).
+ */
+export async function draftSlides(
+  settings: LocalSettings,
+  input: SlideDraftInput,
+  schoolName: string,
+  override?: ModelChoice
+): Promise<{ ok: boolean; deck?: Deck; error?: string }> {
+  const count = Math.min(30, Math.max(3, Math.round(input.count) || 8))
+  const prompt = `당신은 대한민국 학교에서 연수·설명회 발표자료를 잘 만드는 교사입니다.${schoolName ? `
+학교명은 '${schoolName}' 입니다.` : ''}
+
+다음 주제로 발표 슬라이드 ${count}장 안팎의 내용을 짜 주세요.
+- 주제: ${input.topic}
+- 듣는 사람: ${input.audience || '교사'}${input.minutes ? `
+- 발표 시간: 약 ${input.minutes}분` : ''}
+
+슬라이드 모양은 다음 가운데서 고르세요.
+- "표지": 첫 장. 제목과 부제(날짜·부서 등)
+- "구역": 큰 단락이 바뀔 때 쓰는 간지. 제목과 짧은 부제
+- "목록": 제목과 글머리표 3~6줄. 한 줄은 40자 안쪽의 짧은 문장
+- "카드": 단계·영역처럼 나란히 놓을 2~4가지. 카드마다 짧은 제목과 한두 문장
+- "표": 일정·비교처럼 칸이 있는 내용. 첫 줄은 머리 칸, 4열·7행 이내
+- "마무리": 마지막 장. "감사합니다" 또는 질의응답 안내와 문의처
+
+반드시 지킬 것:
+- [자료]에 있는 사실만 쓰세요. 자료에 없는 날짜·숫자·법 조항·통계를 지어내지 마세요. 자료가 부족하면 일반적인 안내 수준으로만 쓰세요.
+- 한 장에 글을 많이 넣지 마세요. 넘치면 두 장으로 나누세요.
+- 학교 문서 말투로, 명사형 종결("~함", "~하기")이나 짧은 문장을 쓰세요.${input.notes ? `
+- "메모"에는 발표자가 그 장을 넘기며 읽을 말을 2~4문장의 존댓말로 쓰세요.` : `
+- "메모"는 비워 두세요.`}
+- '학생A', '○○○' 처럼 가려진 이름은 그대로 쓰세요.
+
+JSON 형식:
+{"제목":"발표 제목","슬라이드":[
+ {"모양":"표지","제목":"","부제":"","메모":""},
+ {"모양":"목록","제목":"","내용":["",""],"메모":""},
+ {"모양":"카드","제목":"","카드":[{"제목":"","내용":""}],"메모":""},
+ {"모양":"표","제목":"","표":[["머리1","머리2"],["",""]],"메모":""},
+ {"모양":"마무리","제목":"감사합니다","부제":"","메모":""}
+]}
+
+--- 자료 ---
+${input.material.trim().slice(0, 24000) || '(따로 준 자료가 없습니다. 주제에 맞는 일반적인 구성으로 짜 주세요.)'}`
+
+  try {
+    const raw = await callModel(settings, 'scenario', override, prompt, true)
+    const deck = normalizeDeck(parseJson(raw), input.topic)
+    if (!deck.slides.length) return { ok: false, error: '슬라이드를 만들지 못했습니다. 다시 해 보세요.' }
+    return { ok: true, deck }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
 

@@ -36,6 +36,8 @@ import type {
   TemplateInput,
   UpdateInfo
 } from '../../shared/types'
+import type { FormEdit, FormFillResult, FormLayout, FormPlan, HwpForm } from '../../shared/hwpform'
+import type { Deck, DesignSource } from '../../shared/slides'
 
 export interface ActionResult {
   ok: boolean
@@ -205,6 +207,40 @@ const api = {
   },
   clipboard: {
     write: (text: string): Promise<void> => ipcRenderer.invoke('clipboard:write', text)
+  },
+  /** 학교 한글 양식 */
+  hwp: {
+    list: (): Promise<HwpForm[]> => ipcRenderer.invoke('hwpforms:list'),
+    add: (): Promise<{ added: { id: number; name: string; personal: string[] }[]; errors: string[] }> =>
+      ipcRenderer.invoke('hwpforms:add'),
+    rename: (id: number, name: string): Promise<void> => ipcRenderer.invoke('hwpforms:rename', id, name),
+    remove: (id: number): Promise<void> => ipcRenderer.invoke('hwpforms:delete', id),
+    layout: (id: number): Promise<FormLayout> => ipcRenderer.invoke('hwpforms:layout', id),
+    plan: (args: { id: number; content: string; aliases: AliasPair[]; model?: ModelChoice }): Promise<FormPlan> =>
+      ipcRenderer.invoke('hwpforms:plan', args),
+    save: (args: { id: number; edits: FormEdit[]; name: string }): Promise<FormFillResult> =>
+      ipcRenderer.invoke('hwpforms:save', args),
+    fillSlots: (args: {
+      id: number
+      values: Record<string, string>
+      blanks: Record<string, string>
+      name: string
+    }): Promise<FormFillResult> => ipcRenderer.invoke('hwpforms:fillSlots', args),
+    newDoc: (args: { name: string; text: string }): Promise<ActionResult> => ipcRenderer.invoke('hwp:newDoc', args),
+    /** 이 프로그램이 방금 저장한 파일만 열 수 있다 */
+    open: (target: string): Promise<string> => ipcRenderer.invoke('files:openSaved', target),
+    reveal: (target: string): Promise<void> => ipcRenderer.invoke('files:revealSaved', target)
+  },
+  /** 발표자료(PPT) */
+  slides: {
+    pickDesign: (): Promise<{ ok: boolean; source?: DesignSource; error?: string }> =>
+      ipcRenderer.invoke('slides:pickDesign'),
+    draft: (args: {
+      input: { topic: string; audience: string; count: number; minutes: number; material: string; notes: boolean }
+      model?: ModelChoice
+    }): Promise<{ ok: boolean; deck?: Deck; error?: string }> => ipcRenderer.invoke('slides:draft', args),
+    save: (args: { deck: Deck; design: DesignSource }): Promise<ActionResult & { notes: string[] }> =>
+      ipcRenderer.invoke('slides:save', args)
   },
   appVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
   update: {

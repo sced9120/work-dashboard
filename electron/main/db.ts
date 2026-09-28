@@ -24,6 +24,7 @@ import type {
   YearSummary
 } from '../../shared/types'
 import { schoolYearOf } from '../../shared/types'
+import type { HwpForm, HwpKind } from '../../shared/hwpform'
 
 /**
  * 예전 Streamlit 버전(school_admin_v25_final.db)과 같은 스키마를 유지한다.
@@ -68,7 +69,12 @@ const SCHEMA = [
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      event_date TEXT, end_date TEXT, start_time TEXT,
      title TEXT, content TEXT, color TEXT,
-     remind INTEGER DEFAULT 0, done INTEGER DEFAULT 0)`
+     remind INTEGER DEFAULT 0, done INTEGER DEFAULT 0)`,
+  // 학교 한글 양식 파일(.hwp/.hwpx)을 통째로 담아 둔다. 다음 담당자도 같은 양식을 쓰도록
+  // 인수인계 파일에 함께 넘어간다.
+  `CREATE TABLE IF NOT EXISTS hwp_forms (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT, filename TEXT, kind TEXT, data BLOB, added_at TEXT)`
 ]
 
 let SQL: SqlJsStatic | null = null
@@ -486,6 +492,37 @@ export function updateTemplate(id: number, t: TemplateInput): void {
 
 export function deleteTemplate(id: number): void {
   run('DELETE FROM templates WHERE id=?', [id])
+}
+
+/* ---------- 학교 한글 양식 ---------- */
+
+export function listHwpForms(): HwpForm[] {
+  return rows<HwpForm>(
+    'SELECT id, name, filename, kind, length(data) AS size, added_at FROM hwp_forms ORDER BY id DESC'
+  )
+}
+
+export function getHwpFormData(id: number): Uint8Array | null {
+  const found = rows<{ data: Uint8Array }>('SELECT data FROM hwp_forms WHERE id = ?', [id])
+  return found.length && found[0].data ? found[0].data : null
+}
+
+export function addHwpForm(name: string, filename: string, kind: HwpKind, data: Uint8Array): number {
+  return insert('INSERT INTO hwp_forms (name, filename, kind, data, added_at) VALUES (?,?,?,?,?)', [
+    name,
+    filename,
+    kind,
+    data,
+    today()
+  ])
+}
+
+export function renameHwpForm(id: number, name: string): void {
+  run('UPDATE hwp_forms SET name = ? WHERE id = ?', [name, id])
+}
+
+export function deleteHwpForm(id: number): void {
+  run('DELETE FROM hwp_forms WHERE id = ?', [id])
 }
 
 /* ---------- 절차 기한 ---------- */

@@ -6,7 +6,17 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        input: { index: resolve(__dirname, 'electron/main/index.ts') }
+        input: { index: resolve(__dirname, 'electron/main/index.ts') },
+        // 한글 문서 도구(kordoc)는 devDependencies 에 두고 이 번들에 묶는다. 그래야 쓰지 않는
+        // 의존성(MCP 서버 등)이 설치파일에 들어가지 않는다. 스캔 PDF 글자 인식·PDF 출력에 쓰는
+        // 무거운 선택 모듈은 쓰지 않으므로 묶지 않는다(부르면 없다고 나올 뿐 앱은 멀쩡하다).
+        external: [
+          'sharp',
+          'onnxruntime-node',
+          '@huggingface/transformers',
+          '@hyzyla/pdfium',
+          'puppeteer-core'
+        ]
       }
     }
   },

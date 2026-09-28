@@ -17,10 +17,17 @@ import {
   analyzeDocument,
   answerFromSources,
   chatAnswer,
+  draftSlides,
   extractDocForm,
   generateDocDraft,
-  testConnection
+  planFormFill,
+  testConnection,
+  type SlideDraftInput
 } from './ai'
+import { applyEdits, fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
+import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
+import type { FormEdit, FormFillResult } from '../../shared/hwpform'
+import type { Deck, DesignSource } from '../../shared/slides'
 import {
   buildAliases,
   findIdNumbers,
@@ -304,6 +311,207 @@ function registerIpc(): void {
       return { ok: true, message: `저장했습니다: ${res.filePath}`, path: res.filePath }
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  /* ---------- 학교 한글 양식 ---------- */
+
+  /** 이번에 이 프로그램이 저장한 파일. [열기] 는 이 목록에 있는 것만 연다. */
+  const savedPaths = new Set<string>()
+
+  /** 파일로 저장하는 창을 띄운다. 취소하면 빈 문자열. */
+  const saveAs = async (title: string, name: string, ext: string, label: string): Promise<string> => {
+    if (!mainWindow) return ''
+    const safe = name.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || '문서'
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title,
+      defaultPath: `${safe}.${ext}`,
+      filters: [{ name: label, extensions: [ext] }]
+    })
+    return res.canceled || !res.filePath ? '' : res.filePath
+  }
+
+  const writeOut = (target: string, data: Uint8Array): void => {
+    fs.writeFileSync(target, data)
+    savedPaths.add(path.resolve(target))
+  }
+
+  ipcMain.handle('hwpforms:list', () => db.listHwpForms())
+
+  // 양식 파일을 골라 보관한다. 이름·번호가 보이면 화면에서 알려 줄 수 있게 함께 돌려준다.
+  ipcMain.handle('hwpforms:add', async () => {
+    if (!mainWindow) return { added: [], errors: [] }
+    const res = await dialog.showOpenDialog(mainWindow, {
+      title: '학교 한글 양식 고르기',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: '한글 문서', extensions: ['hwp', 'hwpx'] }]
+    })
+    if (res.canceled) return { added: [], errors: [] }
+    const added: { id: number; name: string; personal: string[] }[] = []
+    const errors: string[] = []
+    for (const p of res.filePaths) {
+      const name = path.basename(p)
+      try {
+        const data = new Uint8Array(fs.readFileSync(p))
+        const kind = kindOf(data)
+        if (!kind) throw new Error('한글 파일이 아닙니다.')
+        if (data.length > 20 * 1024 * 1024) throw new Error('20MB 가 넘는 파일은 양식으로 쓸 수 없습니다.')
+        const layout = await readLayout(data)
+        if (!layout.ok) throw new Error(layout.error || '읽지 못했습니다.')
+        const personal = [...findNameCandidates(layout.plain), ...findIdNumbers(layout.plain)].slice(0, 8)
+        const id = db.addHwpForm(name.replace(/\.(hwpx?)$/i, ''), name, kind, data)
+        added.push({ id, name, personal })
+      } catch (e) {
+        errors.push(`${name}: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    return { added, errors }
+  })
+
+  ipcMain.handle('hwpforms:rename', (_e, id: number, name: string) => db.renameHwpForm(id, name))
+  ipcMain.handle('hwpforms:delete', (_e, id: number) => db.deleteHwpForm(id))
+
+  ipcMain.handle('hwpforms:layout', async (_e, id: number) => {
+    const data = db.getHwpFormData(id)
+    if (!data) return { ok: false, kind: 'hwp', spots: [], slots: [], blanks: [], plain: '', error: '양식을 찾지 못했습니다.' }
+    return readLayout(data)
+  })
+
+  // AI 에게 어느 칸에 무엇을 넣을지 묻는다. 파일은 보내지 않고 글자 자리 목록만 보낸다.
+  ipcMain.handle(
+    'hwpforms:plan',
+    async (_e, args: { id: number; content: string; aliases: AliasPair[]; model?: ModelChoice }) => {
+      const data = db.getHwpFormData(args.id)
+      const form = db.listHwpForms().find((f) => f.id === args.id)
+      if (!data || !form) return { ok: false, edits: [], leftover: '', sentToAi: '', error: '양식을 찾지 못했습니다.' }
+      const layout = await readLayout(data)
+      if (!layout.ok) return { ok: false, edits: [], leftover: '', sentToAi: '', error: layout.error }
+      return planFormFill(loadLocalSettings(), {
+        formName: form.name,
+        spots: layout.spots,
+        content: args.content,
+        aliases: args.aliases,
+        schoolName: db.getSetting('school_name', ''),
+        override: args.model
+      })
+    }
+  )
+
+  const finishFill = async (
+    formId: number,
+    name: string,
+    run: (data: Uint8Array) => Promise<{ data: Uint8Array; applied: number; missed: FormEdit[] }>
+  ): Promise<FormFillResult> => {
+    const data = db.getHwpFormData(formId)
+    const form = db.listHwpForms().find((f) => f.id === formId)
+    if (!data || !form) return { ok: false, applied: 0, missed: [], message: '양식을 찾지 못했습니다.' }
+    try {
+      const out = await run(data)
+      const labels = new Map((await readLayout(data)).spots.map((sp) => [sp.id, sp.label || sp.text.slice(0, 20)]))
+      const missed = out.missed.map((m) => ({ ...m, label: labels.get(m.id) ?? m.id }))
+      if (!out.applied) {
+        return { ok: false, applied: 0, missed, message: '바뀐 곳이 없어 저장하지 않았습니다.' }
+      }
+      const target = await saveAs('한글 문서로 저장', name || form.name, form.kind, form.kind === 'hwp' ? '한글 문서' : '한글 표준 문서')
+      if (!target) return { ok: false, applied: out.applied, missed, message: '저장을 취소했습니다.' }
+      writeOut(target, out.data)
+      return { ok: true, applied: out.applied, missed, path: target, message: `저장했습니다: ${target}` }
+    } catch (e) {
+      return { ok: false, applied: 0, missed: [], message: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
+  ipcMain.handle('hwpforms:save', (_e, args: { id: number; edits: FormEdit[]; name: string }) =>
+    finishFill(args.id, args.name, (data) => applyEdits(data, args.edits))
+  )
+
+  ipcMain.handle(
+    'hwpforms:fillSlots',
+    (_e, args: { id: number; values: Record<string, string>; blanks: Record<string, string>; name: string }) =>
+      finishFill(args.id, args.name, (data) => fillSlots(data, args.values, args.blanks))
+  )
+
+  // 양식 없이 글만으로 한글 문서를 만든다
+  ipcMain.handle('hwp:newDoc', async (_e, args: { name: string; text: string }) => {
+    try {
+      const data = await textToHwpx(args.text)
+      const target = await saveAs('한글 문서로 저장', args.name, 'hwpx', '한글 표준 문서')
+      if (!target) return { ok: false, message: '저장을 취소했습니다.' }
+      writeOut(target, data)
+      return { ok: true, message: `저장했습니다: ${target}`, path: target }
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  // 방금 저장한 파일을 한글·PowerPoint 로 연다
+  ipcMain.handle('files:openSaved', async (_e, target: string) => {
+    const full = path.resolve(target)
+    if (!savedPaths.has(full)) return '이 프로그램이 저장한 파일만 열 수 있습니다.'
+    return shell.openPath(full)
+  })
+  ipcMain.handle('files:revealSaved', (_e, target: string) => {
+    const full = path.resolve(target)
+    if (savedPaths.has(full)) shell.showItemInFolder(full)
+  })
+
+  /* ---------- 발표자료(PPT) ---------- */
+
+  /** 디자인 참고로 고른 파일. 저장할 때 이 목록에 있는 파일만 다시 읽는다. */
+  const designPaths = new Set<string>()
+
+  ipcMain.handle('slides:pickDesign', async () => {
+    if (!mainWindow) return { ok: false }
+    const res = await dialog.showOpenDialog(mainWindow, {
+      title: '디자인을 참고할 파일 고르기',
+      properties: ['openFile'],
+      filters: [
+        { name: 'PowerPoint · DESIGN.md', extensions: ['pptx', 'md'] },
+        { name: 'PowerPoint', extensions: ['pptx'] },
+        { name: 'DESIGN.md', extensions: ['md'] }
+      ]
+    })
+    if (res.canceled || !res.filePaths.length) return { ok: false }
+    const p = res.filePaths[0]
+    const label = path.basename(p)
+    try {
+      const buf = fs.readFileSync(p)
+      if (buf.length > 60 * 1024 * 1024) throw new Error('60MB 가 넘는 파일은 참고할 수 없습니다.')
+      const source: DesignSource = /\.md$/i.test(p)
+        ? readDesignMd(buf.toString('utf8'), label)
+        : readPptxDesign(new Uint8Array(buf), label)
+      source.path = p
+      designPaths.add(path.resolve(p))
+      return { ok: true, source }
+    } catch (e) {
+      return { ok: false, error: `${label}: ${e instanceof Error ? e.message : String(e)}` }
+    }
+  })
+
+  ipcMain.handle('slides:draft', (_e, args: { input: SlideDraftInput; model?: ModelChoice }) =>
+    draftSlides(loadLocalSettings(), args.input, db.getSetting('school_name', ''), args.model)
+  )
+
+  ipcMain.handle('slides:save', async (_e, args: { deck: Deck; design: DesignSource }) => {
+    try {
+      let data: Uint8Array
+      let notes: string[] = []
+      if (args.design.kind === 'pptx') {
+        const p = path.resolve(args.design.path ?? '')
+        if (!designPaths.has(p)) throw new Error('참고 파일을 다시 골라 주세요.')
+        if (!fs.existsSync(p)) throw new Error(`참고 파일이 옮겨졌거나 지워졌습니다: ${p}`)
+        const built = await buildFromTemplate(args.deck, new Uint8Array(fs.readFileSync(p)))
+        data = built.data
+        notes = built.notes
+      } else {
+        data = await buildWithTheme(args.deck, args.design.theme)
+      }
+      const target = await saveAs('발표자료로 저장', args.deck.title || '발표자료', 'pptx', 'PowerPoint 프레젠테이션')
+      if (!target) return { ok: false, message: '저장을 취소했습니다.', notes }
+      writeOut(target, data)
+      return { ok: true, message: `저장했습니다: ${target}`, path: target, notes }
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e), notes: [] }
     }
   })
 

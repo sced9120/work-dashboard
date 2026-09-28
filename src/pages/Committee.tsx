@@ -16,6 +16,7 @@ import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 import { todayStr } from '../lib/util'
 import ModelPicker from '../components/ModelPicker'
+import HwpForms from '../components/HwpForms'
 
 interface Props {
   onGo: (p: PageId) => void
@@ -26,7 +27,7 @@ interface NameRow {
   role: string
 }
 
-type Mode = '만들기' | '서식' | '예시'
+type Mode = '만들기' | '서식' | '한글' | '예시'
 
 const BLANK_TEMPLATE: TemplateInput = { name: '', kind: '', content: '', added_at: '' }
 
@@ -118,6 +119,8 @@ export default function Committee({ onGo }: Props): JSX.Element {
   const [offIds, setOffIds] = useState<number[]>([])
   const [result, setResult] = useState('')
   const [busy, setBusy] = useState(false)
+  /** [우리 학교 한글 양식] 으로 넘길 글 */
+  const [hwpContent, setHwpContent] = useState('')
 
   /* 가명처리 */
   const [names, setNames] = useState<NameRow[]>([])
@@ -289,6 +292,19 @@ export default function Committee({ onGo }: Props): JSX.Element {
   const saveResult = async (): Promise<void> => {
     const res = await window.api.docdraft.save({ name: resultName(), text: result })
     toast(res.message, res.ok ? 'ok' : 'err')
+  }
+
+  /** 양식 없이 한글 문서(.hwpx)로 저장한다. 한글 기본 모양으로 나온다. */
+  const saveAsHwp = async (): Promise<void> => {
+    const res = await window.api.hwp.newDoc({ name: resultName(), text: result })
+    toast(res.message, res.ok ? 'ok' : 'err')
+    if (res.ok && res.path) await window.api.hwp.open(res.path)
+  }
+
+  /** 만든 초안을 학교 한글 양식에 옮겨 담으러 간다 */
+  const toHwpForm = (): void => {
+    setHwpContent(result)
+    setMode('한글')
   }
 
   /** 만든 것을 다음에 쓸 예시로 남긴다. 쓸수록 다음 문서가 이 학교 형식에 가까워진다. */
@@ -636,6 +652,9 @@ export default function Committee({ onGo }: Props): JSX.Element {
         </button>
         <button className={`tab ${mode === '서식' ? 'active' : ''}`} onClick={() => setMode('서식')}>
           📄 빈칸 채우기 (AI 안 씀)
+        </button>
+        <button className={`tab ${mode === '한글' ? 'active' : ''}`} onClick={() => setMode('한글')}>
+          📑 우리 학교 한글 양식
         </button>
         <button className={`tab ${mode === '예시' ? 'active' : ''}`} onClick={() => setMode('예시')}>
           📚 예시 보관함
@@ -1189,8 +1208,22 @@ export default function Committee({ onGo }: Props): JSX.Element {
                   <button className="btn btn-sm" onClick={() => void keepAsExample()}>
                     📚 예시로 남기기
                   </button>
-                  <button className="btn btn-sm btn-primary" onClick={() => void saveResult()}>
-                    💾 파일로 저장
+                  <button className="btn btn-sm" onClick={() => void saveResult()} title="메모장에서 열리는 .txt 파일">
+                    💾 텍스트로 저장
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => void saveAsHwp()}
+                    title="양식 없이 한글 기본 모양(.hwpx)으로 저장합니다"
+                  >
+                    📄 한글 파일로
+                  </button>
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={toHwpForm}
+                    title="넣어 둔 학교 한글 양식의 칸에 이 글을 옮겨 담습니다"
+                  >
+                    📑 학교 양식에 담기
                   </button>
                 </div>
               </div>
@@ -1217,6 +1250,13 @@ export default function Committee({ onGo }: Props): JSX.Element {
             <b>이 기능은 인터넷을 쓰지 않습니다.</b> 서식에 <code>{'{{학생명}}'}</code> 처럼 적어
             두면 그 자리를 채워 넣기만 합니다. 입력한 내용이 이 PC 밖으로 나가지 않으므로 실명을
             그대로 쓰셔도 됩니다.
+            <div style={{ marginTop: 6 }}>
+              한글 파일의 모양(표·로고·글꼴)까지 그대로 살려 채우려면{' '}
+              <button className="link" onClick={() => setMode('한글')}>
+                [📑 우리 학교 한글 양식]
+              </button>{' '}
+              을 쓰세요.
+            </div>
           </div>
 
           <div className="card">
@@ -1334,6 +1374,17 @@ export default function Committee({ onGo }: Props): JSX.Element {
             </>
           )}
         </>
+      )}
+
+      {/* ══════════ 우리 학교 한글 양식 ══════════ */}
+      {mode === '한글' && (
+        <HwpForms
+          content={hwpContent}
+          onContent={setHwpContent}
+          aliases={aliases}
+          hasKey={hasKey}
+          onGo={onGo}
+        />
       )}
 
       {/* ══════════ 예시 보관함 ══════════ */}

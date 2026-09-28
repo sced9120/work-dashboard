@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { unzipSync, strFromU8 } from 'fflate'
 import ExcelJS from 'exceljs'
+import { parse as parseKordoc } from 'kordoc'
 import type { ExtractedDoc } from '../../../shared/types'
 import { extractHwp, decodeXmlEntities } from './hwp'
 
@@ -58,6 +59,16 @@ async function fromXlsx(buf: Buffer): Promise<string> {
     })
   })
   return text
+}
+
+/**
+ * 옛날 엑셀(.xls). 공문 붙임의 견적서·명단이 아직 이 형식으로 많이 온다.
+ * 한글 문서 도구(kordoc)가 읽어 표를 마크다운으로 준다.
+ */
+async function fromXls(buf: Buffer): Promise<string> {
+  const res = await parseKordoc(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer)
+  if (!res.success) throw new Error(res.error || '엑셀 파일을 읽지 못했습니다.')
+  return res.markdown
 }
 
 function fromDocx(buf: Buffer): string {
@@ -117,12 +128,8 @@ export async function extractFile(filePath: string): Promise<ExtractedDoc> {
         raw = await fromXlsx(buf)
         break
       case 'xls':
-        return {
-          filename: name,
-          text: '',
-          chars: 0,
-          error: '옛날 엑셀(.xls)은 읽을 수 없습니다. 엑셀에서 .xlsx로 저장한 뒤 올려 주세요.'
-        }
+        raw = await fromXls(buf)
+        break
       case 'docx':
         raw = fromDocx(buf)
         break
@@ -136,7 +143,7 @@ export async function extractFile(filePath: string): Promise<ExtractedDoc> {
           filename: name,
           text: '',
           chars: 0,
-          error: `지원하지 않는 형식입니다 (.${ext}). PDF, 한글(hwp/hwpx), 엑셀(xlsx), 워드(docx), 텍스트를 지원합니다.`
+          error: `지원하지 않는 형식입니다 (.${ext}). PDF, 한글(hwp/hwpx), 엑셀(xlsx/xls), 워드(docx), 텍스트를 지원합니다.`
         }
     }
 
