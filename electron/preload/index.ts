@@ -36,7 +36,7 @@ import type {
   TemplateInput,
   UpdateInfo
 } from '../../shared/types'
-import type { FormEdit, FormFillResult, FormLayout, FormPlan, HwpForm } from '../../shared/hwpform'
+import type { FormEdit, FormFillResult, FormLayout, FormPlan, FormRef, HwpForm } from '../../shared/hwpform'
 import type { Deck, DesignSource } from '../../shared/slides'
 
 export interface ActionResult {
@@ -165,6 +165,7 @@ const api = {
       jobTitle: string
       history: ChatTurn[]
       files?: ChatFile[]
+      formFiles?: string[]
       model?: ModelChoice
     }): Promise<ChatReply> => ipcRenderer.invoke('ai:chat', args),
     test: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('ai:test'),
@@ -215,13 +216,13 @@ const api = {
       ipcRenderer.invoke('hwpforms:add'),
     rename: (id: number, name: string): Promise<void> => ipcRenderer.invoke('hwpforms:rename', id, name),
     remove: (id: number): Promise<void> => ipcRenderer.invoke('hwpforms:delete', id),
-    layout: (id: number): Promise<FormLayout> => ipcRenderer.invoke('hwpforms:layout', id),
-    plan: (args: { id: number; content: string; aliases: AliasPair[]; model?: ModelChoice }): Promise<FormPlan> =>
+    layout: (ref: FormRef): Promise<FormLayout> => ipcRenderer.invoke('hwpforms:layout', ref),
+    plan: (args: { ref: FormRef; content: string; aliases: AliasPair[]; model?: ModelChoice }): Promise<FormPlan> =>
       ipcRenderer.invoke('hwpforms:plan', args),
-    save: (args: { id: number; edits: FormEdit[]; name: string }): Promise<FormFillResult> =>
+    save: (args: { ref: FormRef; edits: FormEdit[]; name: string }): Promise<FormFillResult> =>
       ipcRenderer.invoke('hwpforms:save', args),
     fillSlots: (args: {
-      id: number
+      ref: FormRef
       values: Record<string, string>
       blanks: Record<string, string>
       name: string

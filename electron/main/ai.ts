@@ -14,8 +14,8 @@ import type {
   TaskDraft,
   Template
 } from '../../shared/types'
-import { leakCheck, maskText, scrubPersonal, unmaskText } from './anonymize'
-import { actionGuide } from '../../shared/agent'
+import { findIdNumbers, findNameCandidates, leakCheck, maskText, scrubPersonal, unmaskText } from './anonymize'
+import { actionGuide, docGuide } from '../../shared/agent'
 import type { FormEdit, FormPlan, FormSpot } from '../../shared/hwpform'
 import { outlineOf } from './hwpdoc'
 import type { Deck } from '../../shared/slides'
@@ -897,10 +897,19 @@ export async function planFormFill(
 ): Promise<FormPlan> {
   const { formName, content, aliases, schoolName, override } = args
   // 양식 자리도 가명으로 먼저 바꾸고, 남은 이름·번호는 ○ 로 지운다
+  // 양식에 남은 이름·학번은 칸 하나만 봐서는 알아보기 어렵다. "3616" 이나 "홍길동" 이 칸에
+  // 홀로 들어 있으면 이름인지 번호인지 모른다. 그래서 "라벨: 글" 로 이어 붙인 양식 전체에서
+  // 먼저 찾아 두고, 찾은 것은 어느 칸에 있든 ○○○ 으로 지운다.
+  const whole = args.spots.map((sp) => (sp.label ? `${sp.label}: ${sp.text}` : sp.text)).join('\n')
+  const known = new Set(aliases.map((a) => a.real))
+  const leftover = [...findNameCandidates(whole), ...findIdNumbers(whole)]
+    .filter((n) => !known.has(n))
+    .map((n) => ({ real: n, alias: '○○○' }))
+  const hide = (t: string): string => scrubPersonal(maskText(maskText(t, aliases), leftover)).text
   const shown = args.spots.map((sp) => ({
     ...sp,
-    text: scrubPersonal(maskText(sp.text, aliases)).text,
-    ...(sp.label ? { label: scrubPersonal(maskText(sp.label, aliases)).text } : {})
+    text: hide(sp.text),
+    ...(sp.label ? { label: hide(sp.label) } : {})
   }))
   const sentText = new Map(shown.map((sp) => [sp.id, sp.text]))
   const outline = outlineOf(shown)
@@ -1049,6 +1058,7 @@ export async function chatAnswer(
   history: ChatTurn[],
   sources: SourceItem[],
   today: string,
+  forms: string[],
   override?: ModelChoice
 ): Promise<ChatReply> {
   const turns = history.slice(-CHAT_HISTORY).filter((t) => t.content.trim())
@@ -1086,6 +1096,8 @@ export async function chatAnswer(
 - 한국어로, 담당자가 바로 활용할 수 있도록 간결하고 실무적으로 답하세요.
 
 ${actionGuide(today)}
+
+${docGuide(forms)}
 
 ${refs}`
 

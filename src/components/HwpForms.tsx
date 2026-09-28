@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { FormFillResult, FormLayout, FormPlan, HwpForm } from '../../shared/hwpform'
+import type { FormFillResult, FormLayout, HwpForm } from '../../shared/hwpform'
 import type { AliasPair, ModelChoice } from '../../shared/types'
 import type { PageId } from '../App'
+import { queueChat } from '../lib/chatBridge'
 import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 import { todayStr } from '../lib/util'
+import FormFillCard from './FormFillCard'
 import ModelPicker from './ModelPicker'
 
 interface Props {
@@ -18,14 +20,6 @@ interface Props {
 }
 
 type Method = '직접' | 'AI'
-
-interface EditRow {
-  id: string
-  label: string
-  before: string
-  text: string
-  on: boolean
-}
 
 /** 긴 글을 적는 칸인지. 라벨로 어림한다. */
 const LONG_LABEL = /내용|개요|의견|경위|사유|결과|협의|심의|요지|비고|기타/
@@ -54,9 +48,9 @@ export default function HwpForms({ content, onContent, aliases, hasKey, onGo }: 
   const [blankValues, setBlankValues] = useState<Record<string, string>>({})
 
   const [model, setModel] = useState<ModelChoice | null>(null)
-  const [plan, setPlan] = useState<FormPlan | null>(null)
-  const [rows, setRows] = useState<EditRow[]>([])
-  const [showSent, setShowSent] = useState(false)
+  /** [AI로 채우기] 를 누를 때마다 늘려서 확인 카드를 새로 그린다 */
+  const [runKey, setRunKey] = useState(0)
+  const [runContent, setRunContent] = useState('')
 
   const [fileName, setFileName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -82,13 +76,12 @@ export default function HwpForms({ content, onContent, aliases, hasKey, onGo }: 
   const choose = async (f: HwpForm): Promise<void> => {
     setPicked(f.id)
     setLayout(null)
-    setPlan(null)
-    setRows([])
+    setRunKey(0)
     setResult(null)
     setSlotValues({})
     setBlankValues({})
     setFileName(`${f.name}_${todayStr()}`)
-    const l = await window.api.hwp.layout(f.id)
+    const l = await window.api.hwp.layout({ id: f.id })
     setLayout(l)
     if (!l.ok) toast(l.error ?? '양식을 읽지 못했습니다.', 'err')
   }
@@ -129,6 +122,13 @@ export default function HwpForms({ content, onContent, aliases, hasKey, onGo }: 
     await load()
   }
 
+  /** 업무 도우미로 가서 말로 부탁한다. 입력칸에 첫 마디를 적어 둔다. */
+  const toChat = (): void => {
+    if (!form) return
+    queueChat(`「${form.name}」 양식에 맞춰 한글 파일을 만들어 줘.\n`)
+    onGo('도우미')
+  }
+
   /* ---------- 직접 채우기 ---------- */
 
   const blanks = layout?.blanks ?? []
@@ -138,7 +138,12 @@ export default function HwpForms({ content, onContent, aliases, hasKey, onGo }: 
     if (!form) return
     setBusy(true)
     try {
-      const res = await window.api.hwp.fillSlots({ id: form.id, values: slotValues, blanks: blankValues, name: fileName })
+      const res = await window.api.hwp.fillSlots({
+        ref: { id: form.id },
+        values: slotValues,
+        blanks: blankValues,
+        name: fileName
+      })
       setResult(res)
       toast(res.message, res.ok ? 'ok' : 'err')
     } finally {
@@ -148,77 +153,16 @@ export default function HwpForms({ content, onContent, aliases, hasKey, onGo }: 
 
   /* ---------- AI 에게 맡기기 ---------- */
 
-  /** 넣을 내용에서 이름·학번을 더 찾아 가명을 붙인다. 문서 만들기에서 정한 가명은 그대로 쓴다. */
-  const aliasesFor = async (text: string): Promise<AliasPair[]> => {
-    const [names, ids] = await Promise.all([window.api.privacy.candidates(text), window.api.privacy.ids(text)])
-    const known = new Set(aliases.map((a) => a.real))
-    const extra = [
-      ...names.filter((n) => !known.has(n)).map((n) => ({ name: n, role: '관련인' })),
-      ...ids.filter((n) => !known.has(n)).map((n) => ({ name: n, role: '학번' }))
-    ]
-    return [...aliases, ...(extra.length ? await window.api.privacy.aliases(extra) : [])]
-  }
-
-  const runPlan = async (): Promise<void> => {
-    if (!form || !layout?.ok) return
+  const runAi = (): void => {
     if (!content.trim()) {
       toast('양식에 넣을 내용을 적어 주세요.', 'err')
       return
     }
-    setBusy(true)
-    setPlan(null)
-    setRows([])
-    setResult(null)
-    try {
-      const pairs = await aliasesFor(content)
-      const res = await window.api.hwp.plan({ id: form.id, content, aliases: pairs, model: model ?? undefined })
-      setPlan(res)
-      if (!res.ok) {
-        toast(res.error ?? 'AI 가 자리를 정하지 못했습니다.', 'err')
-        return
-      }
-      const byId = new Map(layout.spots.map((s) => [s.id, s]))
-      setRows(
-        res.edits.map((e) => {
-          const spot = byId.get(e.id)
-          return {
-            id: e.id,
-            label: spot?.label || (e.id.startsWith('P') ? '본문' : e.id),
-            before: spot?.text ?? '',
-            text: e.text,
-            on: true
-          }
-        })
-      )
-      if (!res.edits.length) toast('AI 가 바꿀 자리를 찾지 못했습니다. 넣을 내용을 더 자세히 적어 보세요.', 'err')
-      else toast(`${res.edits.length}곳을 채웠습니다. 확인하고 저장하세요.`, 'ok')
-    } finally {
-      setBusy(false)
-    }
+    setRunContent(content)
+    setRunKey((k) => k + 1)
   }
 
-  const saveAi = async (): Promise<void> => {
-    if (!form) return
-    const edits = rows.filter((r) => r.on).map((r) => ({ id: r.id, text: r.text }))
-    if (!edits.length) {
-      toast('넣을 자리가 없습니다.', 'err')
-      return
-    }
-    setBusy(true)
-    try {
-      const res = await window.api.hwp.save({ id: form.id, edits, name: fileName })
-      setResult(res)
-      toast(res.message, res.ok ? 'ok' : 'err')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const multiLineHwp =
-    form?.kind === 'hwp' &&
-    (method === 'AI'
-      ? rows.some((r) => r.on && r.text.includes('\n'))
-      : Object.values(blankValues).some((v) => v.includes('\n')))
+  const multiLineHwp = form?.kind === 'hwp' && Object.values(blankValues).some((v) => v.includes('\n'))
 
   /* ---------- 화면 ---------- */
 
@@ -234,6 +178,8 @@ export default function HwpForms({ content, onContent, aliases, hasKey, onGo }: 
         <p className="hint" style={{ marginTop: 0 }}>
           학교에서 쓰는 한글 파일(.hwp · .hwpx)을 넣어 두면, <b>테두리·글꼴·로고·표는 그대로 둔 채 글자만</b>{' '}
           바꿔 새 파일로 저장합니다. 넣어 둔 양식은 바뀌지 않습니다. 양식은 인수인계 파일에 함께 넘어갑니다.
+          <br />
+          넣어 둔 양식은 <b>[💬 업무 도우미]</b> 에서도 쓸 수 있습니다. "회의록 양식에 맞춰 만들어 줘" 처럼 말로 부탁하세요.
         </p>
 
         {personal.length > 0 && (
@@ -309,9 +255,16 @@ export default function HwpForms({ content, onContent, aliases, hasKey, onGo }: 
         <div className="card">
           <div className="card-title">
             <span>2. 채우기</span>
-            <span className="badge">
-              글자 자리 {layout.spots.length}곳 · {'{{칸}}'} {slots.length}개 · 빈칸 {blanks.length}개
-            </span>
+            <div className="row">
+              <span className="badge">
+                글자 자리 {layout.spots.length}곳 · {'{{칸}}'} {slots.length}개 · 빈칸 {blanks.length}개
+              </span>
+              {hasKey && (
+                <button className="btn btn-sm" onClick={toChat} title="업무 도우미로 가서 말로 부탁합니다">
+                  💬 도우미와 대화로 채우기
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="tabs" style={{ marginBottom: 12 }}>
@@ -375,6 +328,31 @@ export default function HwpForms({ content, onContent, aliases, hasKey, onGo }: 
                   )}
                 </div>
               ))}
+
+              {multiLineHwp && (
+                <div className="note note-warn" style={{ marginTop: 12 }}>
+                  .hwp 양식의 한 칸에 여러 줄을 넣으면 줄 끝까지 글자 사이가 벌어져 보일 수 있습니다. 그럴 땐 한글에서 그
+                  칸을 고른 뒤 <b>[왼쪽 정렬]</b> 을 누르세요. 양식을 한글에서 <b>[다른 이름으로 저장 → HWPX]</b> 로 한 번
+                  바꿔 넣어 두면 줄마다 문단이 나뉘어 이런 일이 없습니다.
+                </div>
+              )}
+
+              {slots.length + blanks.length > 0 && (
+                <div className="row" style={{ marginTop: 14 }}>
+                  <div className="field" style={{ flex: 1, minWidth: 220, marginBottom: 0 }}>
+                    <label>저장할 파일 이름</label>
+                    <input type="text" value={fileName} onChange={(e) => setFileName(e.target.value)} />
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    style={{ alignSelf: 'flex-end' }}
+                    onClick={() => void saveDirect()}
+                    disabled={busy}
+                  >
+                    {busy ? '만드는 중…' : `💾 한글 파일로 저장 (.${form.kind})`}
+                  </button>
+                </div>
+              )}
             </>
           )}
 
@@ -402,8 +380,8 @@ export default function HwpForms({ content, onContent, aliases, hasKey, onGo }: 
                 <>
                   <ModelPicker feature="scenario" label="양식 채우기에 쓸 모델" onReady={setModel} onChange={setModel} />
                   <div className="row" style={{ marginBottom: 12 }}>
-                    <button className="btn btn-primary" onClick={() => void runPlan()} disabled={busy || !content.trim()}>
-                      {busy && !rows.length ? 'AI 가 자리를 정하는 중…' : '🤖 AI로 자리 정하기'}
+                    <button className="btn btn-primary" onClick={runAi} disabled={!content.trim()}>
+                      {runKey ? '🤖 다시 채우기' : '🤖 AI로 자리 정하기'}
                     </button>
                   </div>
                 </>
@@ -416,86 +394,19 @@ export default function HwpForms({ content, onContent, aliases, hasKey, onGo }: 
                 </div>
               )}
 
-              {plan?.ok && rows.length > 0 && (
-                <>
-                  <div className="note note-info" style={{ marginBottom: 10 }}>
-                    아래 글이 양식의 각 자리에 들어갑니다. <b>저장하기 전에 고치거나 뺄 수 있습니다.</b>
-                  </div>
-                  <div className="list">
-                    {rows.map((r, i) => (
-                      <div className="item" key={r.id} style={{ opacity: r.on ? 1 : 0.5 }}>
-                        <div className="item-head">
-                          <label className="row" style={{ gap: 8, cursor: 'pointer' }}>
-                            <input
-                              type="checkbox"
-                              checked={r.on}
-                              onChange={(e) =>
-                                setRows((list) => list.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))
-                              }
-                            />
-                            <span className="item-title">{r.label}</span>
-                            <span className="muted small">{r.id}</span>
-                          </label>
-                        </div>
-                        {r.before.trim() && (
-                          <div className="muted small" style={{ margin: '4px 0 6px', whiteSpace: 'pre-wrap' }}>
-                            지금: {r.before.length > 160 ? `${r.before.slice(0, 160)}…` : r.before}
-                          </div>
-                        )}
-                        <textarea
-                          value={r.text}
-                          onChange={(e) =>
-                            setRows((list) => list.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))
-                          }
-                          style={{ minHeight: r.text.includes('\n') || r.text.length > 60 ? 120 : 44 }}
-                          disabled={!r.on}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  {plan.leftover.trim() && (
-                    <div className="note note-warn" style={{ marginTop: 10 }}>
-                      <b>양식에 알맞은 자리가 없어 넣지 못한 내용:</b> {plan.leftover}
-                    </div>
-                  )}
-                  <div className="row" style={{ marginTop: 8 }}>
-                    <button className="btn btn-sm btn-ghost" onClick={() => setShowSent((v) => !v)}>
-                      {showSent ? 'AI에 보낸 글 닫기' : 'AI에 보낸 글 보기'}
-                    </button>
-                  </div>
-                  {showSent && (
-                    <div className="scroll-box" style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>
-                      {plan.sentToAi}
-                    </div>
-                  )}
-                </>
+              {runKey > 0 && (
+                <FormFillCard
+                  key={runKey}
+                  form={{ id: form.id }}
+                  formName={form.name}
+                  kind={form.kind}
+                  content={runContent}
+                  fileName={fileName}
+                  model={model}
+                  aliases={aliases}
+                />
               )}
             </>
-          )}
-
-          {multiLineHwp && (
-            <div className="note note-warn" style={{ marginTop: 12 }}>
-              .hwp 양식의 한 칸에 여러 줄을 넣으면 줄 끝까지 글자 사이가 벌어져 보일 수 있습니다. 그럴 땐 한글에서 그 칸을
-              고른 뒤 <b>[왼쪽 정렬]</b> 을 누르세요. 양식을 한글에서 <b>[다른 이름으로 저장 → HWPX]</b> 로 한 번 바꿔
-              넣어 두면 줄마다 문단이 나뉘어 이런 일이 없습니다.
-            </div>
-          )}
-
-          {(method === '직접' ? slots.length + blanks.length > 0 : rows.length > 0) && (
-            <div className="row" style={{ marginTop: 14 }}>
-              <div className="field" style={{ flex: 1, minWidth: 220, marginBottom: 0 }}>
-                <label>저장할 파일 이름</label>
-                <input type="text" value={fileName} onChange={(e) => setFileName(e.target.value)} />
-              </div>
-              <button
-                className="btn btn-primary"
-                style={{ alignSelf: 'flex-end' }}
-                onClick={() => void (method === '직접' ? saveDirect() : saveAi())}
-                disabled={busy}
-              >
-                {busy ? '만드는 중…' : `💾 한글 파일로 저장 (.${form.kind})`}
-              </button>
-            </div>
           )}
         </div>
       )}
@@ -504,7 +415,7 @@ export default function HwpForms({ content, onContent, aliases, hasKey, onGo }: 
         <div className="note note-danger">{layout.error ?? '양식을 읽지 못했습니다.'}</div>
       )}
 
-      {result && (
+      {method === '직접' && result && (
         <div className="card">
           <div className="card-title">
             <span>3. 결과</span>

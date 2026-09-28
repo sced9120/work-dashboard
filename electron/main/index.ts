@@ -26,7 +26,7 @@ import {
 } from './ai'
 import { applyEdits, fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
-import type { FormEdit, FormFillResult } from '../../shared/hwpform'
+import type { FormEdit, FormFillResult, FormRef, HwpKind } from '../../shared/hwpform'
 import type { Deck, DesignSource } from '../../shared/slides'
 import {
   buildAliases,
@@ -60,6 +60,12 @@ import type {
 import { SUPPORTED_EXTENSIONS } from '../../shared/types'
 
 let mainWindow: BrowserWindow | null = null
+
+/**
+ * [파일 고르기] 창에서 사람이 고른 파일. 업무 도우미 대화에 올린 한글 파일을 양식으로
+ * 쓸 때, 화면이 넘긴 경로가 정말 사람이 고른 것인지 이것으로 확인한다.
+ */
+const pickedPaths = new Set<string>()
 let tray: Tray | null = null
 
 /** 진짜 종료하려는 중인지. 트레이로 숨기기와 구분하기 위한 것. */
@@ -371,20 +377,33 @@ function registerIpc(): void {
   ipcMain.handle('hwpforms:rename', (_e, id: number, name: string) => db.renameHwpForm(id, name))
   ipcMain.handle('hwpforms:delete', (_e, id: number) => db.deleteHwpForm(id))
 
-  ipcMain.handle('hwpforms:layout', async (_e, id: number) => {
-    const data = db.getHwpFormData(id)
-    if (!data) return { ok: false, kind: 'hwp', spots: [], slots: [], blanks: [], plain: '', error: '양식을 찾지 못했습니다.' }
-    return readLayout(data)
+  /** 넣어 둔 양식(id) 또는 대화에 올린 한글 파일(경로)을 읽는다 */
+  const loadForm = (ref: FormRef): { data: Uint8Array; name: string; kind: HwpKind } | null => {
+    if ('id' in ref) {
+      const data = db.getHwpFormData(ref.id)
+      const form = db.listHwpForms().find((f) => f.id === ref.id)
+      return data && form ? { data, name: form.name, kind: form.kind } : null
+    }
+    const full = path.resolve(ref.path)
+    if (!pickedPaths.has(full) || !fs.existsSync(full)) return null
+    const data = new Uint8Array(fs.readFileSync(full))
+    const kind = kindOf(data)
+    return kind ? { data, name: ref.name.replace(/\.(hwpx?)$/i, ''), kind } : null
+  }
+
+  ipcMain.handle('hwpforms:layout', async (_e, ref: FormRef) => {
+    const form = loadForm(ref)
+    if (!form) return { ok: false, kind: 'hwp', spots: [], slots: [], blanks: [], plain: '', error: '양식을 찾지 못했습니다.' }
+    return readLayout(form.data)
   })
 
   // AI 에게 어느 칸에 무엇을 넣을지 묻는다. 파일은 보내지 않고 글자 자리 목록만 보낸다.
   ipcMain.handle(
     'hwpforms:plan',
-    async (_e, args: { id: number; content: string; aliases: AliasPair[]; model?: ModelChoice }) => {
-      const data = db.getHwpFormData(args.id)
-      const form = db.listHwpForms().find((f) => f.id === args.id)
-      if (!data || !form) return { ok: false, edits: [], leftover: '', sentToAi: '', error: '양식을 찾지 못했습니다.' }
-      const layout = await readLayout(data)
+    async (_e, args: { ref: FormRef; content: string; aliases: AliasPair[]; model?: ModelChoice }) => {
+      const form = loadForm(args.ref)
+      if (!form) return { ok: false, edits: [], leftover: '', sentToAi: '', error: '양식을 찾지 못했습니다.' }
+      const layout = await readLayout(form.data)
       if (!layout.ok) return { ok: false, edits: [], leftover: '', sentToAi: '', error: layout.error }
       return planFormFill(loadLocalSettings(), {
         formName: form.name,
@@ -398,13 +417,13 @@ function registerIpc(): void {
   )
 
   const finishFill = async (
-    formId: number,
+    ref: FormRef,
     name: string,
     run: (data: Uint8Array) => Promise<{ data: Uint8Array; applied: number; missed: FormEdit[] }>
   ): Promise<FormFillResult> => {
-    const data = db.getHwpFormData(formId)
-    const form = db.listHwpForms().find((f) => f.id === formId)
-    if (!data || !form) return { ok: false, applied: 0, missed: [], message: '양식을 찾지 못했습니다.' }
+    const form = loadForm(ref)
+    if (!form) return { ok: false, applied: 0, missed: [], message: '양식을 찾지 못했습니다.' }
+    const data = form.data
     try {
       const out = await run(data)
       const labels = new Map((await readLayout(data)).spots.map((sp) => [sp.id, sp.label || sp.text.slice(0, 20)]))
@@ -421,14 +440,14 @@ function registerIpc(): void {
     }
   }
 
-  ipcMain.handle('hwpforms:save', (_e, args: { id: number; edits: FormEdit[]; name: string }) =>
-    finishFill(args.id, args.name, (data) => applyEdits(data, args.edits))
+  ipcMain.handle('hwpforms:save', (_e, args: { ref: FormRef; edits: FormEdit[]; name: string }) =>
+    finishFill(args.ref, args.name, (data) => applyEdits(data, args.edits))
   )
 
   ipcMain.handle(
     'hwpforms:fillSlots',
-    (_e, args: { id: number; values: Record<string, string>; blanks: Record<string, string>; name: string }) =>
-      finishFill(args.id, args.name, (data) => fillSlots(data, args.values, args.blanks))
+    (_e, args: { ref: FormRef; values: Record<string, string>; blanks: Record<string, string>; name: string }) =>
+      finishFill(args.ref, args.name, (data) => fillSlots(data, args.values, args.blanks))
   )
 
   // 양식 없이 글만으로 한글 문서를 만든다
@@ -608,7 +627,9 @@ function registerIpc(): void {
         { name: '모든 파일', extensions: ['*'] }
       ]
     })
-    return res.canceled ? [] : res.filePaths.map((p) => ({ path: p, name: path.basename(p) }))
+    if (res.canceled) return []
+    for (const p of res.filePaths) pickedPaths.add(path.resolve(p))
+    return res.filePaths.map((p) => ({ path: p, name: path.basename(p) }))
   })
 
   ipcMain.handle('files:extract', async (_e, filePath: string) => extractFile(filePath))
@@ -660,6 +681,8 @@ function registerIpc(): void {
       jobTitle: string
       history: ChatTurn[]
       files?: ChatFile[]
+      /** 이 대화에 올린 한글 파일 이름. 양식으로 쓸 수 있다고 도우미에게 알려 준다. */
+      formFiles?: string[]
       model?: ModelChoice
     }) => {
       // 가장 최근 질문을 근거로 관련 자료를 골라 함께 넘긴다.
@@ -675,12 +698,19 @@ function registerIpc(): void {
       const p = (n: number): string => String(n).padStart(2, '0')
       const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`
 
+      // 도우미가 "이 양식에 맞춰" 부탁을 받을 수 있게 쓸 수 있는 양식 이름을 알려 준다
+      const forms = [
+        ...db.listHwpForms().map((f) => f.name),
+        ...(args.formFiles ?? []).map((n) => `${n} (이 대화에 올린 파일)`)
+      ]
+
       return chatAnswer(
         loadLocalSettings(),
         args.jobTitle,
         args.history,
         [...attached, ...found],
         todayStr,
+        forms,
         args.model
       )
     }

@@ -3293,3 +3293,59 @@ textarea {
   padding: 1px 3px;
   text-align: center;
 }
+
+
+/* ---------- 양식 채우기 확인 카드 (한글 양식 탭 · 업무 도우미) ---------- */
+
+.fill-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 14px;
+}
+
+.fill-card.compact {
+  padding: 10px;
+  margin-top: 8px;
+}
+
+.fill-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.fill-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fill-row textarea {
+  margin-top: 4px;
+}
+
+.fill-before {
+  margin: 2px 0 0 23px;
+  white-space: pre-wrap;
+}
+
+.fill-card.compact .fill-rows {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.doc-content {
+  margin-bottom: 4px;
+}
+
+.doc-content summary {
+  cursor: pointer;
+}
+
+.tab.tab-link {
+  margin-left: auto;
+  color: var(--accent);
+}

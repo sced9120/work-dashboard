@@ -17,6 +17,7 @@ import { useToast } from '../lib/toast'
 import { todayStr } from '../lib/util'
 import ModelPicker from '../components/ModelPicker'
 import HwpForms from '../components/HwpForms'
+import { takeCommitteeTab } from '../lib/chatBridge'
 
 interface Props {
   onGo: (p: PageId) => void
@@ -102,6 +103,10 @@ export default function Committee({ onGo }: Props): JSX.Element {
   const ask = useConfirm()
 
   const [mode, setMode] = useState<Mode>('만들기')
+  // 업무 도우미에서 [양식 넣으러 가기] 로 왔으면 한글 양식 탭부터 연다
+  useEffect(() => {
+    if (takeCommitteeTab() === '한글') setMode('한글')
+  }, [])
   const [templates, setTemplates] = useState<Template[]>([])
   const [hasKey, setHasKey] = useState(true)
   const [model, setModel] = useState<ModelChoice | null>(null)
@@ -663,6 +668,13 @@ export default function Committee({ onGo }: Props): JSX.Element {
               {templates.length}
             </span>
           )}
+        </button>
+        <button
+          className="tab tab-link"
+          onClick={() => onGo('도우미')}
+          title="업무 도우미에게 말로 부탁해 문서를 만듭니다. 넣어 둔 한글 양식에 맞춰 파일로도 만들어 줍니다."
+        >
+          💬 도우미와 대화로 만들기
         </button>
       </div>
 
