@@ -21,7 +21,7 @@ interface ChatDoc {
   ref: FormRef | null
   kind: HwpKind | null
   formName: string
-  /** [이 내용으로 다시 채우기] 를 누를 때마다 늘려 확인 카드를 새로 그린다 */
+  /** [이 내용으로 다시 쓰기] 를 누를 때마다 늘려 확인 카드를 새로 그린다 */
   round: number
   /** 양식 없이 저장한 곳 */
   saved?: string
@@ -69,6 +69,8 @@ function findForm(
 /** 화면에 그리는 한 마디. 도우미 답에는 근거 자료 이름이 붙는다. */
 interface Msg extends ChatTurn {
   sources?: string[]
+  /** 근거로 실은 학교업무 도움자료의 자료 폴더 */
+  links?: { title: string; url: string }[]
   error?: boolean
   /** 이 마디와 함께 올린 파일 이름 */
   files?: string[]
@@ -110,12 +112,12 @@ function DocCard({
   const [busy, setBusy] = useState(false)
   const fileName = doc.req.fileName || `${doc.formName}_${todayStr()}`
 
-  // 양식을 찾았으면 곧바로 칸을 정한다 (저장은 확인한 뒤)
+  // 양식을 찾았으면 곧바로 양식을 틀로 새 문서를 쓴다 (저장은 확인한 뒤)
   if (doc.req.form && doc.ref && doc.kind) {
     return (
       <div className="plan">
         <details className="doc-content">
-          <summary className="small muted">도우미가 정리한 내용 ({doc.req.content.length.toLocaleString()}자) — 고쳐서 다시 채울 수 있습니다</summary>
+          <summary className="small muted">도우미가 정리한 내용 ({doc.req.content.length.toLocaleString()}자) — 고쳐서 다시 쓰게 할 수 있습니다</summary>
           <textarea value={draft} onChange={(e) => setDraft(e.target.value)} style={{ minHeight: 140, marginTop: 6 }} />
           <div className="row" style={{ marginTop: 6 }}>
             <button
@@ -123,7 +125,7 @@ function DocCard({
               onClick={() => onChange({ ...doc, req: { ...doc.req, content: draft }, round: doc.round + 1 })}
               disabled={!draft.trim()}
             >
-              이 내용으로 다시 채우기
+              이 내용으로 다시 쓰기
             </button>
           </div>
         </details>
@@ -153,7 +155,7 @@ function DocCard({
           <button
             className="btn btn-sm"
             onClick={() => {
-              queueCommitteeTab('한글')
+              queueCommitteeTab('보관함')
               onGo('위원회')
             }}
           >
@@ -368,6 +370,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
         role: 'assistant',
         content: answer || (plan.length ? '이렇게 넣을까요?' : doc ? '이렇게 만들어 볼게요.' : ''),
         sources: res.sources,
+        ...(res.links?.length ? { links: res.links } : {}),
         ...(plan.length ? { plan, picked: plan.map(() => true) } : {}),
         ...(doc ? { doc } : {})
       }
@@ -410,8 +413,10 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
           <b>일정이나 업무를 넣어 달라고 하셔도 됩니다.</b> 넣을 목록을 먼저 보여 드리고, 누르시면
           그때 들어갑니다.
           <br />
-          <b>"이런 내용으로 회의록 양식에 맞춰 만들어 줘"</b> 처럼 부탁하시면 넣어 둔 한글 양식의 칸을
-          채워 파일로 만들어 드립니다. [📎 파일] 로 올린 한글 파일을 양식으로 써도 됩니다.
+          <b>"이런 내용으로 회의록 양식에 맞춰 만들어 줘"</b> 처럼 부탁하시면 넣어 둔 한글 양식의 모양으로
+          새 한글 파일을 만들어 드립니다. [📎 파일] 로 올린 한글 파일을 양식으로 써도 됩니다.
+          <br />
+          교육청 <b>학교업무 도움자료</b>(업무흐름도·서식) 가운데 질문에 맞는 자료 폴더도 함께 찾아 드립니다.
         </p>
         <div className="chat-suggest">
           {[
@@ -572,6 +577,22 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
                       onGo={onGo}
                       onChange={(next) => setMsgs((prev) => prev.map((x, xi) => (xi === i ? { ...x, doc: next } : x)))}
                     />
+                  )}
+
+                  {m.links && m.links.length > 0 && (
+                    <div className="chat-sources">
+                      <span className="chat-sources-label">도움자료</span>
+                      {m.links.map((l) => (
+                        <button
+                          key={l.url}
+                          className="chat-source-chip chat-link-chip"
+                          title="교육청 학교업무 도움자료의 자료 폴더를 브라우저로 엽니다"
+                          onClick={() => void window.api.shell.open(l.url)}
+                        >
+                          📂 {l.title} ↗
+                        </button>
+                      ))}
+                    </div>
                   )}
 
                   {m.sources && m.sources.length > 0 && (

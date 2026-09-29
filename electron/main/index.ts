@@ -17,16 +17,26 @@ import {
   analyzeDocument,
   answerFromSources,
   chatAnswer,
+  composeFromForm,
   draftSlides,
   extractDocForm,
   generateDocDraft,
-  planFormFill,
   testConnection,
   type SlideDraftInput
 } from './ai'
-import { applyEdits, fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
+import { fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
+import { buildFromFrame, readFrame } from './hwpgen'
+import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
-import type { FormEdit, FormFillResult, FormRef, HwpKind } from '../../shared/hwpform'
+import type {
+  ComposeResult,
+  DocItem,
+  FormEdit,
+  FormFillResult,
+  FormRef,
+  FrameLayout,
+  HwpKind
+} from '../../shared/hwpform'
 import type { Deck, DesignSource } from '../../shared/slides'
 import {
   buildAliases,
@@ -345,7 +355,8 @@ function registerIpc(): void {
   ipcMain.handle('hwpforms:list', () => db.listHwpForms())
 
   // 양식 파일을 골라 보관한다. 이름·번호가 보이면 화면에서 알려 줄 수 있게 함께 돌려준다.
-  ipcMain.handle('hwpforms:add', async () => {
+  // 문서 만들기에서 어떤 문서를 고른 채로 넣으면 그 문서의 양식으로 묶어 둔다.
+  ipcMain.handle('hwpforms:add', async (_e, docKind?: string) => {
     if (!mainWindow) return { added: [], errors: [] }
     const res = await dialog.showOpenDialog(mainWindow, {
       title: '학교 한글 양식 고르기',
@@ -366,6 +377,7 @@ function registerIpc(): void {
         if (!layout.ok) throw new Error(layout.error || '읽지 못했습니다.')
         const personal = [...findNameCandidates(layout.plain), ...findIdNumbers(layout.plain)].slice(0, 8)
         const id = db.addHwpForm(name.replace(/\.(hwpx?)$/i, ''), name, kind, data)
+        if (typeof docKind === 'string' && docKind) db.linkHwpForm(id, docKind)
         added.push({ id, name, personal })
       } catch (e) {
         errors.push(`${name}: ${e instanceof Error ? e.message : String(e)}`)
@@ -375,6 +387,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('hwpforms:rename', (_e, id: number, name: string) => db.renameHwpForm(id, name))
+  ipcMain.handle('hwpforms:link', (_e, id: number, docKind: string) => db.linkHwpForm(id, String(docKind ?? '')))
   ipcMain.handle('hwpforms:delete', (_e, id: number) => db.deleteHwpForm(id))
 
   /** 넣어 둔 양식(id) 또는 대화에 올린 한글 파일(경로)을 읽는다 */
@@ -397,24 +410,45 @@ function registerIpc(): void {
     return readLayout(form.data)
   })
 
-  // AI 에게 어느 칸에 무엇을 넣을지 묻는다. 파일은 보내지 않고 글자 자리 목록만 보낸다.
+  // 양식의 모양(문단·표·글상자). 새 문서를 만들 때 본뜰 틀이다.
+  ipcMain.handle('hwpforms:frame', (_e, ref: FormRef): FrameLayout => {
+    const form = loadForm(ref)
+    if (!form) return { ok: false, kind: 'hwp', blocks: [], tables: [], boxes: [], notes: [], error: '양식을 찾지 못했습니다.' }
+    return readFrame(form.data)
+  })
+
+  // 양식을 틀로 AI 가 새 문서의 글을 쓴다. 파일은 보내지 않고 양식의 모습만 보낸다.
   ipcMain.handle(
-    'hwpforms:plan',
-    async (_e, args: { ref: FormRef; content: string; aliases: AliasPair[]; model?: ModelChoice }) => {
+    'hwpforms:compose',
+    (_e, args: { ref: FormRef; content: string; aliases: AliasPair[]; guide?: string; model?: ModelChoice }): Promise<ComposeResult> | ComposeResult => {
       const form = loadForm(args.ref)
-      if (!form) return { ok: false, edits: [], leftover: '', sentToAi: '', error: '양식을 찾지 못했습니다.' }
-      const layout = await readLayout(form.data)
-      if (!layout.ok) return { ok: false, edits: [], leftover: '', sentToAi: '', error: layout.error }
-      return planFormFill(loadLocalSettings(), {
+      if (!form) return { ok: false, items: [], note: '', sentToAi: '', error: '양식을 찾지 못했습니다.' }
+      return composeFromForm(loadLocalSettings(), {
         formName: form.name,
-        spots: layout.spots,
+        data: form.data,
         content: args.content,
         aliases: args.aliases,
         schoolName: db.getSetting('school_name', ''),
+        guide: typeof args.guide === 'string' ? args.guide : '',
         override: args.model
       })
     }
   )
+
+  // 쓴 글을 양식의 모양으로 한글 파일로 만든다
+  ipcMain.handle('hwpforms:build', async (_e, args: { ref: FormRef; items: DocItem[]; name: string }) => {
+    const form = loadForm(args.ref)
+    if (!form) return { ok: false, message: '양식을 찾지 못했습니다.', notes: [] }
+    try {
+      const { data, notes } = buildFromFrame(form.data, args.items)
+      const target = await saveAs('한글 문서로 저장', args.name || form.name, form.kind, form.kind === 'hwp' ? '한글 문서' : '한글 표준 문서')
+      if (!target) return { ok: false, message: '저장을 취소했습니다.', notes }
+      writeOut(target, data)
+      return { ok: true, path: target, message: `저장했습니다: ${target}`, notes }
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e), notes: [] }
+    }
+  })
 
   const finishFill = async (
     ref: FormRef,
@@ -439,10 +473,6 @@ function registerIpc(): void {
       return { ok: false, applied: 0, missed: [], message: e instanceof Error ? e.message : String(e) }
     }
   }
-
-  ipcMain.handle('hwpforms:save', (_e, args: { ref: FormRef; edits: FormEdit[]; name: string }) =>
-    finishFill(args.ref, args.name, (data) => applyEdits(data, args.edits))
-  )
 
   ipcMain.handle(
     'hwpforms:fillSlots',
@@ -694,6 +724,9 @@ function registerIpc(): void {
         .filter((f) => f.text.trim())
         .map((f) => ({ label: `올린 파일: ${f.name}`, text: f.text, room: 12000 }))
 
+      // 교육청 학교업무 도움자료 가운데 질문에 맞는 자료 폴더. 파일 이름만 있어서 짧게 싣는다.
+      const helps = lastUser ? helpForChat(lastUser.content) : []
+
       const today = new Date()
       const p = (n: number): string => String(n).padStart(2, '0')
       const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`
@@ -704,16 +737,27 @@ function registerIpc(): void {
         ...(args.formFiles ?? []).map((n) => `${n} (이 대화에 올린 파일)`)
       ]
 
-      return chatAnswer(
+      const res = await chatAnswer(
         loadLocalSettings(),
         args.jobTitle,
         args.history,
-        [...attached, ...found],
+        [...attached, ...found, ...helps.map((h) => ({ label: h.label, text: h.text, room: 2500 }))],
         todayStr,
         forms,
-        args.model
+        args.model,
+        myHelpLine()
       )
+      // 실제로 실린 도움자료만 버튼으로 내준다
+      const links = helps.filter((h) => res.sources.includes(h.label)).map((h) => ({ title: h.title, url: h.url }))
+      return links.length ? { ...res, links } : res
     }
+  )
+
+  /* ---------- 학교업무 도움자료 ---------- */
+  ipcMain.handle('help:catalog', () => helpCatalog())
+  ipcMain.handle('help:match', (_e, text: string, level: string) => helpMatch(String(text ?? ''), String(level ?? '')))
+  ipcMain.handle('help:search', (_e, query: string, limit?: number) =>
+    helpSearch(String(query ?? ''), typeof limit === 'number' ? limit : 15)
   )
 
   /* ---------- 백업 / 복구 ---------- */

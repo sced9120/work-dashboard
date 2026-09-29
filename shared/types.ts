@@ -591,6 +591,8 @@ export interface ChatReply {
    * 넣는 것은 사람이 확인하고 누를 때만 일어난다.
    */
   plan?: string
+  /** 근거로 실은 학교업무 도움자료의 자료 폴더. 말풍선 아래 버튼으로 연다. */
+  links?: { title: string; url: string }[]
   error?: string
 }
 

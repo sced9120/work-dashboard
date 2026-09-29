@@ -9,6 +9,7 @@ import {
   isCustom,
   parseCustomForm
 } from '../../shared/docforms'
+import type { HwpForm } from '../../shared/hwpform'
 import type { AliasPair, ModelChoice, Template, TemplateInput } from '../../shared/types'
 import { ROLES } from '../../shared/types'
 import type { PageId } from '../App'
@@ -16,7 +17,9 @@ import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 import { todayStr } from '../lib/util'
 import ModelPicker from '../components/ModelPicker'
-import HwpForms from '../components/HwpForms'
+import FormFillCard from '../components/FormFillCard'
+import { HwpFormMaker, HwpFormShelf, PersonalNote, pickHwpForms } from '../components/HwpForms'
+import type { Method, PersonalWarn } from '../components/HwpForms'
 import { takeCommitteeTab } from '../lib/chatBridge'
 
 interface Props {
@@ -28,7 +31,12 @@ interface NameRow {
   role: string
 }
 
-type Mode = '만들기' | '서식' | '한글' | '예시'
+/**
+ * 만들기: 문서를 고르고 → 모양(우리 학교 한글 양식 / 글 초안)을 고르고 → 내용을 채워 만든다.
+ * 보관함: 한글 양식 파일과 글 예시를 넣어 두고 어느 문서의 것인지 묶는다.
+ * 서식: {{칸}} 만 채우는 글 서식 (인터넷 안 씀).
+ */
+type Mode = '만들기' | '서식' | '보관함'
 
 const BLANK_TEMPLATE: TemplateInput = { name: '', kind: '', content: '', added_at: '' }
 
@@ -103,9 +111,9 @@ export default function Committee({ onGo }: Props): JSX.Element {
   const ask = useConfirm()
 
   const [mode, setMode] = useState<Mode>('만들기')
-  // 업무 도우미에서 [양식 넣으러 가기] 로 왔으면 한글 양식 탭부터 연다
+  // 업무 도우미에서 [양식 넣으러 가기] 로 왔으면 보관함부터 연다
   useEffect(() => {
-    if (takeCommitteeTab() === '한글') setMode('한글')
+    if (takeCommitteeTab() === '보관함') setMode('보관함')
   }, [])
   const [templates, setTemplates] = useState<Template[]>([])
   const [hasKey, setHasKey] = useState(true)
@@ -124,8 +132,22 @@ export default function Committee({ onGo }: Props): JSX.Element {
   const [offIds, setOffIds] = useState<number[]>([])
   const [result, setResult] = useState('')
   const [busy, setBusy] = useState(false)
-  /** [우리 학교 한글 양식] 으로 넘길 글 */
-  const [hwpContent, setHwpContent] = useState('')
+
+  /* 우리 학교 한글 양식 */
+  const [hwpForms, setHwpForms] = useState<HwpForm[]>([])
+  /** 문서를 한글 양식의 모양으로 만들지(true), 글 초안으로 만들지(false) */
+  const [useHwp, setUseHwp] = useState(false)
+  const [hwpId, setHwpId] = useState<number | null>(null)
+  /** [만들기] 를 누를 때마다 늘려서 양식 카드를 새로 그린다 */
+  const [composeKey, setComposeKey] = useState(0)
+  const [composeContent, setComposeContent] = useState('')
+  /** 글 초안을 한글 양식에 옮겨 담기 */
+  const [pourId, setPourId] = useState<number | null>(null)
+  const [pourKey, setPourKey] = useState(0)
+  const [personal, setPersonal] = useState<PersonalWarn[]>([])
+  /** 문서 종류 없이 양식 하나로 바로 만들기 */
+  const [direct, setDirect] = useState<{ id: number; method: Method } | null>(null)
+  const [directContent, setDirectContent] = useState('')
 
   /* 가명처리 */
   const [names, setNames] = useState<NameRow[]>([])
@@ -171,6 +193,12 @@ export default function Committee({ onGo }: Props): JSX.Element {
     setOffIds((prev) => prev.filter((id) => list.some((t) => t.id === id)))
   }, [])
 
+  const loadHwp = useCallback(async (): Promise<HwpForm[]> => {
+    const list = await window.api.hwp.list()
+    setHwpForms(list)
+    return list
+  }, [])
+
   const loadCustomForms = useCallback(async () => {
     const rows = await window.api.setting.byPrefix(CUSTOM_PREFIX)
     const parsed: DocForm[] = []
@@ -185,10 +213,11 @@ export default function Committee({ onGo }: Props): JSX.Element {
     void (async () => {
       await loadTemplates()
       await loadCustomForms()
+      await loadHwp()
       const s = await window.api.local.load()
       setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key))
     })()
-  }, [loadTemplates, loadCustomForms])
+  }, [loadTemplates, loadCustomForms, loadHwp])
 
   // 이름 목록이 바뀌면 가명을 다시 매긴다.
   useEffect(() => {
@@ -212,6 +241,13 @@ export default function Committee({ onGo }: Props): JSX.Element {
 
   const allText = (): string => Object.values(values).join('\n')
 
+  /** 이 문서의 양식으로 묶어 둔 한글 양식을 앞에, 나머지를 뒤에 */
+  const linkedForms = useMemo(() => hwpForms.filter((f) => f.doc_kind === formId), [hwpForms, formId])
+  const otherForms = useMemo(() => hwpForms.filter((f) => f.doc_kind !== formId), [hwpForms, formId])
+  const hwpForm = hwpForms.find((f) => f.id === hwpId) ?? null
+  const directForm = direct ? (hwpForms.find((f) => f.id === direct.id) ?? null) : null
+  const docName = (id: string): string => allForms.find((f) => f.id === id)?.name ?? ''
+
   /* ---------- 문서 종류 고르기 ---------- */
 
   const chooseForm = (f: DocForm): void => {
@@ -222,6 +258,45 @@ export default function Committee({ onGo }: Props): JSX.Element {
     setShowNames(!!f.personal)
     // 이 종류로 넣어 둔 예시는 모두 켠 채로 시작한다. 넣어 둔 이유가 쓰려는 것이기 때문이다.
     setOffIds([])
+    // 이 문서의 한글 양식을 묶어 두었으면 그 모양으로 만드는 것이 먼저다
+    const linked = hwpForms.find((h) => h.doc_kind === f.id)
+    setUseHwp(!!linked)
+    setHwpId(linked?.id ?? hwpForms[0]?.id ?? null)
+    setComposeKey(0)
+    setPourId(null)
+    setPourKey(0)
+    setPersonal([])
+    setDirect(null)
+  }
+
+  const backToList = (): void => {
+    setFormId('')
+    setResult('')
+    setFormEditor(null)
+    setDirect(null)
+    setComposeKey(0)
+    setPourKey(0)
+  }
+
+  /** 문서 종류 없이 양식 하나로 바로 만든다 */
+  const openDirect = (f: HwpForm, method: Method = 'AI'): void => {
+    setFormId('')
+    setFormEditor(null)
+    setResult('')
+    setDirect({ id: f.id, method })
+    setMode('만들기')
+  }
+
+  /** 한글 양식을 넣는다. 문서를 고른 채면 그 문서의 양식으로 묶고 곧바로 고른다. */
+  const addHwp = async (docKind?: string): Promise<void> => {
+    const res = await pickHwpForms(toast, docKind)
+    if (!res.ids.length) return
+    setPersonal(res.personal)
+    await loadHwp()
+    if (docKind) {
+      setHwpId(res.ids[0])
+      setUseHwp(true)
+    }
   }
 
   /* ---------- 가명처리 ---------- */
@@ -286,6 +361,47 @@ export default function Committee({ onGo }: Props): JSX.Element {
     }
   }
 
+  /** 채운 칸을 "이름: 내용" 으로 이어 붙인다. 양식으로 만들 때 AI 에게 넘길 글이다. */
+  const valuesText = (): string => {
+    if (!form) return ''
+    return form.fields
+      .map((f) => {
+        const v = (values[f.key] ?? '').trim()
+        if (!v) return ''
+        return v.includes('\n') ? `${f.label}:\n${v}` : `${f.label}: ${v}`
+      })
+      .filter(Boolean)
+      .join('\n')
+  }
+
+  /** 양식으로 만들 때 AI 에게 알려 줄 문서 종류와 쓰는 법 */
+  const guideText = (): string => {
+    if (!form) return ''
+    return [
+      `문서: ${form.name}${form.summary ? ` — ${form.summary}` : ''}`,
+      `들어가는 항목(참고): ${form.outline.join(' / ')}`,
+      form.guide ? `쓰는 법: ${form.guide}` : ''
+    ]
+      .filter(Boolean)
+      .join('\n')
+  }
+
+  /** 고른 한글 양식의 모양으로 만든다. 묶지 않은 양식이면 이 문서의 양식으로 묶어 둔다. */
+  const composeHwp = async (): Promise<void> => {
+    if (!form || !hwpForm) return
+    if (missing.length) {
+      toast(`${missing.join(', ')} 을(를) 적어 주세요.`, 'err')
+      return
+    }
+    if (!hwpForm.doc_kind) {
+      await window.api.hwp.link(hwpForm.id, form.id)
+      await loadHwp()
+      toast(`'${hwpForm.name}' 을(를) ${form.name} 양식으로 묶어 두었습니다. 다음부터 먼저 골라집니다.`, 'ok')
+    }
+    setComposeContent(valuesText())
+    setComposeKey((k) => k + 1)
+  }
+
   /** 결과에 이름을 붙일 때 쓸 대표 값 — 제목·사안명 같은 첫 한 줄짜리 칸 */
   const resultName = (): string => {
     if (!form) return '문서'
@@ -306,10 +422,14 @@ export default function Committee({ onGo }: Props): JSX.Element {
     if (res.ok && res.path) await window.api.hwp.open(res.path)
   }
 
-  /** 만든 초안을 학교 한글 양식에 옮겨 담으러 간다 */
+  /** 만든 초안을 학교 한글 양식에 옮겨 담는다. 이 문서의 양식이 있으면 그것부터 고른다. */
   const toHwpForm = (): void => {
-    setHwpContent(result)
-    setMode('한글')
+    if (!hwpForms.length) {
+      toast('넣어 둔 한글 양식이 없습니다. 위 [1. 어떤 모양으로 만들까요?] 의 [＋ 한글 양식 넣기] 로 넣어 주세요.', 'err')
+      return
+    }
+    setPourId(linkedForms[0]?.id ?? hwpForms[0]?.id ?? null)
+    setPourKey(0)
   }
 
   /** 만든 것을 다음에 쓸 예시로 남긴다. 쓸수록 다음 문서가 이 학교 형식에 가까워진다. */
@@ -646,28 +766,25 @@ export default function Committee({ onGo }: Props): JSX.Element {
       <div className="page-head">
         <h1>학교 문서 만들기</h1>
         <p>
-          회의록 · 진술서 · 계획서 · 가정통신문을 서식에 맞춰 만듭니다. 예전에 쓰던 문서를 예시로
-          넣어 두면 그 형식을 그대로 따릅니다.
+          만들 문서를 고르고 내용을 채우면 됩니다. 우리 학교 한글 양식을 넣어 두면 그 양식의 글꼴·문단 모양·구성
+          그대로 한글 파일이 나오고, 양식이 없으면 글로 초안을 만듭니다.
         </p>
       </div>
 
       <div className="tabs">
         <button className={`tab ${mode === '만들기' ? 'active' : ''}`} onClick={() => setMode('만들기')}>
-          ✍ 문서 만들기 (AI)
+          ✍ 문서 만들기
+        </button>
+        <button className={`tab ${mode === '보관함' ? 'active' : ''}`} onClick={() => setMode('보관함')}>
+          🗂 양식 · 예시 보관함
+          {hwpForms.length + templates.length > 0 && (
+            <span className="badge" style={{ marginLeft: 6 }}>
+              {hwpForms.length + templates.length}
+            </span>
+          )}
         </button>
         <button className={`tab ${mode === '서식' ? 'active' : ''}`} onClick={() => setMode('서식')}>
           📄 빈칸 채우기 (AI 안 씀)
-        </button>
-        <button className={`tab ${mode === '한글' ? 'active' : ''}`} onClick={() => setMode('한글')}>
-          📑 우리 학교 한글 양식
-        </button>
-        <button className={`tab ${mode === '예시' ? 'active' : ''}`} onClick={() => setMode('예시')}>
-          📚 예시 보관함
-          {templates.length > 0 && (
-            <span className="badge" style={{ marginLeft: 6 }}>
-              {templates.length}
-            </span>
-          )}
         </button>
         <button
           className="tab tab-link"
@@ -679,15 +796,15 @@ export default function Committee({ onGo }: Props): JSX.Element {
       </div>
 
       {/* ══════════ 문서 만들기 ══════════ */}
-      {mode === '만들기' && !form && (
+      {mode === '만들기' && !form && !directForm && (
         <>
           <div className="note note-info" style={{ marginBottom: 14 }}>
-            <b>예시가 없어도 됩니다.</b> 문서마다 들어갈 항목을 프로그램이 알고 있어서, 내용만
-            채우면 바로 나옵니다. 우리 학교 서식이 따로 있으면 <b>[📚 예시 보관함]</b> 에 한 번
-            넣어 두세요. 그 뒤로는 그 형식을 그대로 따릅니다.
+            <b>양식이 없어도 됩니다.</b> 문서마다 들어갈 항목을 프로그램이 알고 있어서, 내용만 채우면 바로
+            나옵니다. 학교에서 쓰던 한글 파일이 있으면 <b>[🗂 양식 · 예시 보관함]</b> 에 넣고 어느 문서의 양식인지
+            골라 두세요. 그 문서를 고르면 <b>저장된 양식을 먼저 골라</b> 그 모양 그대로 한글 파일로 만들어 드립니다.
             <div style={{ marginTop: 6 }}>
-              맡으신 업무에 필요한 문서가 없다면 맨 아래 <b>[＋ 문서 종류 직접 만들기]</b> 로
-              만들어 쓰실 수 있습니다.
+              맡으신 업무에 필요한 문서가 없다면 맨 아래 <b>[＋ 문서 종류 직접 만들기]</b> 로 만들어 쓰실 수
+              있습니다.
             </div>
           </div>
 
@@ -700,6 +817,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
                 <div className="pickgrid">
                   {list.map((f) => {
                     const n = templates.filter((t) => t.kind === f.id).length
+                    const h = hwpForms.filter((x) => x.doc_kind === f.id).length
                     return (
                       <button key={f.id} className="pickcard" onClick={() => chooseForm(f)}>
                         <span className="pickcard-icon">{f.icon}</span>
@@ -707,8 +825,11 @@ export default function Committee({ onGo }: Props): JSX.Element {
                           <span className="pickcard-name">{f.name}</span>
                           <span className="pickcard-sum">{f.summary || '직접 만든 서식'}</span>
                         </span>
-                        {isCustom(f) && <span className="badge">내가 만든</span>}
-                        {n > 0 && <span className="badge badge-accent">예시 {n}</span>}
+                        <span className="pickcard-badges">
+                          {isCustom(f) && <span className="badge">내가 만든</span>}
+                          {h > 0 && <span className="badge badge-accent">📑 양식 {h}</span>}
+                          {n > 0 && <span className="badge">예시 {n}</span>}
+                        </span>
                       </button>
                     )
                   })}
@@ -716,6 +837,37 @@ export default function Committee({ onGo }: Props): JSX.Element {
               </div>
             )
           })}
+
+          <div className="card">
+            <div className="card-title">
+              <span>📑 우리 학교 한글 양식으로 바로 만들기</span>
+              <button className="btn btn-sm" onClick={() => void addHwp()}>
+                ＋ 한글 양식 넣기
+              </button>
+            </div>
+            <PersonalNote list={personal} onClose={() => setPersonal([])} />
+            {hwpForms.length === 0 ? (
+              <p className="hint" style={{ margin: 0 }}>
+                위에 맞는 문서가 없어도, 학교에서 쓰던 한글 파일(.hwp · .hwpx)을 넣으면 그 양식으로 바로 새 문서를
+                만들 수 있습니다.
+              </p>
+            ) : (
+              <div className="pickgrid">
+                {hwpForms.map((h) => (
+                  <button key={h.id} className="pickcard" onClick={() => openDirect(h)}>
+                    <span className="pickcard-icon">📑</span>
+                    <span className="pickcard-body">
+                      <span className="pickcard-name">{h.name}</span>
+                      <span className="pickcard-sum">
+                        .{h.kind}
+                        {docName(h.doc_kind) ? ` · ${docName(h.doc_kind)} 양식` : ' · 문서 종류 없이 이 양식으로 만들기'}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="card">
             <div className="card-title">
@@ -907,14 +1059,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
                     </button>
                   </>
                 )}
-                <button
-                  className="btn btn-sm btn-ghost"
-                  onClick={() => {
-                    setFormId('')
-                    setResult('')
-                    setFormEditor(null)
-                  }}
-                >
+                <button className="btn btn-sm btn-ghost" onClick={backToList}>
                   ← 다른 문서
                 </button>
               </div>
@@ -949,9 +1094,94 @@ export default function Committee({ onGo }: Props): JSX.Element {
             )}
           </div>
 
-          {/* 1. 내용 */}
+          {/* 1. 모양 */}
           <div className="card">
-            <div className="card-title">1. 내용 채우기</div>
+            <div className="card-title">
+              <span>1. 어떤 모양으로 만들까요?</span>
+              <button className="btn btn-sm" onClick={() => void addHwp(form.id)}>
+                ＋ 한글 양식 넣기
+              </button>
+            </div>
+            <PersonalNote list={personal} onClose={() => setPersonal([])} />
+            <div className="look-list">
+              <label className={`look ${useHwp && hwpForm ? 'on' : ''} ${hwpForms.length ? '' : 'off'}`}>
+                <input
+                  type="radio"
+                  checked={useHwp && !!hwpForm}
+                  disabled={!hwpForms.length}
+                  onChange={() => {
+                    setUseHwp(true)
+                    if (!hwpForm) setHwpId(linkedForms[0]?.id ?? hwpForms[0]?.id ?? null)
+                  }}
+                />
+                <span className="look-body">
+                  <span className="look-name">📑 저장된 우리 학교 한글 양식으로</span>
+                  {hwpForms.length ? (
+                    <>
+                      <select
+                        value={hwpId ?? ''}
+                        onChange={(e) => {
+                          setHwpId(Number(e.target.value))
+                          setUseHwp(true)
+                          setComposeKey(0)
+                        }}
+                      >
+                        {linkedForms.length > 0 && (
+                          <optgroup label={`${form.name} 양식`}>
+                            {linkedForms.map((h) => (
+                              <option key={h.id} value={h.id}>
+                                {h.name} (.{h.kind})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {otherForms.length > 0 && (
+                          <optgroup label={linkedForms.length ? '다른 양식' : '넣어 둔 양식'}>
+                            {otherForms.map((h) => (
+                              <option key={h.id} value={h.id}>
+                                {h.name} (.{h.kind}){docName(h.doc_kind) ? ` — ${docName(h.doc_kind)}` : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </select>
+                      <span className="look-sum">
+                        양식의 글꼴 · 문단 모양 · 구성 그대로 새 한글 파일을 만듭니다. 모르는 자리를 ( ) 로 남기지
+                        않습니다.
+                        {hwpForm && (
+                          <>
+                            {' '}
+                            <button className="link" onClick={() => openDirect(hwpForm, '직접')}>
+                              AI 없이 빈칸만 채우기 →
+                            </button>
+                          </>
+                        )}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="look-sum">
+                      학교에서 쓰던 {form.name} 한글 파일을 <b>[＋ 한글 양식 넣기]</b> 로 넣어 두면 그 모양 그대로
+                      만들어 드립니다. 다음부터는 이 문서를 고르면 그 양식이 먼저 골라집니다.
+                    </span>
+                  )}
+                </span>
+              </label>
+              <label className={`look ${!useHwp || !hwpForm ? 'on' : ''}`}>
+                <input type="radio" checked={!useHwp || !hwpForm} onChange={() => setUseHwp(false)} />
+                <span className="look-body">
+                  <span className="look-name">📝 글로 초안 만들기</span>
+                  <span className="look-sum">
+                    들어갈 항목에 맞춰 글로 만듭니다. 복사해 붙이거나 한글 기본 모양(.hwpx)으로 저장합니다. 우리 학교
+                    글 예시를 넣어 두면 그 형식을 따릅니다.
+                  </span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* 2. 내용 */}
+          <div className="card">
+            <div className="card-title">2. 내용 채우기</div>
             {form.fields.map((f) => (
               <div className="field" key={f.key}>
                 <label>
@@ -977,14 +1207,21 @@ export default function Committee({ onGo }: Props): JSX.Element {
               </div>
             ))}
             <p className="hint" style={{ marginBottom: 0 }}>
-              비워 둔 칸은 <b>빈칸으로</b> 나옵니다. 프로그램이 지어내지 않습니다.
+              {useHwp && hwpForm ? (
+                <>비워 둔 칸의 내용은 문서에서 뺍니다. 프로그램이 지어내거나 ( ) 로 남기지 않습니다.</>
+              ) : (
+                <>
+                  비워 둔 칸은 <b>빈칸으로</b> 나옵니다. 프로그램이 지어내지 않습니다.
+                </>
+              )}
             </p>
           </div>
 
-          {/* 2. 예시 */}
+          {/* 3. 예시 — 한글 양식으로 만들 때는 양식이 본보기라서 쓰지 않는다 */}
+          {!(useHwp && hwpForm) && (
           <div className="card">
             <div className="card-title">
-              <span>2. 우리 학교 예시 (선택)</span>
+              <span>3. 우리 학교 글 예시 (선택)</span>
               <button className="btn btn-sm" onClick={() => openExampleEditor(form.id)}>
                 ＋ 예시 넣기
               </button>
@@ -1046,11 +1283,12 @@ export default function Committee({ onGo }: Props): JSX.Element {
             )}
             {exampleEditor}
           </div>
+          )}
 
-          {/* 3. 가명처리 */}
+          {/* 가명처리 */}
           <div className="card">
             <div className="card-title">
-              <span>3. 가명처리 · 전송 확인</span>
+              <span>{useHwp && hwpForm ? '3' : '4'}. 가명처리 · 전송 확인</span>
               <div className="row">
                 {showNames && (
                   <button className="btn btn-sm" onClick={() => void findNames()}>
@@ -1161,9 +1399,11 @@ export default function Committee({ onGo }: Props): JSX.Element {
             )}
           </div>
 
-          {/* 4. 만들기 */}
+          {/* 만들기 */}
           <div className="card">
-            <div className="card-title">4. 초안 만들기</div>
+            <div className="card-title">
+              {useHwp && hwpForm ? `4. 한글 파일로 만들기` : '5. 초안 만들기'}
+            </div>
             {hasKey && (
               <ModelPicker
                 feature="scenario"
@@ -1173,14 +1413,26 @@ export default function Committee({ onGo }: Props): JSX.Element {
               />
             )}
             <div className="row">
-              <button
-                className="btn btn-primary"
-                onClick={() => void generate()}
-                disabled={busy || !hasKey || missing.length > 0}
-              >
-                {busy ? '만드는 중…' : `${form.name} 만들기`}
-              </button>
-              {exampleIds.length > 0 ? (
+              {useHwp && hwpForm ? (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => void composeHwp()}
+                  disabled={!hasKey || missing.length > 0}
+                >
+                  {composeKey ? '🤖 다시 만들기' : `📑 「${hwpForm.name}」 모양으로 만들기`}
+                </button>
+              ) : (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => void generate()}
+                  disabled={busy || !hasKey || missing.length > 0}
+                >
+                  {busy ? '만드는 중…' : `${form.name} 만들기`}
+                </button>
+              )}
+              {useHwp && hwpForm ? (
+                <span className="badge badge-accent">.{hwpForm.kind} 양식의 모양을 따릅니다</span>
+              ) : exampleIds.length > 0 ? (
                 <span className="badge badge-accent">예시 {exampleIds.length}건을 따릅니다</span>
               ) : myExamples.length > 0 ? (
                 <span className="badge badge-warn">예시를 모두 껐습니다 · 기본 뼈대로 만듭니다</span>
@@ -1201,7 +1453,21 @@ export default function Committee({ onGo }: Props): JSX.Element {
             </div>
           </div>
 
-          {result && (
+          {useHwp && hwpForm && composeKey > 0 && (
+            <FormFillCard
+              key={`${hwpForm.id}-${composeKey}`}
+              form={{ id: hwpForm.id }}
+              formName={hwpForm.name}
+              kind={hwpForm.kind}
+              content={composeContent}
+              fileName={resultName()}
+              model={model}
+              aliases={aliases}
+              guide={guideText()}
+            />
+          )}
+
+          {!(useHwp && hwpForm) && result && (
             <div className="card">
               <div className="card-title">
                 <span>결과</span>
@@ -1233,7 +1499,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
                   <button
                     className="btn btn-sm btn-primary"
                     onClick={toHwpForm}
-                    title="넣어 둔 학교 한글 양식의 칸에 이 글을 옮겨 담습니다"
+                    title="넣어 둔 학교 한글 양식의 모양으로 이 글을 새 한글 문서로 만듭니다"
                   >
                     📑 학교 양식에 담기
                   </button>
@@ -1252,6 +1518,93 @@ export default function Committee({ onGo }: Props): JSX.Element {
               />
             </div>
           )}
+
+          {/* 글 초안을 한글 양식에 옮겨 담기 */}
+          {!(useHwp && hwpForm) && result && pourId !== null && (
+            <div className="card">
+              <div className="card-title">
+                <span>📑 학교 한글 양식에 담기</span>
+                <button className="btn btn-sm btn-ghost" onClick={() => setPourId(null)}>
+                  닫기
+                </button>
+              </div>
+              <div className="row">
+                <select
+                  value={pourId}
+                  onChange={(e) => {
+                    setPourId(Number(e.target.value))
+                    setPourKey(0)
+                  }}
+                  style={{ flex: 1, minWidth: 200 }}
+                >
+                  {[...linkedForms, ...otherForms].map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name} (.{h.kind}){docName(h.doc_kind) ? ` — ${docName(h.doc_kind)}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <button className="btn btn-primary" onClick={() => setPourKey((k) => k + 1)} disabled={!hasKey}>
+                  {pourKey ? '🤖 다시 담기' : '🤖 이 양식에 담기'}
+                </button>
+              </div>
+              <p className="hint" style={{ marginBottom: 0 }}>
+                위 초안을 양식의 구성에 맞춰 다시 써서, 양식의 글꼴 · 문단 모양 그대로 한글 파일로 만듭니다.
+              </p>
+              {pourKey > 0 &&
+                (() => {
+                  const h = hwpForms.find((x) => x.id === pourId)
+                  return h ? (
+                    <div style={{ marginTop: 12 }}>
+                      <FormFillCard
+                        key={`${h.id}-${pourKey}`}
+                        form={{ id: h.id }}
+                        formName={h.name}
+                        kind={h.kind}
+                        content={result}
+                        fileName={resultName()}
+                        model={model}
+                        aliases={aliases}
+                        guide={guideText()}
+                      />
+                    </div>
+                  ) : null
+                })()}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ══════════ 양식 하나로 바로 만들기 ══════════ */}
+      {mode === '만들기' && !form && directForm && (
+        <>
+          <div className="card">
+            <div className="card-title">
+              <span>
+                📑 {directForm.name}
+                {docName(directForm.doc_kind) && (
+                  <span className="badge" style={{ marginLeft: 8 }}>
+                    {docName(directForm.doc_kind)} 양식
+                  </span>
+                )}
+              </span>
+              <button className="btn btn-sm btn-ghost" onClick={backToList}>
+                ← 다른 문서
+              </button>
+            </div>
+            <p className="hint" style={{ margin: 0 }}>
+              이 양식 하나를 틀로 새 한글 문서를 만듭니다. 문서 종류에 묶어 두려면 <b>[🗂 양식 · 예시 보관함]</b> 에서
+              고르세요.
+            </p>
+          </div>
+          <HwpFormMaker
+            form={directForm}
+            content={directContent}
+            onContent={setDirectContent}
+            aliases={aliases}
+            hasKey={hasKey}
+            onGo={onGo}
+            method={direct?.method}
+          />
         </>
       )}
 
@@ -1263,11 +1616,9 @@ export default function Committee({ onGo }: Props): JSX.Element {
             두면 그 자리를 채워 넣기만 합니다. 입력한 내용이 이 PC 밖으로 나가지 않으므로 실명을
             그대로 쓰셔도 됩니다.
             <div style={{ marginTop: 6 }}>
-              한글 파일의 모양(표·로고·글꼴)까지 그대로 살려 채우려면{' '}
-              <button className="link" onClick={() => setMode('한글')}>
-                [📑 우리 학교 한글 양식]
-              </button>{' '}
-              을 쓰세요.
+              한글 양식 파일의 빈칸을 인터넷 없이 채우려면 <b>[✍ 문서 만들기]</b> 아래쪽{' '}
+              <b>[📑 우리 학교 한글 양식으로 바로 만들기]</b> 에서 양식을 고른 뒤 <b>[빈칸만 직접 채우기]</b> 를
+              쓰세요.
             </div>
           </div>
 
@@ -1388,29 +1739,25 @@ export default function Committee({ onGo }: Props): JSX.Element {
         </>
       )}
 
-      {/* ══════════ 우리 학교 한글 양식 ══════════ */}
-      {mode === '한글' && (
-        <HwpForms
-          content={hwpContent}
-          onContent={setHwpContent}
-          aliases={aliases}
-          hasKey={hasKey}
-          onGo={onGo}
+      {/* ══════════ 양식 · 예시 보관함 ══════════ */}
+      {mode === '보관함' && (
+        <HwpFormShelf
+          docs={allForms.map((f) => ({ id: f.id, name: f.name }))}
+          onChanged={() => void loadHwp()}
+          onUse={(f) => openDirect(f)}
         />
       )}
-
-      {/* ══════════ 예시 보관함 ══════════ */}
-      {mode === '예시' && (
+      {mode === '보관함' && (
         <div className="card">
           <div className="card-title">
-            <span>예시 보관함</span>
+            <span>📚 글 예시</span>
             <button className="btn btn-sm btn-primary" onClick={() => openExampleEditor('')}>
               ＋ 예시 넣기
             </button>
           </div>
           <p className="hint" style={{ marginTop: 0 }}>
-            여기 넣어 둔 문서는 <b>같은 종류의 문서를 만들 때 형식의 본보기</b>로 쓰입니다. 우리
-            학교 서식을 한 번 넣어 두면 그 뒤로 계속 그 형식으로 나옵니다.
+            한글 파일이 없는 문서는 쓰던 글을 붙여넣어 두세요. <b>글로 초안을 만들 때 형식의 본보기</b>로 쓰입니다.
+            한 번 넣어 두면 그 뒤로 계속 그 형식으로 나옵니다.
             <br />
             예시는 <b>인수인계 파일에 함께 넘어갑니다.</b> 학생 실명이 든 문서는 넣지 마세요.
           </p>

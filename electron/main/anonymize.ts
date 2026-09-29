@@ -307,6 +307,9 @@ const NOT_NAMES = new Set([
 /** 이름이라면 이렇게 끝나지 않는다. 부서·기구 이름을 걸러 낸다. */
 const NOT_NAME_TAIL = /[회실팀청과별]$/
 
+/** 쉼표 목록에서 이름이 아닌 것: 땅이름·기관·장소 꼴("김해시, 양산시", "본관, 별관") */
+const LIST_NOT_NAME_TAIL = /[시군구읍면리도관소부층반]$/
+
 /**
  * 직위나 칸 이름으로 끝나면 이름이 아니다.
  * "교감선생님 / 위원 김미영" 에서 '선생님' 이 이름으로 잡히는 것을 막는다.
@@ -387,10 +390,19 @@ export function findNameCandidates(text: string): string[] {
     !n.includes('○') &&
     !n.includes('*')
 
+  // 8) "정문 3명(홍길동, 김철수, 이영희)" — 쉼표로 늘어놓은 세 글자 이름.
+  //    표지가 없으니 하나라도 이름 같지 않으면(성이 아니거나 땅·기관 이름 꼴) 목록 전체를 버린다.
+  const listed: string[] = []
+  for (const m of text.matchAll(/(?:^|[\s(（:：])([가-힣]{3}(?:\s*[,，·、]\s*[가-힣]{3})+)(?=$|[\s)）.,])/gm)) {
+    const names = m[1].split(/\s*[,，·、]\s*/)
+    if (names.every((n) => usable(n) && looksLikeSurname(n) && !LIST_NOT_NAME_TAIL.test(n))) listed.push(...names)
+  }
+
   return [
     ...new Set([
       ...[...sure].filter(usable),
-      ...[...maybe].filter((n) => usable(n) && looksLikeSurname(n))
+      ...[...maybe].filter((n) => usable(n) && looksLikeSurname(n)),
+      ...listed
     ])
   ]
 }

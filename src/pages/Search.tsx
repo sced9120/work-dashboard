@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DocFull, ModelChoice, SearchHit } from '../../shared/types'
+import type { HelpHit } from '../../shared/helpdocs'
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
 import ModelPicker from '../components/ModelPicker'
@@ -13,11 +14,15 @@ type SortBy = '관련도' | '날짜'
 
 /** AI 요약에 넘길 근거 개수. 너무 많이 넘기면 느리고 비싸다. */
 const SOURCE_LIMIT = 8
+/** 그 가운데 학교업무 도움자료에 내줄 수 있는 자리. 내 자료가 적을 때만 채운다. */
+const HELP_LIMIT = 3
 
 export default function Search({ jobTitle, onGo }: Props): JSX.Element {
   const toast = useToast()
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<SearchHit[] | null>(null)
+  /** 교육청 학교업무 도움자료에서 찾은 것 */
+  const [helpHits, setHelpHits] = useState<HelpHit[]>([])
   const [sortBy, setSortBy] = useState<SortBy>('관련도')
   const [searching, setSearching] = useState(false)
   const [docCount, setDocCount] = useState(0)
@@ -48,7 +53,9 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
     setAnswer('')
     setOpenDoc(null)
     try {
-      setHits(await window.api.search.run(q))
+      const [found, help] = await Promise.all([window.api.search.run(q), window.api.help.search(q)])
+      setHits(found)
+      setHelpHits(help)
     } finally {
       setSearching(false)
     }
@@ -66,8 +73,12 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
     })
   }, [hits, sortBy])
 
+  /** 요약에 함께 실을 도움자료 수. 번호는 내 자료 뒤에 잇는다. */
+  const helpRoom = Math.min(HELP_LIMIT, helpHits.length, SOURCE_LIMIT - Math.min(SOURCE_LIMIT, hits?.length ?? 0))
+  const helpBase = Math.min(SOURCE_LIMIT, hits?.length ?? 0)
+
   const summarize = async (): Promise<void> => {
-    if (!hits?.length) return
+    if (!hits || hits.length + helpHits.length === 0) return
     setAnswering(true)
     setAnswer('')
     try {
@@ -87,6 +98,14 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
             text: h.snippets.join('\n')
           })
         }
+      }
+      for (const h of helpHits.slice(0, helpRoom)) {
+        sources.push({
+          label: `도움자료: ${h.group} › ${h.title}`,
+          text:
+            `교육청 학교업무 도움자료의 자료 폴더입니다(${h.group} › ${h.section}). 파일 ${h.fileCount}개가 들어 있고, 내용은 없고 이름만 있습니다.\n` +
+            (h.matched.length ? `검색어가 걸린 파일:\n${h.matched.map((f) => `- ${f}`).join('\n')}` : '업무 이름에 검색어가 걸렸습니다.')
+        })
       }
 
       const res = await window.api.ai.answer({
@@ -130,8 +149,8 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
       <div className="page-head">
         <h1>통합 검색</h1>
         <p>
-          등록된 업무와 보관해 둔 공문 원문을 한꺼번에 찾습니다. 낱말을 띄어 쓰면 그 낱말을 모두
-          포함한 것만 나옵니다.
+          등록된 업무와 보관해 둔 공문 원문, 교육청 학교업무 도움자료를 한꺼번에 찾습니다. 낱말을 띄어 쓰면 그
+          낱말을 모두 포함한 것만 나옵니다.
         </p>
       </div>
 
@@ -172,6 +191,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
               <span className="badge badge-accent">{hits.length}건</span>
               <span className="muted small">
                 공문 {docHits}건 · 업무 {taskHits}건 · 일지 {journalHits}건
+                {helpHits.length > 0 && ` · 학교업무 도움자료 ${helpHits.length}건`}
               </span>
               <span className="spacer" />
               <span className="muted small">정렬</span>
@@ -186,20 +206,20 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
               ))}
             </div>
 
-            {hits.length > 0 && hasKey && (
+            {hits.length + helpHits.length > 0 && hasKey && (
               <div style={{ marginTop: 12 }}>
                 <ModelPicker feature="summary" label="요약에 쓸 모델" onReady={setModel} onChange={setModel} />
               </div>
             )}
 
-            {hits.length > 0 && (
+            {hits.length + helpHits.length > 0 && (
               <div className="row" style={{ marginTop: 12 }}>
                 <button
                   className="btn btn-primary"
                   onClick={() => void summarize()}
                   disabled={answering || !hasKey}
                 >
-                  {answering ? 'AI가 정리하는 중…' : `🤖 상위 ${Math.min(SOURCE_LIMIT, hits.length)}건으로 내용 정리하기`}
+                  {answering ? 'AI가 정리하는 중…' : `🤖 상위 ${helpBase + helpRoom}건으로 내용 정리하기`}
                 </button>
                 {!hasKey && (
                   <span className="muted small">
@@ -231,7 +251,9 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
 
           {sorted.length === 0 ? (
             <div className="empty">
-              찾은 것이 없습니다. 낱말 수를 줄이거나 더 짧은 낱말로 해 보세요.
+              {helpHits.length
+                ? '보관한 공문·업무·일지에서는 찾은 것이 없습니다. 아래 학교업무 도움자료를 보세요.'
+                : '찾은 것이 없습니다. 낱말 수를 줄이거나 더 짧은 낱말로 해 보세요.'}
             </div>
           ) : (
             <div className="list">
@@ -297,6 +319,53 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {helpHits.length > 0 && (
+            <div className="card" style={{ marginTop: 14 }}>
+              <div className="card-title">
+                <span>🧭 학교업무 도움자료 {helpHits.length}건</span>
+                <button className="btn btn-sm btn-ghost" onClick={() => onGo('도움자료')}>
+                  도움자료에서 보기
+                </button>
+              </div>
+              <p className="hint" style={{ marginTop: 0 }}>
+                교육청이 업무마다 엮어 둔 자료 폴더입니다. 파일은 [📂 자료 폴더] 에서 내려받습니다.
+              </p>
+              <div className="list">
+                {helpHits.map((h, j) => (
+                  <div className="item" key={h.id}>
+                    <div className="item-head">
+                      <div style={{ minWidth: 0 }}>
+                        <div className="item-title">
+                          {j < helpRoom && (
+                            <span className="muted small" style={{ marginRight: 6 }}>
+                              [{helpBase + j + 1}]
+                            </span>
+                          )}
+                          <span className="badge">도움자료</span> {h.title}
+                        </div>
+                        <div className="item-meta">
+                          {h.group} › {h.section.replace(/^\d+\.\s*/, '')} · 자료 {h.fileCount}개
+                        </div>
+                      </div>
+                      <button className="btn btn-sm" onClick={() => void window.api.shell.open(h.url)}>
+                        📂 자료 폴더 ↗
+                      </button>
+                    </div>
+                    {h.matched.length > 0 && (
+                      <div className="help-matched">
+                        {h.matched.slice(0, 4).map((f) => (
+                          <span key={f} className="help-chip">
+                            {f.replace(/\.[A-Za-z0-9]+$/, '')}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </>

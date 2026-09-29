@@ -2956,7 +2956,7 @@ textarea {
 .wf-node.k-step {
   border-color: #b9c6d8;
 }
-
+
 /*
  * 고른 상자·놓을 상자 표시.
  * 모양별 색(k-*) 뒤에 두어야 한다. 앞에 두면 같은 무게라 뒤엣것이 이겨서
@@ -3337,6 +3337,84 @@ textarea {
   padding-right: 4px;
 }
 
+/* 양식을 틀로 새 문서: 문단마다 본뜰 모양 + 글 */
+.compose-list {
+  gap: 6px;
+}
+
+.compose-p,
+.compose-table {
+  border-left: 3px solid var(--border);
+  padding-left: 8px;
+}
+
+.compose-table {
+  border-left-color: var(--accent);
+}
+
+.compose-p-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 3px;
+}
+
+.compose-chip {
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 6px;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+select.compose-chip {
+  cursor: pointer;
+  max-width: 360px;
+}
+
+.compose-p textarea {
+  min-height: 0;
+  resize: vertical;
+}
+
+.compose-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.compose-grid-row {
+  display: flex;
+  gap: 3px;
+  align-items: flex-start;
+  min-width: min-content;
+}
+
+.compose-grid-row textarea {
+  flex: 1 0 96px;
+  min-width: 96px;
+  min-height: 0;
+  font-size: 12.5px;
+  padding: 4px 6px;
+  resize: vertical;
+}
+
+/* 양식 그대로인 칸(항목 이름 등) — 고칠 칸이 눈에 띄게 흐리게 */
+.compose-grid-row textarea.same {
+  background: var(--bg);
+  color: var(--muted);
+}
+
 .doc-content {
   margin-bottom: 4px;
 }
@@ -3348,4 +3426,283 @@ textarea {
 .tab.tab-link {
   margin-left: auto;
   color: var(--accent);
+}
+
+.chat-link-chip {
+  cursor: pointer;
+  color: var(--accent);
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+  font: inherit;
+  font-size: 11px;
+}
+
+.chat-link-chip:hover {
+  border-color: var(--accent);
+}
+
+/* ---------- 문서 만들기: 모양 고르기 ---------- */
+
+.pickcard-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: none;
+}
+
+.look-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.look {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.look.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.look.off {
+  cursor: default;
+}
+
+.look input[type='radio'] {
+  width: 15px;
+  height: 15px;
+  margin-top: 3px;
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.look-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.look-name {
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+.look-sum {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.look select {
+  max-width: 460px;
+}
+
+select.shelf-link {
+  width: auto;
+  max-width: 220px;
+  padding: 4px 8px;
+  font-size: 12.5px;
+}
+
+/* ---------- 학교업무 도움자료 ---------- */
+
+.help-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.help-item {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 8px 10px;
+}
+
+.help-item.mine {
+  border-color: #f5c451;
+  background: #fffdf5;
+}
+
+.help-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.help-star {
+  border: none;
+  background: none;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--border-strong);
+  cursor: pointer;
+  padding: 2px;
+  flex: none;
+}
+
+.help-star.on {
+  color: #e0a100;
+}
+
+.help-item-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  flex: 1;
+  min-width: 180px;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.help-item-title {
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+.help-item-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.help-item-acts {
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.help-matched {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0 0 30px;
+}
+
+.help-chip {
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.help-files {
+  margin: 8px 0 2px 30px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.help-file {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  padding: 2px 0;
+  word-break: break-all;
+}
+
+.help-file.hit {
+  font-weight: 700;
+}
+
+.help-ext {
+  flex: none;
+  min-width: 38px;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: 4px;
+  padding: 0 4px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.help-ext.ext-hwp,
+.help-ext.ext-hwpx {
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.help-ext.ext-pdf {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.help-ext.ext-xlsx,
+.help-ext.ext-xls {
+  color: #15803d;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.help-picker .help-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.help-match {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+}
+
+.help-match-line {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.help-pick {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
+.help-pick input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  flex: none;
+  position: relative;
+  top: 2px;
+}
+
+.help-pick-title {
+  font-weight: 600;
 }

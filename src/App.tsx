@@ -12,6 +12,7 @@ import Learn from './pages/Learn'
 import Search from './pages/Search'
 import Chat from './pages/Chat'
 import Committee from './pages/Committee'
+import HelpDocs from './pages/HelpDocs'
 import Slides from './pages/Slides'
 import Deadlines from './pages/Deadlines'
 import Journal from './pages/Journal'
@@ -26,6 +27,7 @@ export type PageId =
   | '로드맵'
   | '워크플로우'
   | '가이드'
+  | '도움자료'
   | '학습'
   | '검색'
   | '도우미'
@@ -57,7 +59,8 @@ const NAV: { section: string; items: { id: PageId; icon: string; label: string }
       { id: '워크플로우', icon: '🧩', label: '업무 워크플로우' },
       { id: '검색', icon: '🔎', label: '통합 검색' },
       { id: '도우미', icon: '💬', label: '업무 도우미 (AI)' },
-      { id: '가이드', icon: '📋', label: '업무 상세 가이드' }
+      { id: '가이드', icon: '📋', label: '업무 상세 가이드' },
+      { id: '도움자료', icon: '🧭', label: '학교업무 도움자료' }
     ]
   },
   {
@@ -300,6 +303,7 @@ function Shell(): JSX.Element {
         {page === '로드맵' && <Roadmap />}
         {page === '워크플로우' && <Workflows onGo={setPage} />}
         {page === '가이드' && <Guide />}
+        {page === '도움자료' && <HelpDocs onGo={setPage} />}
         {page === '검색' && <Search jobTitle={jobTitle} onGo={setPage} />}
         {page === '도우미' && <Chat jobTitle={jobTitle} onGo={setPage} />}
         {page === '학습' && <Learn jobTitle={jobTitle} onGo={setPage} />}

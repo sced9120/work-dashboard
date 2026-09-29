@@ -16,8 +16,9 @@ import type {
 } from '../../shared/types'
 import { findIdNumbers, findNameCandidates, leakCheck, maskText, scrubPersonal, unmaskText } from './anonymize'
 import { actionGuide, docGuide } from '../../shared/agent'
-import type { FormEdit, FormPlan, FormSpot } from '../../shared/hwpform'
-import { outlineOf } from './hwpdoc'
+import type { ComposeResult, DocItem } from '../../shared/hwpform'
+import { parseComposed } from '../../shared/hwpform'
+import { frameOutline, readFrame } from './hwpgen'
 import type { Deck } from '../../shared/slides'
 import { normalizeDeck } from '../../shared/slides'
 
@@ -617,11 +618,13 @@ export async function answerFromSources(
 
   const prompt = `당신은 대한민국 학교 행정 업무를 잘 아는 '${jobTitle}' 담당자입니다.
 아래는 이 담당자가 보관해 둔 공문과 업무 기록 중 "${query}" 로 검색해 나온 것들입니다.
+"도움자료:" 로 시작하는 것은 교육청 학교업무 도움자료 폴더의 파일 목록입니다(파일 이름만 있고 내용은 없습니다).
 
 이 자료만 근거로 삼아, 담당자가 한눈에 파악할 수 있게 정리해 주세요.
 
 작성 규칙:
 - 자료에 없는 내용은 절대 지어내지 마세요. 모르면 "자료에서 확인되지 않습니다" 라고 적으세요.
+- 도움자료는 어떤 파일(업무흐름도·계획 예시·서식)이 있는지만 알려 주고, 파일 내용을 짐작해 쓰지 마세요.
 - 시간 순서가 드러나면 오래된 것부터 차례로 정리하세요.
 - 문장 끝에 근거 번호를 [1] [3] 처럼 답니다.
 - 아래 형식을 지키되, 해당 내용이 없는 항목은 통째로 생략하세요.
@@ -876,100 +879,117 @@ function parseJson(raw: string): unknown {
 }
 
 /**
- * 학교 양식 한글 파일의 어느 자리에 무엇을 넣을지 AI 에게 정하게 한다.
+ * 학교 양식을 "틀"로 삼아 새 문서의 글을 쓰게 한다.
  *
- * AI 에게는 파일이 아니라 **자리 목록**(P3, T0.1.2 …)만 보낸다. 답도 자리 이름과
- * 넣을 글만 받는다. 실제로 파일에 넣는 일은 이 PC 에서 한다(hwpdoc.ts).
+ * AI 에게는 파일이 아니라 양식의 모습(문단·표·글상자 목록)만 보낸다. AI 는 양식의 구성을 따라
+ * 새 문서를 처음부터 끝까지 쓰고, 줄마다 본뜰 양식 문단의 번호를 붙인다([P3], [T0], [B1]).
+ * 글꼴·문단 모양은 이 PC 에서 그 번호의 양식 문단을 복제해 입힌다(hwpgen.ts).
+ * 양식의 칸을 하나하나 채우는 것이 아니라서, 모르는 자리를 "(   )" 로 비워 둘 일이 없다.
  *
  * 개인정보: 넣을 내용은 화면에서 정한 가명으로 바꿔 보내고, 받은 뒤 되돌린다.
  * 양식에 지난번 학생 이름이 남아 있을 수 있어 양식 쪽은 ○○○ 로 싹 가려 보낸다.
  */
-export async function planFormFill(
+export async function composeFromForm(
   settings: LocalSettings,
   args: {
     formName: string
-    spots: FormSpot[]
+    data: Uint8Array
     content: string
     aliases: AliasPair[]
     schoolName: string
+    /** 문서 만들기에서 고른 문서 종류의 이름과 쓰는 법(말투·꼭 넣을 것) */
+    guide?: string
     override?: ModelChoice
   }
-): Promise<FormPlan> {
+): Promise<ComposeResult> {
   const { formName, content, aliases, schoolName, override } = args
-  // 양식 자리도 가명으로 먼저 바꾸고, 남은 이름·번호는 ○ 로 지운다
-  // 양식에 남은 이름·학번은 칸 하나만 봐서는 알아보기 어렵다. "3616" 이나 "홍길동" 이 칸에
-  // 홀로 들어 있으면 이름인지 번호인지 모른다. 그래서 "라벨: 글" 로 이어 붙인 양식 전체에서
-  // 먼저 찾아 두고, 찾은 것은 어느 칸에 있든 ○○○ 으로 지운다.
-  const whole = args.spots.map((sp) => (sp.label ? `${sp.label}: ${sp.text}` : sp.text)).join('\n')
+  const guide = (args.guide ?? '').trim()
+  const fail = (error: string, sentToAi = ''): ComposeResult => ({ ok: false, items: [], note: '', sentToAi, error })
+  const layout = readFrame(args.data)
+  if (!layout.ok) return fail(layout.error || '양식을 읽지 못했습니다.')
+
+  // 양식에 남은 이름·학번은 칸 하나만 봐서는 알아보기 어렵다("3616" 이나 "홍길동" 이 칸에 홀로 든 경우).
+  // 표는 이웃 칸을 "라벨: 글" 로 이어 붙여 양식 전체에서 먼저 찾고, 찾은 것은 어디에 있든 ○○○ 으로 지운다.
+  const pairs = layout.tables.flatMap((t) =>
+    t.rows.flatMap((r) => [...r, ...r.slice(1).map((c, k) => `${r[k].replace(/\s+/g, ' ')}: ${c}`)])
+  )
+  const whole = [...layout.blocks.map((b) => b.text), ...pairs, ...layout.boxes.map((b) => b.text)].join('\n')
   const known = new Set(aliases.map((a) => a.real))
-  const leftover = [...findNameCandidates(whole), ...findIdNumbers(whole)]
-    .filter((n) => !known.has(n))
-    .map((n) => ({ real: n, alias: '○○○' }))
+  const found = [...findNameCandidates(whole), ...findIdNumbers(whole)].filter((n) => !known.has(n))
+  const leftover = found.map((n) => ({ real: n, alias: '○○○' }))
   const hide = (t: string): string => scrubPersonal(maskText(maskText(t, aliases), leftover)).text
-  const shown = args.spots.map((sp) => ({
-    ...sp,
-    text: hide(sp.text),
-    ...(sp.label ? { label: hide(sp.label) } : {})
-  }))
-  const sentText = new Map(shown.map((sp) => [sp.id, sp.text]))
-  const outline = outlineOf(shown)
+  const outline = frameOutline(args.data, hide)
   const masked = maskText(content, aliases)
 
   const prompt = `당신은 대한민국 학교에서 행정 문서를 오래 다뤄 온 교사입니다.${schoolName ? `
 학교명은 '${schoolName}' 입니다.` : ''}
 
-아래 [양식]은 학교에서 쓰는 한글 문서 '${formName}' 의 글자 자리 목록입니다.
-[P3] 처럼 대괄호로 시작하는 줄은 본문 문단이고, T0.1.2= 처럼 적힌 것은 표의 칸입니다(표 번호.행.열).
-[넣을 내용]을 이 양식에 옮겨 담으려고 합니다. **바꿔야 할 자리만** 골라, 그 자리에 들어갈 새 글을 주세요.
+[양식]은 학교에서 쓰는 한글 문서 '${formName}' 의 모습입니다. 이 양식의 구성과 문단 모양을 본떠
+[넣을 내용]으로 **새 문서를 처음부터 끝까지** 써 주세요. 글꼴·문단 모양은 프로그램이 양식대로 입힙니다.
+${guide ? `
+[문서 종류]는 담당자가 고른 문서와 그 문서를 쓰는 법입니다. 구성은 양식을 따르고, 말투와 빠뜨리면 안 되는 것만 참고하세요.
+` : ''}
+양식 읽는 법
+- [P3] 으로 시작하는 줄은 양식의 문단입니다. 괄호 안(가운데 · 16pt · 굵게)은 그 문단의 모양입니다.
+- [T0] 은 표입니다. 아래의 | 칸 | 칸 | 줄이 표의 행이고, 합쳐진 칸은 한 칸입니다. <br> 은 칸 안의 줄바꿈입니다.
+- [B0] 은 글상자입니다. 칸 안의 [T5] 는 그 자리에 든 또 다른 표입니다.
 
-반드시 지킬 것:
-- 양식의 틀은 그대로 두세요. 제목의 틀, 항목 이름, 표의 머리 칸("일시", "성명" 같은 칸), 학교 이름, 늘 같은 인사말·안내문은 고치지 마세요.
-- 빈칸이거나, 지난번 내용이 들어 있어 이번 것으로 바꿔야 하는 자리만 고치세요.
-- 자리의 원래 모양을 살리세요. "위반 내용: 절도" 를 고친다면 "위반 내용: " 머리말과 띄어쓰기는 두고 내용만 바꿉니다. 번호·기호(1. 가. □ ○ ◆)도 그대로 둡니다.
-- [넣을 내용]에 없는 사실·날짜·숫자를 지어내지 마세요. 알 수 없는데 지난번 내용이 남으면 안 되는 자리는 "(   )" 로 비워 두세요.
-- '학생A', '위원B', '○○○' 처럼 가려진 이름은 그대로 쓰세요. 실제 이름을 만들어 넣지 마세요.
-- 한 자리에 여러 줄을 넣으려면 글 안에서 줄을 바꾸세요(\\n). 회의 내용처럼 긴 글은 표의 넓은 칸 하나에 여러 줄로 넣으면 됩니다.
-- 양식에 알맞은 자리가 없어 넣지 못한 내용은 "남은내용" 에 짧게 적으세요. 억지로 엉뚱한 칸에 넣지 마세요.
+쓰는 법
+- 한 줄에 한 문단씩 쓰고, 줄 맨 앞에 그 문단이 본뜰 양식 번호를 붙이세요. 예) [P3] ○ 일시: 2026. 10. 7.(수) 16:30
+- 같은 모양의 문단이 여러 개 필요하면 같은 번호를 여러 번 쓰세요. 항목 수는 양식과 달라도 됩니다.
+- 필요 없는 문단은 빼고, 순서도 내용에 맞게 바꿔도 됩니다. 빈 줄은 쓰지 마세요. 문단 사이 간격은 양식대로 맞춰집니다.
+- 줄머리 번호·기호(1. 가. □ ○ - ※)와 띄어쓰기 습관은 양식을 따르세요.
+- 표는 [T0] 한 줄을 쓴 다음 행마다 | 칸 | 칸 | 으로 쓰세요. 행마다 칸 수는 양식의 그 행과 같게 합니다.
+  "일시", "성명" 같은 항목 이름 칸은 그대로 두고 내용 칸만 새로 씁니다. 행이 더 필요하면 같은 모양으로 더 쓰세요.
+  칸 안의 [T5] 줄은 지우지 말고 그대로 두세요.
+- 글상자는 [B0] 으로 시작해 씁니다.
 
-JSON 형식:
-{"채우기":[{"자리":"T0.0.1","글":"2026. 10. 7.(수) 16:30"}],"남은내용":""}
+내용 채우기
+- 인사말·안내 문구·법령 안내처럼 늘 같은 글은 양식 그대로 살려 쓰고, 날짜·대상·사안처럼 이번 일에 맞춰야 할 것만 [넣을 내용]으로 바꾸세요.
+- 양식에 적힌 지난 문서의 구체적인 내용(날짜·이름·사안·숫자)은 새 문서에 남기지 마세요. ○○○ 로 가려진 것은 지난 문서의 이름입니다.
+- [넣을 내용]에 없는 사실·날짜·숫자는 지어내지 마세요. 모르는 것을 "(   )", "○○○", "추후 안내" 같은 빈자리로 채우지 말고
+  그 문단이나 그 부분을 빼세요. 표의 내용 칸이면 비워 두세요.
+- '학생A', '위원B' 처럼 가명으로 적힌 이름은 그대로 쓰세요. 실제 이름을 만들어 넣지 마세요.
+- 양식에 같은 구성이 여러 번 되풀이되어 있으면(학생별로 여러 장 등) [넣을 내용]에 필요한 만큼만 쓰세요.
 
---- 양식 ---
+문서 말고 다른 말은 쓰지 마세요. 꼭 알려야 할 것이 있으면 맨 끝에 "메모:" 로 시작하는 한 줄로만 쓰세요.
+
+${guide ? `--- 문서 종류 ---
+${guide.slice(0, 2000)}
+
+` : ''}--- 양식 ---
 ${outline}
 
 --- 넣을 내용 ---
 ${masked.slice(0, 20000)}`
 
   const leaked = leakCheck(prompt, aliases)
-  if (leaked.length) {
-    return {
-      ok: false,
-      edits: [],
-      leftover: '',
-      sentToAi: '',
-      error: `가명처리가 끝나지 않아 보내지 않았습니다. 남아 있는 이름: ${leaked.join(', ')}`
-    }
-  }
+  if (leaked.length) return fail(`가명처리가 끝나지 않아 보내지 않았습니다. 남아 있는 이름: ${leaked.join(', ')}`)
 
   try {
-    const raw = await callModel(settings, 'scenario', override, prompt, true)
-    const parsed = parseJson(raw) as { 채우기?: unknown; 남은내용?: unknown }
-    const list = Array.isArray(parsed.채우기) ? parsed.채우기 : []
-    const known = new Set(args.spots.map((sp) => sp.id))
-    const edits: FormEdit[] = []
-    for (const item of list) {
-      const r = (item ?? {}) as { 자리?: unknown; 글?: unknown }
-      const id = str(r.자리).replace(/^\[|\]$/g, '')
-      if (!known.has(id) || edits.some((e) => e.id === id)) continue
-      const text = typeof r.글 === 'string' ? r.글.replace(/\\n/g, '\n') : str(r.글)
-      // 보낸 글(가린 글)을 그대로 돌려보낸 자리는 고칠 뜻이 없는 것이다.
-      // 그대로 넣으면 원래 있던 이름이 ○○○ 으로 바뀌어 버린다.
-      if (text.replace(/\s+/g, ' ').trim() === (sentText.get(id) ?? '').replace(/\s+/g, ' ').trim()) continue
-      edits.push({ id, text: unmaskText(text, aliases) })
+    const raw = await callModel(settings, 'scenario', override, prompt, false)
+    const parsed = parseComposed(raw)
+    if (!parsed.items.some((it) => /^[PTB]\d+$/.test(it.sample))) {
+      return fail('AI 가 양식에 맞춘 글을 보내지 않았습니다. 다시 해 보거나 넣을 내용을 더 자세히 적어 주세요.', prompt)
     }
-    return { ok: true, edits, leftover: unmaskText(str(parsed.남은내용), aliases), sentToAi: prompt }
+
+    // 가린 채로 돌려받은 양식 글(전화번호 등이 가려진 안내 문구)은 원래 글로 되돌린다.
+    // 지난 학생 이름이 든 글은 되돌리지 않는다 — 옛 이름이 새 문서에 다시 들어가면 안 된다.
+    const original = new Map<string, string>()
+    const remember = (t: string): void => {
+      const h = hide(t)
+      if (h !== t && !found.some((n) => t.includes(n))) original.set(h.replace(/\s+/g, ' ').trim(), t)
+    }
+    layout.blocks.forEach((b) => remember(b.text))
+    layout.boxes.forEach((b) => b.text.split('\n').forEach(remember))
+    layout.tables.forEach((t) => t.rows.forEach((r) => r.forEach(remember)))
+    const back = (t: string): string => original.get(t.replace(/\s+/g, ' ').trim()) ?? unmaskText(t, aliases)
+    const items: DocItem[] = parsed.items.map((it) =>
+      it.kind === 'p' ? { ...it, text: back(it.text) } : { ...it, rows: it.rows.map((r) => r.map(back)) }
+    )
+    return { ok: true, items, note: unmaskText(parsed.note, aliases), sentToAi: prompt }
   } catch (e) {
-    return { ok: false, edits: [], leftover: '', sentToAi: prompt, error: e instanceof Error ? e.message : String(e) }
+    return fail(e instanceof Error ? e.message : String(e), prompt)
   }
 }
 
@@ -1059,7 +1079,9 @@ export async function chatAnswer(
   sources: SourceItem[],
   today: string,
   forms: string[],
-  override?: ModelChoice
+  override?: ModelChoice,
+  /** 처음 설정·도움자료에서 "내 업무"로 고른 것의 이름 */
+  mine = ''
 ): Promise<ChatReply> {
   const turns = history.slice(-CHAT_HISTORY).filter((t) => t.content.trim())
   // Claude·Gemini 는 첫 메시지가 반드시 user 여야 한다. 잘려서 assistant 로 시작하면 앞을 버린다.
@@ -1085,14 +1107,18 @@ export async function chatAnswer(
     ? `--- 참고 자료 ---\n${blocks.join('\n\n')}`
     : '(이번 질문과 맞아떨어지는 보관 자료를 찾지 못했습니다. 일반적인 안내로 돕되, 보관 자료에는 없다는 점을 밝히세요.)'
 
-  const system = `당신은 대한민국 학교의 '${jobTitle}' 업무를 돕는 성실한 도우미입니다.
+  const system = `당신은 대한민국 학교의 '${jobTitle}' 업무를 돕는 성실한 도우미입니다.${mine ? `
+담당자가 맡은 일로 고른 것: ${mine.slice(0, 600)}` : ''}
 아래 [참고 자료]는 이 담당자가 프로그램에 보관해 둔 공문·업무·일지 중 지금 질문과 관련 있어 보이는 것들입니다.
+"도움자료:" 로 시작하는 것은 교육청이 업무마다 엮어 둔 학교업무 도움자료 폴더의 파일 목록입니다.
 
 답변 규칙:
 - 참고 자료에 근거가 있으면 그 내용을 우선으로 삼고, 문장 끝에 [1] [2] 처럼 근거 번호를 답니다.
 - 참고 자료에 없는 내용이면 일반적인 학교 행정 상식으로 도울 수 있습니다. 단, 그때는 "보관된 자료에는 없고 일반적인 안내입니다"라고 밝히세요.
 - 확실하지 않으면 모른다고 말하고, 어디를 확인하면 되는지 알려 주세요.
 - 학생 실명·주민번호·연락처 같은 개인정보를 새로 지어내지 마세요.
+- 도움자료는 파일 이름만 있고 내용은 모릅니다. 파일 내용을 지어내지 말고, 쓸 만한 파일(업무흐름도·계획 예시·서식 등)의 이름을 짚어
+  "자료 폴더를 열어 보세요" 라고 안내하세요. 폴더 주소는 답 아래에 버튼으로 따로 나오므로 적지 않아도 됩니다.
 - 한국어로, 담당자가 바로 활용할 수 있도록 간결하고 실무적으로 답하세요.
 
 ${actionGuide(today)}

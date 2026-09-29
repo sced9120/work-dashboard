@@ -346,7 +346,10 @@ electron/
     db.ts         SQLite(sql.js) 자료 저장 — 예전 .db 파일과 호환
     secrets.ts    API 키를 OS 보안 저장소에 보관 (인수인계 파일과 분리)
     ai.ts         OpenAI / Gemini 호출, 긴 문서 분할, 응답 검증
-    hwpdoc.ts     학교 한글 양식(.hwp/.hwpx)에 글자만 바꿔 넣기 (kordoc)
+    hwpdoc.ts     학교 한글 양식의 {{칸}}·빈 표 칸만 채우기 (kordoc, 인터넷 안 씀)
+    hwpgen.ts     한글 양식을 틀(글꼴·문단 모양·구성)로 새 문서 짜기 (.hwp 레코드 / .hwpx XML)
+    ole.ts        .hwp 를 담는 OLE 파일 읽고 다시 쓰기
+    helpdocs.ts   학교업무 도움자료 목록(helpdocs.json)으로 내 업무 고르기·검색·도우미 근거
     slides.ts     발표자료(.pptx) 만들기 — 기본 디자인 / 참고 PPT 의 마스터 그대로 쓰기
     extract/
       index.ts    PDF · 엑셀 · 워드 · 텍스트에서 글자 뽑기
@@ -357,6 +360,7 @@ src/
   App.tsx         화면 전환
   pages/          홈 · 로드맵 · 상세가이드 · 문서학습 · 데이터 · 설정
 shared/types.ts   양쪽이 함께 쓰는 타입
+shared/helpdocs.ts 학교업무 도움자료 찾기 (학교급·줄임말·파일 이름으로 맞추기)
 scripts/make-icon.mjs  아이콘 생성 (외부 도구 없이 픽셀을 직접 그림)
 ```
 

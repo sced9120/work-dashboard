@@ -5,14 +5,15 @@ import type { FormEdit, FormLayout, FormSpot, HwpKind } from '../../shared/hwpfo
 import { SLOT_RE, slotNamesIn } from '../../shared/hwpform'
 
 /**
- * 학교 한글 양식을 서식 그대로 채운다.
+ * 학교 한글 양식의 {{칸}}·빈칸을 서식 그대로 채운다(인터넷 안 쓰는 [빈칸만 직접 채우기]).
+ * AI 로 새 문서를 쓰는 쪽은 양식을 틀로 문서를 새로 짜는 hwpgen.ts 가 한다.
  *
  * 한글 파일을 읽고 고치는 일은 kordoc 에 맡긴다. kordoc 은 문서를 문단·표 칸
  * 단위로 읽어 마크다운으로 보여 주고, 그 마크다운을 고쳐 넘기면 **바뀐 글자만**
  * 원본 파일 안에서 갈아 끼운다. 테두리·글꼴·로고·표 모양은 1바이트도 건드리지 않는다.
  *
  * 여기서는 그 위에 세 가지를 더한다.
- *  1. 문서 안의 "글자 자리" 에 P3, T0.1.2 같은 이름을 붙여 AI 와 화면이 같은 자리를 가리키게 한다.
+ *  1. 문서 안의 글자 자리에 P3, T0.1.2 같은 이름을 붙여 화면과 파일이 같은 자리를 가리키게 한다.
  *  2. 한 칸에 여러 줄을 넣으면 kordoc 은 hwpx 에서 줄을 공백으로 이어 버린다.
  *     표시 문자로 이어 넣은 뒤, 그 자리에서 문단을 나눠 준다(한글에서 Enter 친 것과 같다).
  *  3. 한글 파일에는 탐색기 미리보기용 글(PrvText)과 그림(PrvImage)이 따로 들어 있는데,
@@ -24,7 +25,7 @@ import { SLOT_RE, slotNamesIn } from '../../shared/hwpform'
 const BR = '\uE0A0'
 
 /** 흰 점 하나짜리 PNG. 미리보기 그림을 비울 때 쓴다. */
-const BLANK_PNG = Buffer.from(
+export const BLANK_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC',
   'base64'
 )
@@ -145,44 +146,6 @@ export async function readLayout(buf: Uint8Array): Promise<FormLayout> {
       error: e instanceof Error ? e.message : String(e)
     }
   }
-}
-
-/**
- * AI 에게 보여 줄 양식 지도. 자리마다 이름을 붙이고, 표는 행 단위로 묶는다.
- * 빈칸은 옆 칸 글자를 함께 적어 무엇을 쓰는 곳인지 알 수 있게 한다.
- */
-export function outlineOf(spots: FormSpot[], limit = 24000): string {
-  const lines: string[] = []
-  let table = ''
-  let row = ''
-  let cells: string[] = []
-  const flush = (): void => {
-    if (cells.length) lines.push(`  ${Number(row) + 1}행: ${cells.join(' | ')}`)
-    cells = []
-  }
-  for (const s of spots) {
-    if (s.id.startsWith('P')) {
-      flush()
-      table = ''
-      lines.push(`[${s.id}] ${s.text.replace(/\n/g, ' / ')}`)
-      continue
-    }
-    const [t, r] = s.id.slice(1).split('.')
-    if (t !== table) {
-      flush()
-      table = t
-      lines.push(`[표 T${t}]`)
-    }
-    if (r !== row) flush()
-    row = r
-    const body = s.text.trim()
-      ? s.text.replace(/\n/g, ' / ').slice(0, 400)
-      : `(빈칸${s.label ? ` · ${s.label}` : ''})`
-    cells.push(`${s.id}=${body}`)
-  }
-  flush()
-  const text = lines.join('\n')
-  return text.length > limit ? `${text.slice(0, limit)}\n…(양식이 길어 뒷부분은 줄였습니다)` : text
 }
 
 /* ---------- 채우기 ---------- */
@@ -310,7 +273,7 @@ export async function fillSlots(
 /* ---------- hwpx 마무리 ---------- */
 
 /** zip 을 다시 묶는다. mimetype 은 반드시 맨 앞에, 압축하지 않고 넣어야 한글이 연다. */
-function rezip(files: Record<string, Uint8Array>): Uint8Array {
+export function rezip(files: Record<string, Uint8Array>): Uint8Array {
   const ordered: Zippable = {}
   if (files.mimetype) ordered.mimetype = [files.mimetype, { level: 0 }]
   for (const [name, data] of Object.entries(files)) {

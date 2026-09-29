@@ -7,6 +7,7 @@ import {
   removeModel as removeFromLists,
   resetModels
 } from '../../shared/types'
+import { LEVEL_KEY, SCHOOL_LEVELS } from '../../shared/helpdocs'
 import { useToast } from '../lib/toast'
 
 interface Props {
@@ -60,6 +61,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
   const toast = useToast()
   const [job, setJob] = useState('')
   const [school, setSchool] = useState('')
+  const [level, setLevel] = useState('')
   const [local, setLocal] = useState<LocalSettings>(DEFAULT_LOCAL)
   const [encrypted, setEncrypted] = useState(true)
   const [testing, setTesting] = useState(false)
@@ -72,6 +74,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     void (async () => {
       setJob(await window.api.setting.get('job_title'))
       setSchool(await window.api.setting.get('school_name'))
+      setLevel(await window.api.setting.get(LEVEL_KEY))
       setRoster(await window.api.setting.get('duty_roster'))
       setLocal(await window.api.local.load())
       setEncrypted(await window.api.local.encrypted())
@@ -85,6 +88,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     }
     await window.api.setting.set('job_title', job.trim())
     await window.api.setting.set('school_name', school.trim())
+    await window.api.setting.set(LEVEL_KEY, level)
     await window.api.setting.set('duty_roster', roster.trim())
     await onProfileChanged()
     toast('저장했습니다.', 'ok')
@@ -231,9 +235,23 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
           <input type="text" value={job} onChange={(e) => setJob(e.target.value)} />
           <div className="hint">이 값은 인수인계 파일에 함께 저장됩니다.</div>
         </div>
-        <div className="field">
-          <label>학교명</label>
-          <input type="text" value={school} onChange={(e) => setSchool(e.target.value)} />
+        <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
+          <div className="field" style={{ flex: 2, minWidth: 200 }}>
+            <label>학교명</label>
+            <input type="text" value={school} onChange={(e) => setSchool(e.target.value)} />
+          </div>
+          <div className="field" style={{ flex: 1, minWidth: 150 }}>
+            <label>학교급</label>
+            <select value={level} onChange={(e) => setLevel(e.target.value)}>
+              <option value="">— 고르지 않음 —</option>
+              {SCHOOL_LEVELS.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+            <div className="hint">학교업무 도움자료를 이 학교급 것부터 보여 줍니다.</div>
+          </div>
         </div>
 
         <div className="field">

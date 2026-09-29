@@ -72,9 +72,11 @@ const SCHEMA = [
      remind INTEGER DEFAULT 0, done INTEGER DEFAULT 0)`,
   // 학교 한글 양식 파일(.hwp/.hwpx)을 통째로 담아 둔다. 다음 담당자도 같은 양식을 쓰도록
   // 인수인계 파일에 함께 넘어간다.
+  // doc_kind 에는 이 양식으로 만드는 문서 종류(shared/docforms.ts 의 id)가 들어간다. 비어 있으면 묶지 않은 양식.
   `CREATE TABLE IF NOT EXISTS hwp_forms (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
-     name TEXT, filename TEXT, kind TEXT, data BLOB, added_at TEXT)`
+     name TEXT, filename TEXT, kind TEXT, data BLOB, added_at TEXT,
+     doc_kind TEXT DEFAULT '')`
 ]
 
 let SQL: SqlJsStatic | null = null
@@ -129,6 +131,11 @@ function migrate(target: Database): boolean {
   }
   if (!cols('documents').includes('school_year')) {
     target.run('ALTER TABLE documents ADD COLUMN school_year INTEGER DEFAULT 0')
+    changed = true
+  }
+  // 한글 양식을 문서 종류에 묶는다 (v2.9.0)
+  if (!cols('hwp_forms').includes('doc_kind')) {
+    target.run("ALTER TABLE hwp_forms ADD COLUMN doc_kind TEXT DEFAULT ''")
     changed = true
   }
 
@@ -498,7 +505,7 @@ export function deleteTemplate(id: number): void {
 
 export function listHwpForms(): HwpForm[] {
   return rows<HwpForm>(
-    'SELECT id, name, filename, kind, length(data) AS size, added_at FROM hwp_forms ORDER BY id DESC'
+    "SELECT id, name, filename, kind, length(data) AS size, added_at, COALESCE(doc_kind, '') AS doc_kind FROM hwp_forms ORDER BY id DESC"
   )
 }
 
@@ -519,6 +526,10 @@ export function addHwpForm(name: string, filename: string, kind: HwpKind, data: 
 
 export function renameHwpForm(id: number, name: string): void {
   run('UPDATE hwp_forms SET name = ? WHERE id = ?', [name, id])
+}
+
+export function linkHwpForm(id: number, docKind: string): void {
+  run('UPDATE hwp_forms SET doc_kind = ? WHERE id = ?', [docKind, id])
 }
 
 export function deleteHwpForm(id: number): void {

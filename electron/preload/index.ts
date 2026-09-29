@@ -36,7 +36,16 @@ import type {
   TemplateInput,
   UpdateInfo
 } from '../../shared/types'
-import type { FormEdit, FormFillResult, FormLayout, FormPlan, FormRef, HwpForm } from '../../shared/hwpform'
+import type { HelpCatalog, HelpHit, HelpMatch } from '../../shared/helpdocs'
+import type {
+  ComposeResult,
+  DocItem,
+  FormFillResult,
+  FormLayout,
+  FormRef,
+  FrameLayout,
+  HwpForm
+} from '../../shared/hwpform'
 import type { Deck, DesignSource } from '../../shared/slides'
 
 export interface ActionResult {
@@ -175,6 +184,13 @@ const api = {
       return () => ipcRenderer.removeListener('ai:progress', handler)
     }
   },
+  /** 학교업무 도움자료 목록 */
+  help: {
+    catalog: (): Promise<HelpCatalog> => ipcRenderer.invoke('help:catalog'),
+    /** 적은 내 업무(여러 줄)에 맞는 것 */
+    match: (text: string, level: string): Promise<HelpMatch[]> => ipcRenderer.invoke('help:match', text, level),
+    search: (query: string, limit?: number): Promise<HelpHit[]> => ipcRenderer.invoke('help:search', query, limit)
+  },
   years: {
     summary: (): Promise<YearSummary[]> => ipcRenderer.invoke('years:summary'),
     setDocs: (ids: number[], year: number): Promise<number> =>
@@ -212,15 +228,28 @@ const api = {
   /** 학교 한글 양식 */
   hwp: {
     list: (): Promise<HwpForm[]> => ipcRenderer.invoke('hwpforms:list'),
-    add: (): Promise<{ added: { id: number; name: string; personal: string[] }[]; errors: string[] }> =>
-      ipcRenderer.invoke('hwpforms:add'),
+    add: (docKind?: string): Promise<{ added: { id: number; name: string; personal: string[] }[]; errors: string[] }> =>
+      ipcRenderer.invoke('hwpforms:add', docKind),
     rename: (id: number, name: string): Promise<void> => ipcRenderer.invoke('hwpforms:rename', id, name),
+    /** 이 양식이 어느 문서(문서 만들기의 문서 종류 id)의 양식인지. 빈 문자열이면 묶지 않음 */
+    link: (id: number, docKind: string): Promise<void> => ipcRenderer.invoke('hwpforms:link', id, docKind),
     remove: (id: number): Promise<void> => ipcRenderer.invoke('hwpforms:delete', id),
     layout: (ref: FormRef): Promise<FormLayout> => ipcRenderer.invoke('hwpforms:layout', ref),
-    plan: (args: { ref: FormRef; content: string; aliases: AliasPair[]; model?: ModelChoice }): Promise<FormPlan> =>
-      ipcRenderer.invoke('hwpforms:plan', args),
-    save: (args: { ref: FormRef; edits: FormEdit[]; name: string }): Promise<FormFillResult> =>
-      ipcRenderer.invoke('hwpforms:save', args),
+    /** 양식의 모양(문단·표·글상자) */
+    frame: (ref: FormRef): Promise<FrameLayout> => ipcRenderer.invoke('hwpforms:frame', ref),
+    /** 양식을 틀로 AI 가 새 문서의 글을 쓴다 */
+    compose: (args: {
+      ref: FormRef
+      content: string
+      aliases: AliasPair[]
+      /** 문서 종류와 쓰는 법 */
+      guide?: string
+      model?: ModelChoice
+    }): Promise<ComposeResult> =>
+      ipcRenderer.invoke('hwpforms:compose', args),
+    /** 쓴 글을 양식의 모양으로 한글 파일로 만든다 */
+    build: (args: { ref: FormRef; items: DocItem[]; name: string }): Promise<ActionResult & { notes: string[] }> =>
+      ipcRenderer.invoke('hwpforms:build', args),
     fillSlots: (args: {
       ref: FormRef
       values: Record<string, string>
