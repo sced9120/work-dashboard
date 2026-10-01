@@ -608,6 +608,29 @@ export function listEventsBetween(from: string, to: string): CalEvent[] {
   )
 }
 
+/**
+ * 일정을 한꺼번에 넣는다(나이스 학사일정 가져오기). 저장은 끝에 한 번만.
+ * 같은 날 같은 제목의 일정이 이미 있으면 넣지 않는다 — 두 번 가져와도 겹치지 않게.
+ */
+export function addEventsMany(list: CalEventInput[]): { added: number; skipped: number } {
+  let added = 0
+  let skipped = 0
+  batched(() => {
+    const have = new Set(listEvents().map((e) => `${e.event_date}|${e.title}`))
+    for (const e of list) {
+      const k = `${e.event_date}|${e.title}`
+      if (have.has(k)) {
+        skipped++
+        continue
+      }
+      have.add(k)
+      addEvent(e)
+      added++
+    }
+  })
+  return { added, skipped }
+}
+
 export function addEvent(e: CalEventInput): number {
   return insert(
     `INSERT INTO events (event_date, end_date, start_time, title, content, color, remind, done)
@@ -1013,15 +1036,19 @@ export function cleanupYear(plan: CleanupPlan): CleanupResult {
  * 기한 목록에는 학생 이름이 섞여 있을 수 있어, 기본으로는 빼고 내보낸다.
  * API 키를 DB에서 분리한 것과 같은 이유다.
  */
-export async function exportTo(targetPath: string, includePersonal = false): Promise<void> {
-  if (includePersonal) {
-    fs.writeFileSync(targetPath, Buffer.from(need().export()))
-    return
-  }
+/**
+ * 업무가 아니라 지금 담당자 한 사람의 것이라 인수인계 파일에 넣지 않는 설정.
+ * 학교 시간표에는 선생님들 이름이 들어 있고, 내 이름 · 내 시간표 · 우리 반은 다음 담당자와 다르다.
+ */
+const PERSONAL_SETTINGS = ['timetable_school', 'timetable_me', 'timetable_manual', 'timetable_alias', 'my_class']
 
+export async function exportTo(targetPath: string, includePersonal = false): Promise<void> {
   if (!SQL) SQL = await initSqlJs({ wasmBinary: loadWasm() })
   const copy = new SQL.Database(need().export())
-  copy.run('DELETE FROM deadlines')
+  if (!includePersonal) copy.run('DELETE FROM deadlines')
+  copy.run(`DELETE FROM settings WHERE key IN (${PERSONAL_SETTINGS.map(() => '?').join(',')})`, PERSONAL_SETTINGS)
+  // 지운 줄은 파일의 빈 쪽에 글자가 그대로 남는다. 다시 짜서 지운 것이 파일에 남지 않게 한다.
+  copy.run('VACUUM')
   fs.writeFileSync(targetPath, Buffer.from(copy.export()))
   copy.close()
 }

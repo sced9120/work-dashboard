@@ -27,6 +27,10 @@ import {
 import { fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
 import { buildFromFrame, readFrame } from './hwpgen'
 import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
+import { classTimetable, clearNeisCache, mealsOn, nextMealDay, scheduleCached, schoolInfoForDocs, searchSchools, testNeis } from './neis'
+import { importTimetable, loadTimetable } from './timetable'
+import { schoolContext } from './context'
+import { ymd } from '../../shared/neis'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
 import type {
   ComposeResult,
@@ -253,6 +257,9 @@ function registerIpc(): void {
     db.updateEvent(id, patch)
   )
   ipcMain.handle('events:delete', (_e, id: number) => db.deleteEvent(id))
+  ipcMain.handle('events:addMany', (_e, list: CalEventInput[]) =>
+    db.addEventsMany(Array.isArray(list) ? list.slice(0, 1000) : [])
+  )
 
   /* ---------- 알림 ---------- */
   ipcMain.handle('notify:checkNow', () => checkDeadlinesNow())
@@ -301,7 +308,8 @@ function registerIpc(): void {
         args.values,
         picked,
         args.aliases,
-        args.model
+        args.model,
+        schoolInfoForDocs()
       )
     }
   )
@@ -430,6 +438,7 @@ function registerIpc(): void {
         aliases: args.aliases,
         schoolName: db.getSetting('school_name', ''),
         guide: typeof args.guide === 'string' ? args.guide : '',
+        schoolInfo: schoolInfoForDocs(),
         override: args.model
       })
     }
@@ -737,11 +746,14 @@ function registerIpc(): void {
         ...(args.formFiles ?? []).map((n) => `${n} (이 대화에 올린 파일)`)
       ]
 
+      // 이 학교의 급식 · 학사일정 · 내 시간표 — 질문에 맞을 때만
+      const school = lastUser ? await schoolContext(lastUser.content, todayStr).catch(() => []) : []
+
       const res = await chatAnswer(
         loadLocalSettings(),
         args.jobTitle,
         args.history,
-        [...attached, ...found, ...helps.map((h) => ({ label: h.label, text: h.text, room: 2500 }))],
+        [...attached, ...school, ...found, ...helps.map((h) => ({ label: h.label, text: h.text, room: 2500 }))],
         todayStr,
         forms,
         args.model,
@@ -752,6 +764,49 @@ function registerIpc(): void {
       return links.length ? { ...res, links } : res
     }
   )
+
+  /* ---------- 나이스 교육정보 개방 포털 ---------- */
+  const dayOk = (v: unknown): string => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '')
+  ipcMain.handle('neis:schools', (_e, name: string) => searchSchools(String(name ?? '')))
+  ipcMain.handle('neis:meals', (_e, day: string) => mealsOn(dayOk(day) || ymd(new Date())))
+  ipcMain.handle('neis:nextMeals', (_e, day: string, dir: number) => nextMealDay(dayOk(day), dir === -1 ? -1 : 1))
+  ipcMain.handle('neis:schedule', (_e, from: string, to: string) => scheduleCached(dayOk(from), dayOk(to)))
+  ipcMain.handle('neis:classTimetable', (_e, grade: number, cls: number, from: string, to: string) =>
+    classTimetable(Number(grade) || 0, Number(cls) || 0, dayOk(from), dayOk(to))
+  )
+
+  /* ---------- 시간표 ---------- */
+  ipcMain.handle('tt:get', () => loadTimetable())
+  ipcMain.handle('tt:import', async () => {
+    if (!mainWindow) return { ok: false, error: '창을 찾을 수 없습니다.' }
+    const res = await dialog.showOpenDialog(mainWindow, {
+      title: '학교 시간표 엑셀 고르기 (여러 개를 함께 골라도 됩니다)',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: '엑셀', extensions: ['xlsx'] }]
+    })
+    if (res.canceled || !res.filePaths.length) return { ok: false, error: '' }
+    return importTimetable(res.filePaths)
+  })
+  ipcMain.handle('tt:clear', () => db.setSetting('timetable_school', ''))
+
+  /** 화면에서 그린 그림(시간표 등)을 PNG 로 저장 */
+  ipcMain.handle('image:savePng', async (_e, args: { name: string; dataUrl: string }) => {
+    if (!mainWindow) return { ok: false, message: '창을 찾을 수 없습니다.' }
+    const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(String(args?.dataUrl ?? ''))
+    if (!m) return { ok: false, message: '그림을 만들지 못했습니다.' }
+    const safe = String(args.name ?? '그림').replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || '그림'
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: '그림으로 저장',
+      defaultPath: path.join(app.getPath('documents'), `${safe}.png`),
+      filters: [{ name: 'PNG 그림', extensions: ['png'] }]
+    })
+    if (res.canceled || !res.filePath) return { ok: false, message: '취소했습니다.' }
+    fs.writeFileSync(res.filePath, Buffer.from(m[1], 'base64'))
+    savedPaths.add(path.resolve(res.filePath))
+    return { ok: true, message: `저장했습니다: ${res.filePath}`, path: res.filePath }
+  })
+  ipcMain.handle('neis:test', () => testNeis())
+  ipcMain.handle('neis:clearCache', () => clearNeisCache())
 
   /* ---------- 학교업무 도움자료 ---------- */
   ipcMain.handle('help:catalog', () => helpCatalog())

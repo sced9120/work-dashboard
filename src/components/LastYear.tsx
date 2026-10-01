@@ -7,6 +7,8 @@ import { monthOf, weekOf } from '../lib/util'
 interface Props {
   tasks: Task[]
   onGo: (p: PageId) => void
+  /** 홈 위젯 안에 넣을 때 — 겉 카드 · 제목 없이, 비어 있어도 알림 글을 보여 준다 */
+  bare?: boolean
 }
 
 /** 오늘이 그 달의 몇째 주인지 (1~5) */
@@ -23,7 +25,7 @@ function weekOfMonth(d: Date): number {
  * 처음 업무를 맡은 사람은 무엇이 다가오는지 모른다. 전임자의 한 해가 그대로
  * 예고편이 되어 준다. 그것이 이 프로그램에 지난 자료를 남겨 두는 까닭이다.
  */
-export default function LastYear({ tasks, onGo }: Props): JSX.Element | null {
+export default function LastYear({ tasks, onGo, bare }: Props): JSX.Element | null {
   const now = new Date()
   const thisYear = currentSchoolYear()
   const month = now.getMonth() + 1
@@ -48,7 +50,13 @@ export default function LastYear({ tasks, onGo }: Props): JSX.Element | null {
       })
   }, [tasks, thisYear, month, week])
 
-  if (!past.length) return null
+  if (!past.length) {
+    return bare ? (
+      <p className="muted small" style={{ margin: 0 }}>
+        지난 학년도의 {month}월 {week}주 무렵에 했던 일이 없습니다. 지난 학년도 자료가 쌓이면 여기에 미리 알려 드립니다.
+      </p>
+    ) : null
+  }
 
   // 같은 일이 해마다 되풀이되므로 제목이 같은 것은 한 번만 보여 준다
   const seen = new Set<string>()
@@ -59,18 +67,20 @@ export default function LastYear({ tasks, onGo }: Props): JSX.Element | null {
   })
 
   return (
-    <div className="card">
-      <div className="card-title">
-        <span>
-          🔁 작년 이맘때 <span className="muted">— {month}월 {week}주 무렵</span>
-        </span>
-        <button className="btn btn-sm btn-ghost" onClick={() => onGo('로드맵')}>
-          로드맵에서 보기
-        </button>
-      </div>
+    <div className={bare ? '' : 'card'}>
+      {!bare && (
+        <div className="card-title">
+          <span>
+            🔁 작년 이맘때 <span className="muted">— {month}월 {week}주 무렵</span>
+          </span>
+          <button className="btn btn-sm btn-ghost" onClick={() => onGo('로드맵')}>
+            로드맵에서 보기
+          </button>
+        </div>
+      )}
 
       <p className="hint" style={{ marginTop: 0 }}>
-        지난 학년도의 이맘때 했던 일입니다. <b>올해도 곧 돌아올 일</b>이니 미리 챙겨 두세요.
+        지난 학년도의 {bare ? `${month}월 ${week}주 무렵` : '이맘때'} 했던 일입니다. <b>올해도 곧 돌아올 일</b>이니 미리 챙겨 두세요.
       </p>
 
       <div className="list">

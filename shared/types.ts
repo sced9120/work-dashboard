@@ -102,6 +102,8 @@ export interface LocalSettings {
   keep_in_tray: boolean
   /** 컴퓨터를 켤 때 자동으로 실행한다 */
   open_at_login: boolean
+  /** 나이스 교육정보 개방 포털 인증키. AI 키처럼 이 PC 에만 둔다 */
+  neis_key: string
 }
 
 export interface ExtractedDoc {

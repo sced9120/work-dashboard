@@ -1,0 +1,62 @@
+# 작업 이어 하기 (wip 브랜치 메모)
+
+> 이 파일은 작업 브랜치에서 클라우드 세션으로 넘기기 위한 메모입니다. **main 에 합치기 전에 지우세요.**
+
+## 지금 상태
+
+- 배포된 마지막 버전: **v2.9.0** (main, 태그 v2.9.0). 이 브랜치는 그 위의 미배포 작업입니다.
+- 이 브랜치의 작업은 **아직 배포하지 않습니다.** 사용자가 직접 살펴본 뒤 확인하고, 버전 번호도 사용자가 정합니다(제안: v2.10.0).
+- 타입 검사(`npm run typecheck`) · 빌드(`npx electron-vite build`) 통과. 로컬 통합 시험 6묶음 모두 통과(아래 "시험" 참고).
+
+## 이 브랜치에 들어 있는 것 (v2.9.0 이후)
+
+1. **나이스 교육정보 개방 포털 연동** (`shared/neis.ts`, `electron/main/neis.ts`)
+   - 설정 → 🏫 나이스 연결: 학교 찾기 · 연결, 인증키 칸, 키 받는 법 안내(포털 → 활용가이드 → 인증키 신청 → SNS 로그인 → 즉시 발급)
+   - 키 없이도 한 번에 5건까지 받을 수 있음(pIndex 를 올려도 첫 5건 되풀이). 학교 찾기 · 하루치 급식은 키 없이, 한 해 학사일정 · 학급 시간표는 키 필요
+   - 홈의 오늘 급식, 달력의 "나이스 학사일정 가져오기"(미리 보고 골라 넣기, 이어진 날 묶기, 토요휴업일 · 공휴일 빼기, 두 번 넣어도 안 겹침 `events:addMany`)
+   - 키는 `LocalSettings.neis_key`(DPAPI, 인수인계 파일에 안 들어감), 연결한 학교는 DB 설정 `neis_school`
+2. **바깥 요청을 `net.fetch` 로** (`electron/main/http.ts`) — 학교망이 TLS 에 자체 루트 인증서를 끼우면 Electron 33 의 Node fetch 가
+   `SELF_SIGNED_CERT_IN_CHAIN` 으로 끊김(나이스 · api.anthropic.com 에서 확인). AI · 나이스 · 업데이트 확인을 모두 바꿈
+3. **시간표** (`shared/timetable.ts`, `electron/main/timetable.ts`, `src/pages/Timetable.tsx`, `src/components/TimetableBoard.tsx`)
+   - 학교 시간표 엑셀 세 모양을 읽음: 학급 묶음(칸 "과목⏎교사"), 교사 묶음(칸 "103⏎국어", 시각 있음), 주간 시간표(한 장 표, 위 두 줄 요일 · 교시).
+     모두 "누가 · 언제 · 반 · 과목" 목록으로 바꿔 합침(여러 파일 · 시트, 중복 한 번). `A_사문` = 이동수업 묶음. 요일별 교시 수 다름(수 4, 금 6 등)
+   - 내 시간표: 이름 고르기 → 그림처럼(살구 바탕 · 남색 테두리 · 청록 수업 칸 · 분홍 점심 띠 · 창체 분홍 · 동아리 회색), 칸 고치기(창체 · 동아리 등),
+     과목 이름 바꿔 보이기, PNG 저장(`image:savePng`)
+   - 학급별 시간표, ⭐ 우리 반, 나이스 학급 시간표(키 필요) 대체
+   - 수업 바꾸기: 맞교체(같은 반 · 같은 주 · 서로 비는 시간, 지난 날 제외, 이동수업 제외) · 보강(같은 과목 · 그날 수업 적은 순), 복사 문구
+4. **업무 도우미가 이 학교 자료를 앎** (`electron/main/context.ts`) — 질문에 급식 · 일정 · 시간표 낱말이 있을 때만 나이스 급식 · 학사일정 · 내 시간표 ·
+   우리 반(과목만)을 근거로 실음. **다른 선생님 이름은 보내지 않음**
+5. **학교 정보 자동 채우기** — 문서 만들기(글 초안 · 한글 양식) 프롬프트에 학교 주소 · 대표 전화 · 누리집(`schoolInfoForDocs`)
+6. **홈 위젯 판** (`src/pages/Home.tsx`, `src/components/HomeWidgets.tsx`) — 접기 · 넓게/좁게 · 닫기 · 끌어 옮기기 · ↑↓ · 위젯 더하기 · 🧲 자동 정렬
+   (rank 순 + 반쪽 위젯 짝짓기) · 처음 모양. 설정 키 `home_widgets`. 위젯: 학교 정보 띠, 급식, 내 시간표, 우리 반 시간표, 다가오는 학사일정,
+   절차 기한, 달력, 이 달 업무, 내 업무 도움자료, 작년 이맘때, 메모 · 공지, 빠른 이동
+7. **달력 한 주 보기** (`src/components/Calendar.tsx` 의 `view: 'week'`, 홈 위젯이 기억)
+8. **인수인계 파일 개인정보 보강** (`electron/main/db.ts` exportTo)
+   - `timetable_school`(선생님 이름) · `timetable_me` · `timetable_manual` · `timetable_alias` · `my_class` 는 늘 뺌
+   - **sql.js 로 DELETE 후 export 하면 지운 줄이 파일 빈 쪽에 남음** → `VACUUM` 추가(예전부터 있던 "기한 빼고 내보내기"에도 해당하던 문제)
+9. 사용안내.md: 5장 나이스 연결, 8장 시간표, 3장 홈 꾸미기, 달력 한 주 보기, 도우미 · 인수인계 항목 갱신. README 구조 갱신
+
+## 남은 일 · 다음 후보
+
+- 사용자 확인 → 버전 번호 받기 → package.json · package-lock.json 버전 → 커밋 메시지(한국어 릴리스 노트, 업데이트 창에 그대로 뜸) → main · 태그 push
+- 이 HANDOFF.md 지우기
+- 다음 후보(사용자와 의논): 교사 개인 시간표를 나이스로는 못 받음(학급 시간표만 있음) — 지금은 학교 엑셀에서 뽑거나 손으로 적음.
+  2단계 교체(사슬 교체), 학기마다 시간표 다시 불러오기 안내, 휴대폰용 시간표 그림 크기 고르기 등
+
+## 지켜야 할 것
+
+- **배포 = 태그 push** (`.github/workflows/build.yml` 이 `v*` 태그에서 설치파일을 만들어 Releases 에 올리고 모든 사용자에게 자동 업데이트). 사용자가 분명히 부탁할 때만.
+  커밋 작성자는 `git -c user.name=hsorbit -c user.email=sced9120@gmail.com commit ...`
+- `src/styles.css` 만 저장소에 **CRLF** 로 저장돼 있음 → `git -c core.autocrlf=false add src/styles.css` (그냥 add 하면 파일 전체가 바뀐 것처럼 커밋됨)
+- prettier 를 돌리지 않음
+- 학생 실명 · 학번 · 선생님 이름이 든 파일(시간표 엑셀, 한글 양식, 사용자 DB)은 저장소에 넣지 않고 출력하지도 않음. 시험은 개수 · 참거짓만
+- 사용자 API 키 · 나이스 키를 다루지 않음(시험은 가짜 키와 fetch 가로채기)
+
+## 시험 방법
+
+- `npm run typecheck`, `npx electron-vite build`
+- 통합 시험은 이전 로컬 세션의 임시 폴더에 있었음(저장소 밖): Electron 을 `ELECTRON_RUN_AS_NODE=1` 로 띄우고 `electron` 모듈을 가짜로 바꿔
+  `out/main/index.js` 의 IPC 처리기를 직접 부르는 방식(가짜 `app` 에 `isReady: () => true`, `net: { fetch: (...a) => global.fetch(...a) }`,
+  `dialog` 는 큐에서 경로를 꺼내 줌, `userData` 는 임시 폴더). AI 는 `global.fetch` 를 가로채 가짜 답. 나이스는 실제 서버(키 없이) + 가짜 키에 가짜 학사일정.
+- 화면은 `out/renderer` 를 작은 정적 서버로 띄우고 `window.api` 를 가짜로 채운 mock 으로 브라우저에서 확인
+- 실제 학교 시간표 · 한글 양식 파일은 사용자 PC 에만 있음. 클라우드에서는 이름을 가린 가짜 자료로 시험할 것

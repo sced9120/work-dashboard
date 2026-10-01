@@ -10,6 +10,7 @@
 import { app } from 'electron'
 import type { UpdateInfo } from '../../shared/types'
 import { canAutoInstall } from './autoupdate'
+import { httpFetch } from './http'
 
 /** 릴리스를 올리는 저장소. 저장소를 옮기면 이 줄만 고치면 된다. */
 const REPO = 'sced9120/work-dashboard'
@@ -75,7 +76,7 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
   try {
-    const res = await fetch(API, {
+    const res = await httpFetch(API, {
       headers: { Accept: 'application/vnd.github+json' },
       signal: controller.signal
     })
