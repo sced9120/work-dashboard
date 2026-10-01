@@ -28,7 +28,8 @@ import { fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
 import { buildFromFrame, readFrame } from './hwpgen'
 import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
 import { classTimetable, clearNeisCache, mealsOn, nextMealDay, scheduleCached, schoolInfoForDocs, searchSchools, testNeis } from './neis'
-import { importTimetable, loadTimetable, rereadWithSheet } from './timetable'
+import type { TtRow } from '../../shared/timetable'
+import { importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
 import { schoolContext } from './context'
 import { ymd } from '../../shared/neis'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
@@ -789,6 +790,20 @@ function registerIpc(): void {
   })
   ipcMain.handle('tt:useSheet', (_e, name: string) => rereadWithSheet(String(name ?? '')))
   ipcMain.handle('tt:clear', () => db.setSetting('timetable_school', ''))
+  /** 표준 자료를 엑셀로 저장 (화면에서 블록 · 창체를 얹어 편 줄) */
+  ipcMain.handle('tt:exportStandard', async (_e, rows: TtRow[]) => {
+    if (!mainWindow) return { ok: false, message: '창을 찾을 수 없습니다.' }
+    if (!Array.isArray(rows) || !rows.length) return { ok: false, message: '저장할 시간표 자료가 없습니다.' }
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: '시간표 표준 자료 저장',
+      defaultPath: path.join(app.getPath('documents'), '시간표_표준자료.xlsx'),
+      filters: [{ name: '엑셀', extensions: ['xlsx'] }]
+    })
+    if (res.canceled || !res.filePath) return { ok: false, message: '취소했습니다.' }
+    fs.writeFileSync(res.filePath, await standardWorkbook(rows))
+    savedPaths.add(path.resolve(res.filePath))
+    return { ok: true, message: `저장했습니다: ${res.filePath}`, path: res.filePath }
+  })
 
   /** 화면에서 그린 그림(시간표 등)을 PNG 로 저장 */
   ipcMain.handle('image:savePng', async (_e, args: { name: string; dataUrl: string }) => {

@@ -22,7 +22,7 @@ import {
   weekDate
 } from '../../shared/timetable'
 import type { PageId } from '../App'
-import BlockSetup, { rulesSummary } from '../components/BlockSetup'
+import TimetableSetup, { rulesSummary } from '../components/TimetableSetup'
 import TimetableBoard, { drawTimetable } from '../components/TimetableBoard'
 import { useToast } from '../lib/toast'
 import { TT_ALIAS_KEY, nowInfo, useTimetable } from '../lib/timetable'
@@ -70,7 +70,7 @@ export default function Timetable({ onGo }: Props): JSX.Element {
       const one = r.tt!.versions ? ` 시트마다 수업이 달라 「${r.tt!.versions.used.join('」 「')}」 만 읽었습니다([파일 · 설정] 에서 바꿀 수 있음).` : ''
       toast(
         `시간표를 읽었습니다: 반 ${r.tt!.classes.length}개, 선생님 ${r.tt!.teachers.length}분.${one} ` +
-          '수업 바꾸기는 [수업 바꾸기] 에서 블록 · 창체를 확인한 뒤 쓸 수 있습니다.',
+          '수업 바꾸기는 [수업 바꾸기] 에서 시간표 정리(읽은 자료 · 블록 · 창체 · 동아리)를 마친 뒤 쓸 수 있습니다.',
         'ok'
       )
       setRulesEdit(false)
@@ -89,8 +89,8 @@ export default function Timetable({ onGo }: Props): JSX.Element {
           <h1>시간표</h1>
           <p>
             학교 시간표 엑셀을 불러오면 내 시간표를 뽑아 그림처럼 보여 주고, 학급별 시간표와 수업 바꿀 짝(맞교체 ·
-            보강)을 찾아 드립니다. 수업 바꾸기는 블록 · 창체를 한 번 확인한 뒤 쓸 수 있습니다. 파일이 없으면 내 시간표를 직접 적어도
-            됩니다.
+            보강)을 찾아 드립니다. 수업 바꾸기는 시간표 정리(읽은 자료 · 블록 · 창체 · 동아리)를 한 번 마친 뒤 쓸 수 있습니다. 파일이
+            없으면 내 시간표를 직접 적어도 됩니다.
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => void importFile()} disabled={busy}>
@@ -491,7 +491,7 @@ function ChangeTab({
   const ready = rulesReady(tt, T.rules)
   if (!ready || editRules) {
     return (
-      <BlockSetup
+      <TimetableSetup
         key={stampOf(tt)}
         tt={tt}
         rules={T.rules}
@@ -500,7 +500,7 @@ function ChangeTab({
           await T.save(TT_RULES_KEY, { ...r, confirmedFor: stampOf(tt), confirmedAt: new Date().toISOString() })
           setEditRules(false)
           setJustReady(true)
-          toast('블록 · 창체를 정했습니다. 이제 수업 바꾸기를 쓸 수 있습니다.', 'ok')
+          toast('시간표 정리를 마쳤습니다. 이제 수업 바꾸기를 쓸 수 있습니다.', 'ok')
         }}
       />
     )
@@ -513,7 +513,8 @@ function ChangeTab({
   const myGrade = String(gradeOf(T.myClass))
   const meBusy =
     who && who === T.me
-      ? (d: number, p: number): boolean => !!T.manual[slotKey(d, p)]?.trim() || !!rules.cce[myGrade]?.includes(slotKey(d, p))
+      ? (d: number, p: number): boolean =>
+          !!T.manual[slotKey(d, p)]?.trim() || !!rules.cce[myGrade]?.includes(slotKey(d, p)) || !!rules.club?.[myGrade]?.includes(slotKey(d, p))
       : undefined
   const plan: ChangePlan | null = slot !== null && who && d1 >= 0 ? planChange(tt, who, d1, slot, rules, meBusy) : null
   // 이미 지난 날과는 맞바꿀 수 없다
@@ -532,15 +533,17 @@ function ChangeTab({
     <>
       {justReady && (
         <div className="note note-ok" style={{ marginBottom: 10 }}>
-          ✅ 블록 · 창체 확인을 마쳤습니다. <b>이제 수업 바꾸기를 쓸 수 있습니다.</b> 아래에서 날짜와 비울 수업을 고르세요.
+          ✅ 시간표 정리(읽은 자료 · 블록 · 창체 · 동아리)를 마쳤습니다. <b>이제 수업 바꾸기를 쓸 수 있습니다.</b> 아래에서 날짜와 비울
+          수업을 고르세요.
         </div>
       )}
       <div className="row tt-rules-line">
         <span className="muted small">
-          🧱 {rulesSummary(rules)} 기준으로 찾습니다. 블록 시간의 수업은 한 반만 바꾸지 않고, 블록 시간 · 창체 자리로는 옮기지 않습니다.
+          🧱 {rulesSummary(rules)} 기준으로 찾습니다. 블록 시간의 수업은 한 반만 바꾸지 않고, 블록 시간 · 창체 · 동아리 자리로는 옮기지
+          않습니다.
         </span>
         <button className="btn btn-sm btn-ghost" onClick={() => setEditRules(true)}>
-          블록 · 창체 고치기
+          시간표 정리 고치기
         </button>
       </div>
       <div className="card">
@@ -571,9 +574,9 @@ function ChangeTab({
                   key={p}
                   className={`btn btn-sm ${slot === p ? 'btn-primary' : ''}`}
                   onClick={() => setSlot(p)}
-                  title={lock ? (lock.kind === 'cce' ? '창체 자리' : '블록 수업 — 한 반만 바꿀 수 없음') : undefined}
+                  title={lock ? (lock.kind === 'fixed' ? `${lock.fixed} 시간` : '블록 수업 — 한 반만 바꿀 수 없음') : undefined}
                 >
-                  {lock ? (lock.kind === 'cce' ? '🎒 ' : '🧱 ') : ''}
+                  {lock ? (lock.kind === 'fixed' ? '🎒 ' : '🧱 ') : ''}
                   {tt.periods[p].label} {slotText(s)}
                 </button>
               )
@@ -592,8 +595,8 @@ function ChangeTab({
               <span className="badge">{swaps.length}가지</span>
             </div>
             <p className="hint" style={{ marginTop: 0 }}>
-              같은 반을 같은 주에 가르치는 선생님과 시간을 맞바꿉니다. 두 분 모두 그 시간에 비어 있는 것만, 블록 시간 · 창체 자리는
-              빼고 골랐습니다.
+              같은 반을 같은 주에 가르치는 선생님과 시간을 맞바꿉니다. 두 분 모두 그 시간에 비어 있는 것만, 블록 시간 · 창체 · 동아리
+              자리는 빼고 골랐습니다.
             </p>
             {plan.notes.map((n) => (
               <div key={n} className="note note-warn" style={{ marginBottom: 8 }}>
@@ -673,7 +676,7 @@ function SettingsTab({ T, onImport, onRules }: { T: TT; onImport: () => void; on
         return
       }
       await T.reload()
-      toast(`「${name}」 시트로 다시 읽었습니다. 수업 바꾸기 전에 블록 · 창체를 한 번 더 확인해 주세요.`, 'ok')
+      toast(`「${name}」 시트로 다시 읽었습니다. 수업 바꾸기 전에 시간표 정리를 한 번 더 해 주세요.`, 'ok')
     } finally {
       setRereading(false)
     }
@@ -784,15 +787,15 @@ function SettingsTab({ T, onImport, onRules }: { T: TT; onImport: () => void; on
       {T.tt && (
         <div className="card">
           <div className="card-title">
-            <span>🧱 블록 · 창체</span>
+            <span>🧱 시간표 정리 (읽은 자료 · 블록 · 창체 · 동아리)</span>
             <button className="btn btn-sm" onClick={onRules}>
               {rulesReady(T.tt, T.rules) ? '확인 · 고치기' : '확인하기'}
             </button>
           </div>
           <p className="hint" style={{ margin: 0 }}>
             {rulesReady(T.tt, T.rules)
-              ? `${rulesSummary(T.rules!)}으로 정해 두었습니다. 블록 시간의 수업은 한 반만 바꾸지 않고, 블록 시간 · 창체 자리로는 수업을 옮기지 않습니다.`
-              : '아직 이 시간표로 블록 · 창체를 확인하지 않았습니다. 확인해야 수업 바꾸기를 쓸 수 있습니다.'}
+              ? `${rulesSummary(T.rules!)}으로 정해 두었습니다. 블록 시간의 수업은 한 반만 바꾸지 않고, 블록 시간 · 창체 · 동아리 자리로는 수업을 옮기지 않습니다. 표준 자료(엑셀) 저장도 여기서 합니다.`
+              : '아직 이 시간표를 정리하지 않았습니다. 읽은 자료 · 블록 · 창체 · 동아리를 확인해야 수업 바꾸기를 쓸 수 있습니다.'}
           </p>
         </div>
       )}

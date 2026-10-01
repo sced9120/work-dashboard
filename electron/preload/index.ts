@@ -38,7 +38,7 @@ import type {
 } from '../../shared/types'
 import type { HelpCatalog, HelpHit, HelpMatch } from '../../shared/helpdocs'
 import type { NeisDay, NeisLesson, NeisMealDay, NeisResult, NeisSchool } from '../../shared/neis'
-import type { SchoolTimetable } from '../../shared/timetable'
+import type { SchoolTimetable, TtRow } from '../../shared/timetable'
 import type {
   ComposeResult,
   DocItem,
@@ -209,7 +209,9 @@ const api = {
     import: (): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string }> => ipcRenderer.invoke('tt:import'),
     /** 시트마다 수업이 다른 판일 때, 같은 파일을 이 시트 기준으로 다시 읽는다 */
     useSheet: (name: string): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string }> => ipcRenderer.invoke('tt:useSheet', name),
-    clear: (): Promise<void> => ipcRenderer.invoke('tt:clear')
+    clear: (): Promise<void> => ipcRenderer.invoke('tt:clear'),
+    /** 표준 자료(교사 · 요일 · 교시 · 반 · 과목 · 블록 · 구분)를 엑셀로 저장 */
+    exportStandard: (rows: TtRow[]): Promise<ActionResult> => ipcRenderer.invoke('tt:exportStandard', rows)
   },
   image: {
     savePng: (args: { name: string; dataUrl: string }): Promise<ActionResult> => ipcRenderer.invoke('image:savePng', args)

@@ -6,8 +6,8 @@
 import ExcelJS from 'exceljs'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { ParseOptions, SchoolTimetable, SheetText } from '../../shared/timetable'
-import { TT_SCHOOL_KEY, parseTimetable } from '../../shared/timetable'
+import type { ParseOptions, SchoolTimetable, SheetText, TtRow } from '../../shared/timetable'
+import { DAY_NAMES, STD_COLUMNS, TT_SCHOOL_KEY, parseTimetable } from '../../shared/timetable'
 import * as db from './db'
 
 function cellText(v: ExcelJS.CellValue): string {
@@ -154,6 +154,39 @@ export async function rereadWithSheet(name: string): Promise<{ ok: boolean; tt?:
   const cur = loadTimetable()
   if (!cur?.sources?.length) return { ok: false, error: '처음 불러온 파일을 알 수 없습니다. 시간표 파일을 다시 불러와 주세요.' }
   return importTimetable(cur.sources, { sheet: name })
+}
+
+/**
+ * 표준 자료를 엑셀로 — 첫 시트 "시간표 자료"(교사 · 요일 · 교시 · 반 · 과목 · 블록 · 구분), 둘째 시트 "적는 법".
+ * 고친 뒤 [시간표 파일 다시 불러오기] 로 고르면 표준 목록으로 그대로 읽는다(shared/timetable readList).
+ */
+export async function standardWorkbook(rows: TtRow[]): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('시간표 자료')
+  ws.addRow([...STD_COLUMNS])
+  for (const r of rows) ws.addRow([r.teacher, DAY_NAMES[r.day] ?? '', r.period, r.cls, r.subject, r.block, r.kind])
+  ws.getRow(1).font = { bold: true }
+  ws.views = [{ state: 'frozen', ySplit: 1 }]
+  ws.columns.forEach((c, i) => (c.width = [12, 6, 6, 8, 14, 10, 8][i] ?? 10))
+  const help = wb.addWorksheet('적는 법')
+  for (const line of [
+    ['열', '적는 것'],
+    ['교사', '선생님 이름. 창체 · 동아리 줄은 비워도 됩니다'],
+    ['요일', '월 화 수 목 금 (토)'],
+    ['교시', '1, 2, 3 … (숫자)'],
+    ['반', '2-4 처럼 학년-반. 이동수업은 그 교실 반. 창체 · 동아리 줄은 "2학년" 또는 "전체"'],
+    ['과목', '과목 이름'],
+    ['블록', '여러 반이 함께 움직이는 선택 수업이면 블록 이름(A, B …). 같은 블록은 같은 이름'],
+    ['구분', '수업 · 블록 · 공강 · 창체 · 동아리 가운데 하나'],
+    [],
+    ['한 줄에 수업 하나입니다. 같은 시간에 여러 반을 가르치면 반마다 한 줄씩 적습니다.'],
+    ['이 모양으로 적은 엑셀은 학교가 달라도 그대로 읽습니다.']
+  ])
+    help.addRow(line)
+  help.getRow(1).font = { bold: true }
+  help.getColumn(1).width = 10
+  help.getColumn(2).width = 80
+  return Buffer.from(await wb.xlsx.writeBuffer())
 }
 
 export function loadTimetable(): SchoolTimetable | null {

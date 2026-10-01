@@ -51,7 +51,7 @@ export interface TtClass {
   grid: (TtCell | null)[][]
 }
 
-export type TtLayout = '학급 묶음' | '교사 묶음' | '주간 시간표'
+export type TtLayout = '학급 묶음' | '교사 묶음' | '주간 시간표' | '표준 목록'
 
 export interface SchoolTimetable {
   days: string[]
@@ -70,6 +70,21 @@ export interface SchoolTimetable {
   sources?: string[]
   /** 시트끼리 수업이 달라 한 판만 읽었을 때: 고를 수 있는 시트와 읽은 시트 */
   versions?: { sheets: string[]; used: string[] }
+  /** 파일에 적힌 선생님별 한 주 시수 — "홍길동(16)" 의 16. 읽은 수업 수와 맞춰 본다 */
+  expected?: Record<string, number>
+  /** 표준 목록에서 읽은 창체 · 동아리 시간 (grade 0 = 모든 학년) */
+  fixed?: TtFixed[]
+}
+
+/** 창체 · 동아리처럼 학년 전체가 함께 하는 고정 시간 */
+export type FixedKind = '창체' | '동아리'
+
+export interface TtFixed {
+  kind: FixedKind
+  grade: number
+  day: number
+  /** 0부터 */
+  period: number
 }
 
 /** 시트 하나를 글자 칸으로 */
@@ -196,6 +211,12 @@ function teacherName(text: string): string {
     .replace(/\s*(선생님|교사)$/, '')
 }
 
+/** "홍길동(16)" → 16 */
+function hoursIn(text: string): number | null {
+  const m = norm(text).match(/[(（]\s*(\d{1,2})\s*[)）]\s*$/)
+  return m ? Number(m[1]) : null
+}
+
 const looksTeacher = (s: string): boolean => /^[가-힣]{2,4}$/.test(teacherName(s)) && !classOf(s) && !DAY_RE.test(norm(s))
 
 /* ---------- 모양별로 읽기 ---------- */
@@ -205,11 +226,16 @@ interface Found {
   periods: Map<number, TtPeriod>
   layout: TtLayout
   unknown: number
+  /** 선생님 이름 칸에 적힌 시수 */
+  expected: Map<string, number>
+  fixed: TtFixed[]
 }
+
+const emptyFound = (layout: TtLayout): Found => ({ entries: [], periods: new Map(), layout, unknown: 0, expected: new Map(), fixed: [] })
 
 /** 머리 칸 오른쪽에 요일이 늘어서고 아래에 교시가 내려가는 묶음 */
 function readBlocks(sheet: SheetText, mode: '학급 묶음' | '교사 묶음'): Found {
-  const out: Found = { entries: [], periods: new Map(), layout: mode, unknown: 0 }
+  const out = emptyFound(mode)
   const isHead = mode === '학급 묶음' ? (t: string) => !!classOf(t) : looksTeacher
   sheet.rows.forEach((row, r) => {
     row.forEach((head, c) => {
@@ -228,6 +254,8 @@ function readBlocks(sheet: SheetText, mode: '학급 묶음' | '교사 묶음'): 
         periodRows.push({ row: k, period: p })
       }
       if (periodRows.length < 3) return
+      const hours = mode === '교사 묶음' ? hoursIn(head) : null
+      if (hours !== null) out.expected.set(teacherName(head), hours)
       for (const { period } of periodRows) {
         const had = out.periods.get(period.no)
         if (!had || (!had.start && period.start)) out.periods.set(period.no, period)
@@ -261,7 +289,7 @@ function readBlocks(sheet: SheetText, mode: '학급 묶음' | '교사 묶음'): 
 
 /** 주간 시간표 — 요일 줄과 교시 줄이 위에 있고, 줄마다 선생님 */
 function readMatrix(sheet: SheetText): Found {
-  const out: Found = { entries: [], periods: new Map(), layout: '주간 시간표', unknown: 0 }
+  const out = emptyFound('주간 시간표')
   for (let r = 0; r + 1 < sheet.rows.length; r++) {
     const row = sheet.rows[r] ?? []
     const cols: { col: number; day: number; period: number }[] = []
@@ -278,6 +306,8 @@ function readMatrix(sheet: SheetText): Found {
       const head = sheet.rows[k]?.[nameCol] ?? ''
       if (!looksTeacher(head)) continue
       const teacher = teacherName(head)
+      const hours = hoursIn(head)
+      if (hours !== null) out.expected.set(teacher, hours)
       for (const x of cols) {
         const raw = (sheet.rows[k]?.[x.col] ?? '').trim()
         if (!raw) continue
@@ -288,6 +318,70 @@ function readMatrix(sheet: SheetText): Found {
         }
         out.entries.push({ teacher, day: x.day, period: x.period, cls: found.id, ...subjectOf(found.rest || '수업'), color: sheet.fills?.[k]?.[x.col] ?? '' })
       }
+    }
+    break
+  }
+  return out
+}
+
+/* ---------- 표준 목록 ---------- */
+
+/** 표준 자료의 열 — 학교마다 다른 시간표를 이 모양으로 바꿔 쓴다. 엑셀로 저장하고 다시 읽을 수 있다 */
+export const STD_COLUMNS = ['교사', '요일', '교시', '반', '과목', '블록', '구분'] as const
+
+/** 표준 자료 한 줄의 구분 */
+export type TtKind = '수업' | '블록' | '공강' | FixedKind
+
+const HEAD_RE: Record<string, RegExp> = {
+  teacher: /^(교사|교사명|선생님|성명|이름|담당|담당 교사)$/,
+  day: /^요일$/,
+  period: /^교시$/,
+  cls: /^(반|학급|학반|교실)$/,
+  subject: /^(과목|과목명)$/,
+  block: /^(블록|묶음|블록 구분)$/,
+  kind: /^(구분|종류)$/
+}
+
+/** 표준 목록 — 머리 줄에 교사 · 요일 · 교시 · 반 · 과목 (· 블록 · 구분), 아래로 한 줄에 수업 하나 */
+function readList(sheet: SheetText): Found {
+  const out = emptyFound('표준 목록')
+  for (let r = 0; r < Math.min(sheet.rows.length, 30); r++) {
+    const col: Record<string, number> = {}
+    ;(sheet.rows[r] ?? []).forEach((v, c) => {
+      const t = norm(v ?? '')
+      for (const [k, re] of Object.entries(HEAD_RE)) if (col[k] === undefined && re.test(t)) col[k] = c
+    })
+    if (['teacher', 'day', 'period', 'cls', 'subject'].some((k) => col[k] === undefined)) continue
+    const at = (row: string[], k: string): string => (col[k] === undefined ? '' : norm(row[col[k]] ?? ''))
+    for (let k = r + 1; k < sheet.rows.length; k++) {
+      const row = sheet.rows[k] ?? []
+      const dm = at(row, 'day').match(DAY_RE)
+      const p = periodOf(at(row, 'period'))
+      if (!dm || !p) continue
+      const day = DAY_NAMES.indexOf(dm[1])
+      const kind = at(row, 'kind')
+      const clsText = at(row, 'cls')
+      let subject = at(row, 'subject')
+      if (kind === '창체' || kind === '동아리') {
+        const found = classIn(clsText)
+        if (!found) {
+          // 반 없이 학년(또는 전체)만 적은 고정 시간
+          const g = clsText.match(/^(\d)\s*학년$/)
+          out.fixed.push({ kind, grade: g ? Number(g[1]) : 0, day, period: p.no - 1 })
+          continue
+        }
+        if (!subject) subject = kind
+      }
+      if (kind === '공강' && !isFree({ subject })) subject = '[공강]'
+      const found = classIn(clsText)
+      if (!found) {
+        out.unknown++
+        continue
+      }
+      if (!out.periods.has(p.no)) out.periods.set(p.no, p)
+      const sj = subjectOf(subject || '수업')
+      const block = at(row, 'block').replace(/\s*블록$/, '')
+      out.entries.push({ teacher: teacherName(at(row, 'teacher')), day, period: p.no, cls: found.id, subject: sj.subject, group: block || sj.group, color: '' })
     }
     break
   }
@@ -355,17 +449,18 @@ export function parseTimetable(
 ): { tt: SchoolTimetable | null; error?: string } {
   const perSheet: SheetFound[] = []
   for (const s of sheets) {
-    const fs = [readMatrix(s), readBlocks(s, '학급 묶음'), readBlocks(s, '교사 묶음')].filter((f) => f.entries.length)
+    const fs = [readMatrix(s), readBlocks(s, '학급 묶음'), readBlocks(s, '교사 묶음'), readList(s)].filter((f) => f.entries.length || f.fixed.length)
     if (fs.length) perSheet.push({ name: s.name, found: fs })
   }
   const pick = selectSheets(perSheet, opts.sheet)
   const found: Found[] = pick.used.flatMap((s) => s.found)
-  if (!found.length) {
+  if (!found.some((f) => f.entries.length)) {
     return {
       tt: null,
       error:
         '시간표 모양을 찾지 못했습니다. 이런 표를 읽을 수 있습니다: ① 반 이름(1학년 1반 · 1-1) 칸 오른쪽에 월~금, 아래에 1교시~ ' +
-        '② 선생님 이름 칸 오른쪽에 월~금, 아래에 1교시~ (칸에 103 국어처럼 반 번호) ③ 위에 요일 · 교시 두 줄, 줄마다 선생님인 주간 시간표'
+        '② 선생님 이름 칸 오른쪽에 월~금, 아래에 1교시~ (칸에 103 국어처럼 반 번호) ③ 위에 요일 · 교시 두 줄, 줄마다 선생님인 주간 시간표 ' +
+        '④ 표준 양식(머리 줄에 교사 · 요일 · 교시 · 반 · 과목). 다른 모양이면 [AI로 읽기] 를 써 보세요.'
     }
   }
 
@@ -408,6 +503,15 @@ export function parseTimetable(
   }
 
   const dayPeriods = days.map((_, d) => Math.max(0, ...entries.filter((e) => e.day === d).map((e) => e.period)))
+  const expected = new Map<string, number>()
+  for (const f of found) for (const [t, n] of f.expected) if (!expected.has(t)) expected.set(t, n)
+  const fixedSeen = new Set<string>()
+  const fixed = found.flatMap((f) => f.fixed).filter((x) => {
+    const k = `${x.kind}|${x.grade}|${x.day}|${x.period}`
+    if (fixedSeen.has(k)) return false
+    fixedSeen.add(k)
+    return true
+  })
   const warnings: string[] = []
   if (pick.skipped.length) {
     warnings.push(
@@ -432,7 +536,9 @@ export function parseTimetable(
       loadedAt: now,
       layouts: [...new Set(found.map((f) => f.layout))],
       warnings,
-      ...(pick.skipped.length ? { versions: { sheets: perSheet.map((s) => s.name), used: pick.used.map((s) => s.name) } } : {})
+      ...(pick.skipped.length ? { versions: { sheets: perSheet.map((s) => s.name), used: pick.used.map((s) => s.name) } } : {}),
+      ...(expected.size ? { expected: Object.fromEntries(expected) } : {}),
+      ...(fixed.length ? { fixed } : {})
     }
   }
 }
@@ -527,6 +633,8 @@ export interface TtRules {
   blocks: TtBlock[]
   /** 창체 자리 — 학년마다 "요일-교시". 이 자리로는 수업을 옮기지 않는다 */
   cce: Record<string, string[]>
+  /** 동아리 자리 — 창체와 같이 다룬다 (예전 설정에는 없을 수 있다) */
+  club?: Record<string, string[]>
   /** 어느 시간표로 확인했는지 (stampOf). 시간표를 다시 불러오면 다시 확인한다 */
   confirmedFor: string
   confirmedAt: string
@@ -547,19 +655,29 @@ export const rulesReady = (tt: SchoolTimetable | null, rules: TtRules | null): b
 /** 블록에 이 반이 드는가 */
 export const blockHas = (b: TtBlock, cls: string): boolean => gradeOf(cls) === b.grade && (!b.classes.length || b.classes.includes(cls))
 
-export type TtLock = { kind: 'block'; block: TtBlock } | { kind: 'cce' }
+export type TtLock = { kind: 'block'; block: TtBlock } | { kind: 'fixed'; fixed: FixedKind }
 
-/** 이 반 · 이 시간이 묶여 있는가 — 블록 시간이거나 창체 자리 */
+/** 창체 · 동아리 자리 (학년마다) */
+export const fixedSlots = (rules: TtRules, kind: FixedKind): Record<string, string[]> => (kind === '창체' ? rules.cce : rules.club ?? {})
+
+/** 이 반 · 이 시간이 묶여 있는가 — 블록 시간이거나 창체 · 동아리 자리 */
 export function lockAt(rules: TtRules | null, cls: string, d: number, p: number): TtLock | null {
   if (!rules) return null
   const k = slotKey(d, p)
-  if (rules.cce[String(gradeOf(cls))]?.includes(k)) return { kind: 'cce' }
+  const g = String(gradeOf(cls))
+  for (const kind of ['창체', '동아리'] as FixedKind[]) if (fixedSlots(rules, kind)[g]?.includes(k)) return { kind: 'fixed', fixed: kind }
   const block = rules.blocks.find((b) => b.slots.includes(k) && blockHas(b, cls))
   return block ? { kind: 'block', block } : null
 }
 
-/** 창체로 보는 과목 이름 (파일에 창체를 적어 둔 학교) */
-export const isCce = (c: { subject: string } | null): boolean => !!c && /^(창체|창의적|자율|자치|동아리|봉사)/.test(c.subject)
+/** 창체 · 동아리로 보는 과목 이름 (파일에 적어 둔 학교) */
+export function fixedOf(c: { subject: string } | null): FixedKind | '' {
+  if (!c) return ''
+  if (/^동아리/.test(c.subject)) return '동아리'
+  return /^(창체|창의적|자율|자치|봉사)/.test(c.subject) ? '창체' : ''
+}
+
+export const isCce = (c: { subject: string } | null): boolean => !!fixedOf(c)
 
 /** 엑셀 색이 없을 때 블록에 쓸 색 */
 export const BLOCK_PALETTE = ['#FDE68A', '#BFDBFE', '#BBF7D0', '#FBCFE8', '#DDD6FE', '#FED7AA', '#A5F3FC', '#E5E7EB', '#FECACA', '#D9F99D']
@@ -570,6 +688,11 @@ export const blockLabel = (b: TtBlock, i?: number): string => `${b.grade}학년 
 export interface RulesSuggestion {
   blocks: TtBlock[]
   cce: Record<string, string[]>
+  club: Record<string, string[]>
+  /** 한 학년 모든 반이 비어 있는 시간 (창체인지 수업이 없는 시간인지 모른다) */
+  empty: Record<string, string[]>
+  /** 파일에 없는 교시 — 요일마다 마지막 교시 뒤 (예: 수 5 · 6교시) */
+  missing: string[]
   /** 블록을 무엇으로 찾았는지. 빈 문자열이면 못 찾음 */
   by: '' | '칸 색깔' | '묶음 글자' | '칸 색깔 · 묶음 글자'
   notes: string[]
@@ -666,29 +789,120 @@ export function suggestRules(tt: SchoolTimetable): RulesSuggestion {
     if (!b.color) b.color = BLOCK_PALETTE[i % BLOCK_PALETTE.length]
   })
 
-  // 창체: 한 학년 모든 반이 비거나 창체 · 동아리만 있는 시간
+  // 창체 · 동아리: 표준 목록에 적힌 것, 그리고 한 학년 모든 반이 창체 · 동아리라 적힌 칸(빈 칸 포함)인 시간.
+  // 모든 반이 비기만 한 시간은 창체인지 수업이 없는 시간인지 몰라 칠하지 않고 알리기만 한다
+  const grades = [...new Set(tt.classes.map((c) => c.grade))].sort((a, b) => a - b)
   const cce: Record<string, string[]> = {}
-  const many: number[] = []
-  for (const g of [...new Set(tt.classes.map((c) => c.grade))].sort((a, b) => a - b)) {
+  const club: Record<string, string[]> = {}
+  const empty: Record<string, string[]> = {}
+  const put = (m: Record<string, string[]>, g: number, k: string): void => {
+    const cur = m[String(g)] ?? (m[String(g)] = [])
+    if (!cur.includes(k)) cur.push(k)
+  }
+  for (const f of tt.fixed ?? []) for (const g of f.grade ? [f.grade] : grades) put(f.kind === '창체' ? cce : club, g, slotKey(f.day, f.period))
+  for (const g of grades) {
     const cs = tt.classes.filter((c) => c.grade === g)
-    const out: string[] = []
     tt.days.forEach((_, d) => {
       for (let p = 0; p < (tt.dayPeriods[d] ?? 0); p++) {
         const cells = cs.map((c) => c.grid[d]?.[p] ?? null)
-        if (cells.every((x) => !x || isCce(x))) out.push(slotKey(d, p))
+        const kinds = new Set(cells.map((x) => fixedOf(x)).filter(Boolean))
+        if (cells.every((x) => !x)) put(empty, g, slotKey(d, p))
+        else if (kinds.size === 1 && cells.every((x) => !x || fixedOf(x))) put([...kinds][0] === '창체' ? cce : club, g, slotKey(d, p))
       }
     })
-    // 빈 시간이 많으면 시간표가 일부만 있는 것이라 짐작하지 않는다
-    if (out.length > 5) many.push(g)
-    else if (out.length) cce[String(g)] = out
   }
-  const told = Object.entries(cce).map(([g, ks]) => `${g}학년 ${ks.map((k) => `${tt.days[slotOf(k)[0]]} ${slotOf(k)[1] + 1}교시`).join(' · ')}`)
-  if (told.length) notes.push(`모든 반이 비어 있는 시간을 창체로 짐작했습니다: ${told.join(', ')}. 아니면 눌러서 빼 주세요.`)
-  if (many.length) notes.push(`${many.join(' · ')}학년은 비어 있는 시간이 많아 창체를 짐작하지 않았습니다. 창체 자리를 직접 눌러 주세요.`)
+  const maxP = Math.max(0, ...tt.dayPeriods)
+  const missing: string[] = []
+  tt.days.forEach((_, d) => {
+    for (let p = tt.dayPeriods[d] ?? 0; p < Math.max(maxP, 7); p++) missing.push(slotKey(d, p))
+  })
+  const at = (k: string): string => `${tt.days[slotOf(k)[0]]} ${slotOf(k)[1] + 1}교시`
+  const emptyTold = Object.entries(empty)
+    .filter(([, ks]) => ks.length <= 5)
+    .map(([g, ks]) => `${g}학년 ${ks.map(at).join(' · ')}`)
+  if (emptyTold.length) notes.push(`모든 반이 비어 있는 시간이 있습니다: ${emptyTold.join(', ')}. 창체 · 동아리 시간이면 표시하고, 수업이 없는 시간이면 그대로 두세요.`)
 
   const hasColor = useColor && marks.some((m) => m.cell.color)
   const hasLetter = marks.some((m) => m.cell.group)
-  return { blocks, cce, by: hasColor && hasLetter ? '칸 색깔 · 묶음 글자' : hasColor ? '칸 색깔' : hasLetter ? '묶음 글자' : '', notes }
+  return { blocks, cce, club, empty, missing, by: hasColor && hasLetter ? '칸 색깔 · 묶음 글자' : hasColor ? '칸 색깔' : hasLetter ? '묶음 글자' : '', notes }
+}
+
+/* ---------- 표준 자료 ---------- */
+
+/** 표준 자료 한 줄 — 교사 · 요일 · 교시 · 반 · 과목 · 블록 · 구분 */
+export interface TtRow {
+  teacher: string
+  day: number
+  /** 1부터 */
+  period: number
+  /** 2-4, 창체 · 동아리 줄은 "2학년" */
+  cls: string
+  subject: string
+  block: string
+  kind: TtKind
+}
+
+/**
+ * 읽은 시간표를 표준 자료로 편다. 블록 · 창체 · 동아리는 사용자가 정한 설정(없으면 묶음 글자)을 따른다.
+ * 학교마다 다른 시간표를 한 모양으로 맞춰 확인하고, 엑셀로 저장해 고친 뒤 다시 읽을 수 있게 한다.
+ */
+export function standardRows(tt: SchoolTimetable, rules: TtRules | null): TtRow[] {
+  const rows: TtRow[] = []
+  // 이름 없는 블록은 학년마다 블록1, 블록2 … (다시 읽을 때 서로 섞이지 않게)
+  const blockName = new Map<string, string>()
+  for (const g of new Set(rules?.blocks.map((b) => b.grade) ?? [])) {
+    let n = 0
+    for (const b of rules!.blocks.filter((x) => x.grade === g)) blockName.set(b.id, b.name || `블록${++n}`)
+  }
+  for (const c of tt.classes)
+    c.grid.forEach((col, d) =>
+      col.forEach((cell, p) => {
+        if (!cell) return
+        const named = fixedOf(cell)
+        const lock = lockAt(rules, c.id, d, p)
+        const block = lock?.kind === 'block' ? blockName.get(lock.block.id) ?? lock.block.name : rules ? '' : cell.group
+        const kind: TtKind = isFree(cell) ? '공강' : named || (lock?.kind === 'fixed' ? lock.fixed : block ? '블록' : '수업')
+        for (const t of cell.teachers.length ? cell.teachers : ['']) rows.push({ teacher: t, day: d, period: p + 1, cls: c.id, subject: cell.subject, block, kind })
+      })
+    )
+  // 창체 · 동아리 자리 (파일에 없는 교시도) — 학년마다 한 줄
+  if (rules)
+    for (const kind of ['창체', '동아리'] as FixedKind[])
+      for (const [g, ks] of Object.entries(fixedSlots(rules, kind)))
+        for (const k of ks) {
+          const [d, p] = slotOf(k)
+          const cs = tt.classes.filter((c) => c.grade === Number(g))
+          if (cs.length && cs.every((c) => fixedOf(c.grid[d]?.[p] ?? null))) continue // 칸에 이미 적혀 있다
+          rows.push({ teacher: '', day: d, period: p + 1, cls: `${g}학년`, subject: kind, block: '', kind })
+        }
+  return rows.sort((a, b) => a.teacher.localeCompare(b.teacher, 'ko') || a.day - b.day || a.period - b.period || byClass(a.cls, b.cls))
+}
+
+export interface HoursCheck {
+  teacher: string
+  /** 파일에 적힌 시수 */
+  expected: number
+  /** 읽은 수업 시간 (같은 시간에 여러 반이면 한 번) */
+  read: number
+}
+
+/** 파일에 적힌 시수(괄호 숫자)와 읽은 수업 시간이 다른 선생님. 시수가 적혀 있지 않으면 빈 목록 */
+export function hoursCheck(tt: SchoolTimetable): { checked: number; diff: HoursCheck[] } {
+  const exp = tt.expected ?? {}
+  const diff: HoursCheck[] = []
+  let checked = 0
+  for (const [teacher, expected] of Object.entries(exp)) {
+    const slots = new Set<string>()
+    for (const c of tt.classes)
+      c.grid.forEach((col, d) =>
+        col.forEach((x, p) => {
+          if (x?.teachers.includes(teacher) && !isFree(x)) slots.add(slotKey(d, p))
+        })
+      )
+    checked++
+    if (slots.size !== expected) diff.push({ teacher, expected, read: slots.size })
+  }
+  return { checked, diff }
 }
 
 /* ---------- 바꾸기 ---------- */
@@ -722,11 +936,12 @@ export interface ChangePlan {
 
 /** 이 반 · 이 시간 수업을 따로 옮길 수 없는 까닭. 옮길 수 있으면 빈 문자열 */
 function lockReason(rules: TtRules | null, cls: string, d: number, p: number, cell: TtCell | null): string {
-  if (isCce(cell)) return '창체'
+  const named = fixedOf(cell)
+  if (named) return named
   // 블록 설정이 없으면(예전 방식) 묶음 글자만 본다
   if (!rules) return cell?.group ? `이동수업 묶음(${cell.group})` : ''
   const l = lockAt(rules, cls, d, p)
-  return !l ? '' : l.kind === 'cce' ? '창체' : blockLabel(l.block)
+  return !l ? '' : l.kind === 'fixed' ? l.fixed : blockLabel(l.block)
 }
 
 /**
@@ -734,7 +949,7 @@ function lockReason(rules: TtRules | null, cls: string, d: number, p: number, ce
  * - 맞교체: 같은 반을 같은 주에 가르치는 다른 선생님 수업 가운데, 그 시간에 내가 비고 그 선생님이 (d1,p1)에 비는 것
  * - 보강: (d1,p1)에 수업이 없는 선생님. 같은 과목이고 그날 수업이 적은 분을 앞에
  * 블록(여러 반이 함께 움직이는 선택 수업) 시간의 수업은 한 반만 바꿀 수 없어 맞교체 후보를 내지 않고,
- * 블록 시간 · 창체 자리로도 옮기지 않는다. meBusy: 파일에 없지만 내가 비지 않은 시간(손으로 적은 칸 · 우리 반 창체)
+ * 블록 시간 · 창체 · 동아리 자리로도 옮기지 않는다. meBusy: 파일에 없지만 내가 비지 않은 시간(손으로 적은 칸 · 우리 반 창체 · 동아리)
  */
 export function planChange(
   tt: SchoolTimetable,
@@ -750,8 +965,8 @@ export function planChange(
   const notes: string[] = []
   const swaps: SwapOption[] = []
   const myLock = mine.map((c) => lockReason(rules, c.id, d1, p1, c.grid[d1][p1])).find(Boolean) ?? ''
-  if (myLock === '창체') {
-    notes.push('창체 시간이라 맞바꾸지 않습니다.')
+  if (myLock === '창체' || myLock === '동아리') {
+    notes.push(`${myLock} 시간이라 맞바꾸지 않습니다.`)
   } else if (myLock) {
     notes.push(`${myLock} 수업이라 여러 반이 함께 움직여 한 반만 바꿀 수 없습니다. 블록 전체를 함께 옮겨야 해서 맞교체 후보를 내지 않습니다.`)
   } else {
