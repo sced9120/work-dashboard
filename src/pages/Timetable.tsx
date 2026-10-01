@@ -23,6 +23,7 @@ import {
 } from '../../shared/timetable'
 import type { PageId } from '../App'
 import TimetableSetup, { rulesSummary } from '../components/TimetableSetup'
+import ChainList from '../components/ChainList'
 import TimetableBoard, { drawTimetable } from '../components/TimetableBoard'
 import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
@@ -602,18 +603,9 @@ function ChangeTab({
       ? (d: number, p: number): boolean =>
           !!T.manual[slotKey(d, p)]?.trim() || !!rules.cce[myGrade]?.includes(slotKey(d, p)) || !!rules.club?.[myGrade]?.includes(slotKey(d, p))
       : undefined
+  // 교체 방법은 ChainList 가 찾고, 여기서는 막힌 까닭(블록 · 창체)과 보강만 쓴다
   const plan: ChangePlan | null = slot !== null && who && d1 >= 0 ? planChange(tt, who, d1, slot, rules, meBusy) : null
-  // 이미 지난 날과는 맞바꿀 수 없다
-  const today = ymd(new Date())
-  const swaps = plan ? plan.swaps.filter((s) => weekDate(date, s.day) >= today) : []
-  const past = plan ? plan.swaps.length - swaps.length : 0
   const mine = who === T.me
-  const label = (t: string): string => `${t}${t === T.me ? '(나)' : ' 선생님'}`
-
-  const copy = async (text: string): Promise<void> => {
-    await window.api.clipboard.write(text)
-    toast('복사했습니다. 메신저나 교체 신청서에 붙여넣으세요.', 'ok')
-  }
 
   return (
     <>
@@ -673,49 +665,20 @@ function ChangeTab({
 
       {plan && slot !== null && (
         <>
-          <div className="card">
-            <div className="card-title">
-              <span>
-                2. 맞교체 — {md(date)} {tt.periods[slot].label} {plan.cls} {plan.subject}
-              </span>
-              <span className="badge">{swaps.length}가지</span>
-            </div>
-            <p className="hint" style={{ marginTop: 0 }}>
-              같은 반을 같은 주에 가르치는 선생님과 시간을 맞바꿉니다. 두 분 모두 그 시간에 비어 있는 것만, 블록 시간 · 창체 · 동아리
-              자리는 빼고 골랐습니다.
-            </p>
-            {plan.notes.map((n) => (
-              <div key={n} className="note note-warn" style={{ marginBottom: 8 }}>
-                {n}
-              </div>
-            ))}
-            {past > 0 && <p className="muted small" style={{ marginTop: 0 }}>이미 지난 날의 {past}가지는 뺐습니다.</p>}
-            {swaps.length === 0 ? (
-              !plan.locked && <div className="empty">이번 주에 맞바꿀 수 있는 시간이 없습니다. 아래 보강을 보세요.</div>
-            ) : (
-              <div className="list">
-                {swaps.map((s) => {
-                  const other = weekDate(date, s.day)
-                  const text = `${md(date)} ${tt.periods[slot].label} ${plan.cls} ${plan.subject}(${label(who)}) ↔ ${md(other)} ${tt.periods[s.period].label} ${plan.cls} ${s.subject}(${label(s.teacher)})`
-                  return (
-                    <div className="item" key={`${s.day}-${s.period}-${s.teacher}`}>
-                      <div className="item-head">
-                        <div style={{ minWidth: 0 }}>
-                          <div className="item-title">
-                            {md(other)} {tt.periods[s.period].label} · {s.subject} · {label(s.teacher)}
-                          </div>
-                          <div className="item-meta">{text}</div>
-                        </div>
-                        <button className="btn btn-sm" onClick={() => void copy(text)}>
-                          📋 복사
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+          <ChainList
+            tt={tt}
+            rules={rules}
+            who={who}
+            me={T.me}
+            manual={T.manual}
+            myClass={T.myClass}
+            date={date}
+            period={slot}
+            locked={plan.locked}
+            notes={plan.notes}
+            cls={plan.cls}
+            subject={plan.subject}
+          />
 
           <div className="card">
             <div className="card-title">

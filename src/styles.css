@@ -4567,3 +4567,60 @@ select.shelf-link {
 .tt-std tr.k-동아리 td {
   color: var(--muted);
 }
+
+/* ---------- 교체 방법 (사슬 교체) ---------- */
+
+.tt-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tt-kind {
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 19px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tt-kind.k-2 {
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.tt-kind.k-3 {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.tt-moves {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.tt-moves li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 2px 0;
+}
+
+.tt-moves li.mine .tt-move-what {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.tt-move-what {
+  min-width: 170px;
+}
+
+.tt-move-what small {
+  color: var(--muted);
+  font-weight: 400;
+}
