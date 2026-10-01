@@ -207,6 +207,8 @@ const api = {
     get: (): Promise<SchoolTimetable | null> => ipcRenderer.invoke('tt:get'),
     /** 파일을 골라 읽는다. 고르지 않으면 { ok: false, error: '' } */
     import: (): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string }> => ipcRenderer.invoke('tt:import'),
+    /** 시트마다 수업이 다른 판일 때, 같은 파일을 이 시트 기준으로 다시 읽는다 */
+    useSheet: (name: string): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string }> => ipcRenderer.invoke('tt:useSheet', name),
     clear: (): Promise<void> => ipcRenderer.invoke('tt:clear')
   },
   image: {

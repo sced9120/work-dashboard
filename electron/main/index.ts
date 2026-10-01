@@ -28,7 +28,7 @@ import { fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
 import { buildFromFrame, readFrame } from './hwpgen'
 import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
 import { classTimetable, clearNeisCache, mealsOn, nextMealDay, scheduleCached, schoolInfoForDocs, searchSchools, testNeis } from './neis'
-import { importTimetable, loadTimetable } from './timetable'
+import { importTimetable, loadTimetable, rereadWithSheet } from './timetable'
 import { schoolContext } from './context'
 import { ymd } from '../../shared/neis'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
@@ -787,6 +787,7 @@ function registerIpc(): void {
     if (res.canceled || !res.filePaths.length) return { ok: false, error: '' }
     return importTimetable(res.filePaths)
   })
+  ipcMain.handle('tt:useSheet', (_e, name: string) => rereadWithSheet(String(name ?? '')))
   ipcMain.handle('tt:clear', () => db.setSetting('timetable_school', ''))
 
   /** 화면에서 그린 그림(시간표 등)을 PNG 로 저장 */

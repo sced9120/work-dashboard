@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { MyTimetable, SchoolTimetable } from '../../shared/timetable'
-import { MY_CLASS_KEY, TT_MANUAL_KEY, TT_ME_KEY, TT_TIMES_KEY, myTimetable, withTimes } from '../../shared/timetable'
+import type { MyTimetable, SchoolTimetable, TtRules } from '../../shared/timetable'
+import { MY_CLASS_KEY, TT_MANUAL_KEY, TT_ME_KEY, TT_RULES_KEY, TT_TIMES_KEY, myTimetable, withTimes } from '../../shared/timetable'
 
 /** 과목 이름을 바꿔 보이기 { 수학: '공통수학' } */
 export const TT_ALIAS_KEY = 'timetable_alias'
@@ -28,6 +28,8 @@ export interface TimetableState {
   times: TimesSetting
   alias: Record<string, string>
   myClass: string
+  /** 블록 · 창체 설정 (수업 바꾸기 전에 확인) */
+  rules: TtRules | null
   /** 학교 시간표 + 손으로 고친 칸 + 교시 시각 + 과목 이름 바꾸기를 모두 얹은 내 시간표. 아무것도 없으면 null */
   my: MyTimetable | null
   reload: () => Promise<void>
@@ -43,15 +45,17 @@ export function useTimetable(): TimetableState {
   const [times, setTimes] = useState<TimesSetting>({ starts: [], length: 50 })
   const [alias, setAlias] = useState<Record<string, string>>({})
   const [myClass, setMyClass] = useState('')
+  const [rules, setRules] = useState<TtRules | null>(null)
 
   const reload = useCallback(async () => {
-    const [t, m, man, tm, al, mc] = await Promise.all([
+    const [t, m, man, tm, al, mc, ru] = await Promise.all([
       window.api.tt.get(),
       window.api.setting.get(TT_ME_KEY),
       window.api.setting.get(TT_MANUAL_KEY),
       window.api.setting.get(TT_TIMES_KEY),
       window.api.setting.get(TT_ALIAS_KEY),
-      window.api.setting.get(MY_CLASS_KEY)
+      window.api.setting.get(MY_CLASS_KEY),
+      window.api.setting.get(TT_RULES_KEY)
     ])
     setTt(t)
     setMe(m)
@@ -60,6 +64,8 @@ export function useTimetable(): TimetableState {
     setTimes({ starts: Array.isArray(ts.starts) ? ts.starts : [], length: Number(ts.length) || 50 })
     setAlias(parse(al, {}))
     setMyClass(mc)
+    const r = parse<TtRules | null>(ru, null)
+    setRules(r && Array.isArray(r.blocks) && r.cce && typeof r.cce === 'object' ? r : null)
     setLoaded(true)
   }, [])
 
@@ -85,7 +91,7 @@ export function useTimetable(): TimetableState {
     }
   }, [tt, me, manual, times, alias])
 
-  return { loaded, tt, me, manual, times, alias, myClass, my, reload, save }
+  return { loaded, tt, me, manual, times, alias, myClass, rules, my, reload, save }
 }
 
 /** 오늘 요일 칸(월=0, 주말은 -1)과 지금 시각 HH:MM */

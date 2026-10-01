@@ -6,16 +6,23 @@ import {
   MY_CLASS_KEY,
   TT_MANUAL_KEY,
   TT_ME_KEY,
+  TT_RULES_KEY,
   TT_TIMES_KEY,
   dayIndex,
+  gradeOf,
   hoursOf,
   isFree,
+  lockAt,
   myTimetable,
   planChange,
+  rulesReady,
+  slotKey,
   slotText,
+  stampOf,
   weekDate
 } from '../../shared/timetable'
 import type { PageId } from '../App'
+import BlockSetup, { rulesSummary } from '../components/BlockSetup'
 import TimetableBoard, { drawTimetable } from '../components/TimetableBoard'
 import { useToast } from '../lib/toast'
 import { TT_ALIAS_KEY, nowInfo, useTimetable } from '../lib/timetable'
@@ -48,6 +55,8 @@ export default function Timetable({ onGo }: Props): JSX.Element {
   const T = useTimetable()
   const [tab, setTab] = useState<Tab>('내 시간표')
   const [busy, setBusy] = useState(false)
+  /** 블록 · 창체 확인 화면을 (이미 정했어도) 다시 여는 중 */
+  const [rulesEdit, setRulesEdit] = useState(false)
 
   const importFile = async (): Promise<void> => {
     setBusy(true)
@@ -58,7 +67,13 @@ export default function Timetable({ onGo }: Props): JSX.Element {
         return
       }
       await T.reload()
-      toast(`시간표를 읽었습니다: 반 ${r.tt!.classes.length}개, 선생님 ${r.tt!.teachers.length}분.`, 'ok')
+      const one = r.tt!.versions ? ` 시트마다 수업이 달라 「${r.tt!.versions.used.join('」 「')}」 만 읽었습니다([파일 · 설정] 에서 바꿀 수 있음).` : ''
+      toast(
+        `시간표를 읽었습니다: 반 ${r.tt!.classes.length}개, 선생님 ${r.tt!.teachers.length}분.${one} ` +
+          '수업 바꾸기는 [수업 바꾸기] 에서 블록 · 창체를 확인한 뒤 쓸 수 있습니다.',
+        'ok'
+      )
+      setRulesEdit(false)
       if (!T.me) setTab('내 시간표')
     } finally {
       setBusy(false)
@@ -74,7 +89,8 @@ export default function Timetable({ onGo }: Props): JSX.Element {
           <h1>시간표</h1>
           <p>
             학교 시간표 엑셀을 불러오면 내 시간표를 뽑아 그림처럼 보여 주고, 학급별 시간표와 수업 바꿀 짝(맞교체 ·
-            보강)을 찾아 드립니다. 파일이 없으면 내 시간표를 직접 적어도 됩니다.
+            보강)을 찾아 드립니다. 수업 바꾸기는 블록 · 창체를 한 번 확인한 뒤 쓸 수 있습니다. 파일이 없으면 내 시간표를 직접 적어도
+            됩니다.
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => void importFile()} disabled={busy}>
@@ -92,8 +108,17 @@ export default function Timetable({ onGo }: Props): JSX.Element {
 
       {tab === '내 시간표' && <MyTab T={T} onImport={() => void importFile()} />}
       {tab === '학급별' && <ClassTab T={T} onGo={onGo} />}
-      {tab === '수업 바꾸기' && <ChangeTab T={T} onImport={() => void importFile()} />}
-      {tab === '파일 · 설정' && <SettingsTab T={T} onImport={() => void importFile()} />}
+      {tab === '수업 바꾸기' && <ChangeTab T={T} onImport={() => void importFile()} editRules={rulesEdit} setEditRules={setRulesEdit} />}
+      {tab === '파일 · 설정' && (
+        <SettingsTab
+          T={T}
+          onImport={() => void importFile()}
+          onRules={() => {
+            setRulesEdit(true)
+            setTab('수업 바꾸기')
+          }}
+        />
+      )}
     </>
   )
 }
@@ -433,11 +458,23 @@ export function NeisWeek({ rows, monday }: { rows: NeisLesson[]; monday: string 
 
 /* ══════════ 수업 바꾸기 ══════════ */
 
-function ChangeTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Element {
+function ChangeTab({
+  T,
+  onImport,
+  editRules,
+  setEditRules
+}: {
+  T: TT
+  onImport: () => void
+  editRules: boolean
+  setEditRules: (v: boolean) => void
+}): JSX.Element {
   const toast = useToast()
   const [who, setWho] = useState(T.me)
   const [date, setDate] = useState(nextSchoolDay())
   const [slot, setSlot] = useState<number | null>(null)
+  /** 방금 블록 · 창체를 정했다 — 이제 쓸 수 있다고 알린다 */
+  const [justReady, setJustReady] = useState(false)
   useEffect(() => setWho((w) => w || T.me), [T.me])
 
   if (!T.tt) {
@@ -451,10 +488,34 @@ function ChangeTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Elemen
     )
   }
   const tt = T.tt
+  const ready = rulesReady(tt, T.rules)
+  if (!ready || editRules) {
+    return (
+      <BlockSetup
+        key={stampOf(tt)}
+        tt={tt}
+        rules={T.rules}
+        onCancel={ready ? () => setEditRules(false) : undefined}
+        onSave={async (r) => {
+          await T.save(TT_RULES_KEY, { ...r, confirmedFor: stampOf(tt), confirmedAt: new Date().toISOString() })
+          setEditRules(false)
+          setJustReady(true)
+          toast('블록 · 창체를 정했습니다. 이제 수업 바꾸기를 쓸 수 있습니다.', 'ok')
+        }}
+      />
+    )
+  }
+  const rules = T.rules!
   const d1 = dayIndex(date)
   const theirs = who ? myTimetable(tt, who, {}) : null
   const lessons = d1 >= 0 && theirs ? theirs.grid[d1].map((s, p) => ({ s, p })).filter((x) => x.s && !isFree(x.s)) : []
-  const plan: ChangePlan | null = slot !== null && who && d1 >= 0 ? planChange(tt, who, d1, slot) : null
+  // 내 수업이면: 손으로 적은 칸(창체 · 동아리 등)과 우리 반 창체 시간에는 내가 비지 않았다
+  const myGrade = String(gradeOf(T.myClass))
+  const meBusy =
+    who && who === T.me
+      ? (d: number, p: number): boolean => !!T.manual[slotKey(d, p)]?.trim() || !!rules.cce[myGrade]?.includes(slotKey(d, p))
+      : undefined
+  const plan: ChangePlan | null = slot !== null && who && d1 >= 0 ? planChange(tt, who, d1, slot, rules, meBusy) : null
   // 이미 지난 날과는 맞바꿀 수 없다
   const today = ymd(new Date())
   const swaps = plan ? plan.swaps.filter((s) => weekDate(date, s.day) >= today) : []
@@ -469,6 +530,19 @@ function ChangeTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Elemen
 
   return (
     <>
+      {justReady && (
+        <div className="note note-ok" style={{ marginBottom: 10 }}>
+          ✅ 블록 · 창체 확인을 마쳤습니다. <b>이제 수업 바꾸기를 쓸 수 있습니다.</b> 아래에서 날짜와 비울 수업을 고르세요.
+        </div>
+      )}
+      <div className="row tt-rules-line">
+        <span className="muted small">
+          🧱 {rulesSummary(rules)} 기준으로 찾습니다. 블록 시간의 수업은 한 반만 바꾸지 않고, 블록 시간 · 창체 자리로는 옮기지 않습니다.
+        </span>
+        <button className="btn btn-sm btn-ghost" onClick={() => setEditRules(true)}>
+          블록 · 창체 고치기
+        </button>
+      </div>
       <div className="card">
         <div className="card-title">1. 언제, 누구의 수업을 비우나요?</div>
         <div className="row">
@@ -490,11 +564,20 @@ function ChangeTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Elemen
           <div className="muted small" style={{ marginTop: 8 }}>{md(date)} 에는 수업이 없습니다.</div>
         ) : (
           <div className="row" style={{ marginTop: 10 }}>
-            {lessons.map(({ s, p }) => (
-              <button key={p} className={`btn btn-sm ${slot === p ? 'btn-primary' : ''}`} onClick={() => setSlot(p)}>
-                {tt.periods[p].label} {slotText(s)}
-              </button>
-            ))}
+            {lessons.map(({ s, p }) => {
+              const lock = s!.cls ? lockAt(rules, s!.cls.split('·')[0], d1, p) : null
+              return (
+                <button
+                  key={p}
+                  className={`btn btn-sm ${slot === p ? 'btn-primary' : ''}`}
+                  onClick={() => setSlot(p)}
+                  title={lock ? (lock.kind === 'cce' ? '창체 자리' : '블록 수업 — 한 반만 바꿀 수 없음') : undefined}
+                >
+                  {lock ? (lock.kind === 'cce' ? '🎒 ' : '🧱 ') : ''}
+                  {tt.periods[p].label} {slotText(s)}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -509,7 +592,8 @@ function ChangeTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Elemen
               <span className="badge">{swaps.length}가지</span>
             </div>
             <p className="hint" style={{ marginTop: 0 }}>
-              같은 반을 같은 주에 가르치는 선생님과 시간을 맞바꿉니다. 두 분 모두 그 시간에 비어 있는 것만 골랐습니다.
+              같은 반을 같은 주에 가르치는 선생님과 시간을 맞바꿉니다. 두 분 모두 그 시간에 비어 있는 것만, 블록 시간 · 창체 자리는
+              빼고 골랐습니다.
             </p>
             {plan.notes.map((n) => (
               <div key={n} className="note note-warn" style={{ marginBottom: 8 }}>
@@ -518,7 +602,7 @@ function ChangeTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Elemen
             ))}
             {past > 0 && <p className="muted small" style={{ marginTop: 0 }}>이미 지난 날의 {past}가지는 뺐습니다.</p>}
             {swaps.length === 0 ? (
-              !plan.group && <div className="empty">이번 주에 맞바꿀 수 있는 시간이 없습니다. 아래 보강을 보세요.</div>
+              !plan.locked && <div className="empty">이번 주에 맞바꿀 수 있는 시간이 없습니다. 아래 보강을 보세요.</div>
             ) : (
               <div className="list">
                 {swaps.map((s) => {
@@ -576,8 +660,24 @@ function ChangeTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Elemen
 
 /* ══════════ 파일 · 설정 ══════════ */
 
-function SettingsTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Element {
+function SettingsTab({ T, onImport, onRules }: { T: TT; onImport: () => void; onRules: () => void }): JSX.Element {
   const toast = useToast()
+  const [rereading, setRereading] = useState(false)
+
+  const pickSheet = async (name: string): Promise<void> => {
+    setRereading(true)
+    try {
+      const r = await window.api.tt.useSheet(name)
+      if (!r.ok) {
+        toast(r.error || '다시 읽지 못했습니다.', 'err')
+        return
+      }
+      await T.reload()
+      toast(`「${name}」 시트로 다시 읽었습니다. 수업 바꾸기 전에 블록 · 창체를 한 번 더 확인해 주세요.`, 'ok')
+    } finally {
+      setRereading(false)
+    }
+  }
   const periods = T.tt?.periods ?? T.my?.periods ?? []
   const count = Math.max(periods.length, 7)
   const [starts, setStarts] = useState<string[]>(() =>
@@ -635,6 +735,26 @@ function SettingsTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Elem
                 {w}
               </div>
             ))}
+            {T.tt.versions && (
+              <div className="row" style={{ marginTop: 8 }}>
+                <span className="small">
+                  <b>읽을 시트</b>
+                </span>
+                <select
+                  value={T.tt.versions.used[0]}
+                  disabled={rereading}
+                  onChange={(e) => void pickSheet(e.target.value)}
+                  style={{ width: 'auto', minWidth: 160 }}
+                >
+                  {T.tt.versions.sheets.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                <span className="muted small">{rereading ? '다시 읽는 중…' : '지금 쓰는 시간표가 든 시트를 고르세요.'}</span>
+              </div>
+            )}
           </>
         ) : (
           <p className="muted small" style={{ margin: 0 }}>아직 불러온 시간표가 없습니다.</p>
@@ -654,11 +774,28 @@ function SettingsTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Elem
           </ol>
           <p className="small" style={{ margin: '0 0 6px' }}>
             여러 파일을 한꺼번에 골라도 됩니다(예: 시각이 없는 주간 시간표 + 시각이 있는 교사 시간표). 같은 수업은 한 번만 셉니다.
-            <code>A_사문</code> 처럼 글자가 붙은 과목은 여러 반이 함께 움직이는 이동수업으로 봅니다. 시간표는 선생님 이름이 있어
-            이 PC 에만 두고 인수인계 파일에는 넣지 않습니다.
+            시트마다 수업이 조금씩 다르면(교체를 반영한 판을 시트마다 둔 경우) 합치지 않고 한 시트만 읽습니다.{' '}
+            <code>A_사문</code> 처럼 글자가 붙은 과목과 칸 색깔은 블록(여러 반이 함께 움직이는 선택 수업)을 짐작하는 데 씁니다.
+            시간표는 선생님 이름이 있어 이 PC 에만 두고 인수인계 파일에는 넣지 않습니다.
           </p>
         </details>
       </div>
+
+      {T.tt && (
+        <div className="card">
+          <div className="card-title">
+            <span>🧱 블록 · 창체</span>
+            <button className="btn btn-sm" onClick={onRules}>
+              {rulesReady(T.tt, T.rules) ? '확인 · 고치기' : '확인하기'}
+            </button>
+          </div>
+          <p className="hint" style={{ margin: 0 }}>
+            {rulesReady(T.tt, T.rules)
+              ? `${rulesSummary(T.rules!)}으로 정해 두었습니다. 블록 시간의 수업은 한 반만 바꾸지 않고, 블록 시간 · 창체 자리로는 수업을 옮기지 않습니다.`
+              : '아직 이 시간표로 블록 · 창체를 확인하지 않았습니다. 확인해야 수업 바꾸기를 쓸 수 있습니다.'}
+          </p>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-title">⏰ 교시 시각</div>
