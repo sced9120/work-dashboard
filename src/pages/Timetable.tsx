@@ -24,6 +24,7 @@ import {
 import type { PageId } from '../App'
 import TimetableSetup, { rulesSummary } from '../components/TimetableSetup'
 import TimetableBoard, { drawTimetable } from '../components/TimetableBoard'
+import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 import { TT_ALIAS_KEY, nowInfo, useTimetable } from '../lib/timetable'
 
@@ -52,7 +53,12 @@ function nextSchoolDay(): string {
  */
 export default function Timetable({ onGo }: Props): JSX.Element {
   const toast = useToast()
+  const ask = useConfirm()
   const T = useTimetable()
+  /** 모양을 못 알아본 파일이 있다 — AI 로 읽기를 권한다 */
+  const [aiOffer, setAiOffer] = useState('')
+  /** AI 로 읽는 중이면 진행 글 */
+  const [aiBusy, setAiBusy] = useState('')
   const [tab, setTab] = useState<Tab>('내 시간표')
   const [busy, setBusy] = useState(false)
   /** 블록 · 창체 확인 화면을 (이미 정했어도) 다시 여는 중 */
@@ -63,9 +69,11 @@ export default function Timetable({ onGo }: Props): JSX.Element {
     try {
       const r = await window.api.tt.import()
       if (!r.ok) {
-        if (r.error) toast(r.error, 'err')
+        if (r.canAi) setAiOffer(r.error || '시간표 모양을 찾지 못했습니다.')
+        else if (r.error) toast(r.error, 'err')
         return
       }
+      setAiOffer('')
       await T.reload()
       const one = r.tt!.versions ? ` 시트마다 수업이 달라 「${r.tt!.versions.used.join('」 「')}」 만 읽었습니다([파일 · 설정] 에서 바꿀 수 있음).` : ''
       toast(
@@ -77,6 +85,52 @@ export default function Timetable({ onGo }: Props): JSX.Element {
       if (!T.me) setTab('내 시간표')
     } finally {
       setBusy(false)
+    }
+  }
+
+  /** 빈 표준 양식 — 읽지 못하는 모양이면 이 양식에 적어 불러온다 */
+  const blankForm = async (): Promise<void> => {
+    const r = await window.api.tt.exportStandard([])
+    if (r.message !== '취소했습니다.') toast(r.ok ? `${r.message} 보기 줄을 지우고 적은 뒤 [시간표 파일 다시 불러오기] 로 고르세요.` : r.message, r.ok ? 'ok' : 'err')
+  }
+
+  /** AI 로 읽기 — 무엇을 보내는지 먼저 알리고 묻는다 */
+  const aiRead = async (which: 'failed' | 'current'): Promise<void> => {
+    const ok = await ask({
+      title: '🤖 AI로 시간표를 읽을까요?',
+      body: (
+        <>
+          학교마다 다른 시간표 모양을 AI 가 알아보고 표준 자료(교사 · 요일 · 교시 · 반 · 과목 · 블록 · 구분)로 바꿉니다.
+          <ul style={{ margin: '8px 0', paddingLeft: 18 }}>
+            <li>
+              보내는 것: 선생님 이름 · 과목 · 학교 이름 같은 한글 낱말을 이 PC 에서 <b>W1, W2 …</b> 로 바꾼 표. 요일 · 교시 · 반 번호는 그대로
+              보냅니다.
+            </li>
+            <li>받은 답의 W1, W2 … 는 이 PC 에서 원래 낱말로 되돌립니다. 칸 색깔은 보내지 않습니다.</li>
+            <li>설정한 AI 서비스로 표 크기에 따라 여러 번 묻습니다. 사용료가 조금 들고 1~2분 걸릴 수 있습니다.</li>
+          </ul>
+          다 읽으면 <b>[① 읽은 자료]</b> 에서 맞는지 확인해 주세요.
+        </>
+      ),
+      okText: 'AI로 읽기'
+    })
+    if (!ok) return
+    setAiBusy('AI 에게 보내는 중…')
+    const off = window.api.tt.onAiProgress((m) => setAiBusy(m))
+    try {
+      const r = await window.api.tt.aiRead(which)
+      if (!r.ok) {
+        toast(r.error || 'AI 로 읽지 못했습니다.', 'err')
+        return
+      }
+      setAiOffer('')
+      setRulesEdit(false)
+      await T.reload()
+      toast(`AI 로 읽었습니다: 반 ${r.tt!.classes.length}개, 선생님 ${r.tt!.teachers.length}분. [① 읽은 자료] 에서 확인해 주세요.`, 'ok')
+      setTab('수업 바꾸기')
+    } finally {
+      off()
+      setAiBusy('')
     }
   }
 
@@ -98,6 +152,27 @@ export default function Timetable({ onGo }: Props): JSX.Element {
         </button>
       </div>
 
+      {aiBusy && <div className="note note-info" style={{ marginBottom: 10 }}>🤖 {aiBusy}</div>}
+      {aiOffer && !aiBusy && (
+        <div className="note note-warn" style={{ marginBottom: 10 }}>
+          {aiOffer}
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="btn btn-sm btn-primary" onClick={() => void aiRead('failed')}>
+              🤖 AI로 읽기
+            </button>
+            <button className="btn btn-sm" onClick={() => void blankForm()}>
+              📄 빈 표준 양식 받기
+            </button>
+            <button className="btn btn-sm btn-ghost" onClick={() => setAiOffer('')}>
+              닫기
+            </button>
+            <span className="muted small">
+              이름 · 과목 같은 글자는 이 PC 에서 가려 보내고, 받은 뒤 되돌립니다. AI 키가 없으면 빈 표준 양식에 적어 불러오세요.
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="tabs">
         {(['내 시간표', '학급별', '수업 바꾸기', '파일 · 설정'] as Tab[]).map((t) => (
           <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
@@ -108,7 +183,15 @@ export default function Timetable({ onGo }: Props): JSX.Element {
 
       {tab === '내 시간표' && <MyTab T={T} onImport={() => void importFile()} />}
       {tab === '학급별' && <ClassTab T={T} onGo={onGo} />}
-      {tab === '수업 바꾸기' && <ChangeTab T={T} onImport={() => void importFile()} editRules={rulesEdit} setEditRules={setRulesEdit} />}
+      {tab === '수업 바꾸기' && (
+        <ChangeTab
+          T={T}
+          onImport={() => void importFile()}
+          editRules={rulesEdit}
+          setEditRules={setRulesEdit}
+          onAiRead={aiBusy ? undefined : () => void aiRead('current')}
+        />
+      )}
       {tab === '파일 · 설정' && (
         <SettingsTab
           T={T}
@@ -462,12 +545,14 @@ function ChangeTab({
   T,
   onImport,
   editRules,
-  setEditRules
+  setEditRules,
+  onAiRead
 }: {
   T: TT
   onImport: () => void
   editRules: boolean
   setEditRules: (v: boolean) => void
+  onAiRead?: () => void
 }): JSX.Element {
   const toast = useToast()
   const [who, setWho] = useState(T.me)
@@ -495,6 +580,7 @@ function ChangeTab({
         key={stampOf(tt)}
         tt={tt}
         rules={T.rules}
+        onAiRead={onAiRead}
         onCancel={ready ? () => setEditRules(false) : undefined}
         onSave={async (r) => {
           await T.save(TT_RULES_KEY, { ...r, confirmedFor: stampOf(tt), confirmedAt: new Date().toISOString() })
@@ -667,6 +753,11 @@ function SettingsTab({ T, onImport, onRules }: { T: TT; onImport: () => void; on
   const toast = useToast()
   const [rereading, setRereading] = useState(false)
 
+  const blankForm = async (): Promise<void> => {
+    const r = await window.api.tt.exportStandard([])
+    if (r.message !== '취소했습니다.') toast(r.ok ? `${r.message} 보기 줄을 지우고 적은 뒤 [다시 불러오기] 로 고르세요.` : r.message, r.ok ? 'ok' : 'err')
+  }
+
   const pickSheet = async (name: string): Promise<void> => {
     setRereading(true)
     try {
@@ -774,7 +865,16 @@ function SettingsTab({ T, onImport, onRules }: { T: TT; onImport: () => void; on
             <li>
               <b>주간 시간표</b> — 위에 요일 줄(월월월…)과 교시 줄(1 2 3…), 줄마다 선생님. 칸에 <code>103⏎국어</code>
             </li>
+            <li>
+              <b>표준 양식</b> — 머리 줄에 교사 · 요일 · 교시 · 반 · 과목 · 블록 · 구분, 한 줄에 수업 하나.{' '}
+              <button className="link" onClick={() => void blankForm()}>
+                빈 표준 양식 받기
+              </button>
+            </li>
           </ol>
+          <p className="small" style={{ margin: '0 0 6px' }}>
+            이 모양이 아니면 불러올 때 <b>[🤖 AI로 읽기]</b> 를 권해 드립니다(이름 · 과목 같은 글자는 가려 보냄).
+          </p>
           <p className="small" style={{ margin: '0 0 6px' }}>
             여러 파일을 한꺼번에 골라도 됩니다(예: 시각이 없는 주간 시간표 + 시각이 있는 교사 시간표). 같은 수업은 한 번만 셉니다.
             시트마다 수업이 조금씩 다르면(교체를 반영한 판을 시트마다 둔 경우) 합치지 않고 한 시트만 읽습니다.{' '}

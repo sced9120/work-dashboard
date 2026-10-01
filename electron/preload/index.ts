@@ -206,9 +206,18 @@ const api = {
   tt: {
     get: (): Promise<SchoolTimetable | null> => ipcRenderer.invoke('tt:get'),
     /** 파일을 골라 읽는다. 고르지 않으면 { ok: false, error: '' } */
-    import: (): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string }> => ipcRenderer.invoke('tt:import'),
+    /** canAi: 모양을 못 알아봤다 — [AI로 읽기] 를 보일 수 있다 */
+    import: (): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string; canAi?: boolean }> => ipcRenderer.invoke('tt:import'),
     /** 시트마다 수업이 다른 판일 때, 같은 파일을 이 시트 기준으로 다시 읽는다 */
     useSheet: (name: string): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string }> => ipcRenderer.invoke('tt:useSheet', name),
+    /** AI 로 읽기 — 'failed' 방금 못 읽은 파일, 'current' 지금 불러온 파일. 한글 낱말은 가려 보낸다 */
+    aiRead: (which: 'failed' | 'current'): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string }> =>
+      ipcRenderer.invoke('tt:aiRead', which),
+    onAiProgress: (cb: (msg: string) => void): (() => void) => {
+      const handler = (_e: unknown, msg: string): void => cb(msg)
+      ipcRenderer.on('tt:aiProgress', handler)
+      return () => ipcRenderer.removeListener('tt:aiProgress', handler)
+    },
     clear: (): Promise<void> => ipcRenderer.invoke('tt:clear'),
     /** 표준 자료(교사 · 요일 · 교시 · 반 · 과목 · 블록 · 구분)를 엑셀로 저장 */
     exportStandard: (rows: TtRow[]): Promise<ActionResult> => ipcRenderer.invoke('tt:exportStandard', rows)

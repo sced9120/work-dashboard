@@ -527,6 +527,11 @@ async function callModel(
   return chatModel(settings, feature, override, '', [{ role: 'user', content: prompt }], json)
 }
 
+/** 시간표 AI 읽기(shared/ttai.ts)가 쓰는 한 번 묻기 — 글자를 가린 표만 보낸다 */
+export async function askForTimetable(settings: LocalSettings, prompt: string, json: boolean): Promise<string> {
+  return callModel(settings, 'analyze', null, prompt, json)
+}
+
 export async function analyzeDocument(
   settings: LocalSettings,
   jobTitle: string,

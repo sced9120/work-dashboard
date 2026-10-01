@@ -51,7 +51,7 @@ export interface TtClass {
   grid: (TtCell | null)[][]
 }
 
-export type TtLayout = '학급 묶음' | '교사 묶음' | '주간 시간표' | '표준 목록'
+export type TtLayout = '학급 묶음' | '교사 묶음' | '주간 시간표' | '표준 목록' | 'AI로 읽음'
 
 export interface SchoolTimetable {
   days: string[]
@@ -339,7 +339,9 @@ const HEAD_RE: Record<string, RegExp> = {
   cls: /^(반|학급|학반|교실)$/,
   subject: /^(과목|과목명)$/,
   block: /^(블록|묶음|블록 구분)$/,
-  kind: /^(구분|종류)$/
+  kind: /^(구분|종류)$/,
+  // AI 로 읽은 자료에만 붙는 칸 색
+  color: /^색$/
 }
 
 /** 표준 목록 — 머리 줄에 교사 · 요일 · 교시 · 반 · 과목 (· 블록 · 구분), 아래로 한 줄에 수업 하나 */
@@ -381,7 +383,8 @@ function readList(sheet: SheetText): Found {
       if (!out.periods.has(p.no)) out.periods.set(p.no, p)
       const sj = subjectOf(subject || '수업')
       const block = at(row, 'block').replace(/\s*블록$/, '')
-      out.entries.push({ teacher: teacherName(at(row, 'teacher')), day, period: p.no, cls: found.id, subject: sj.subject, group: block || sj.group, color: '' })
+      const color = /^#[0-9A-Fa-f]{6}$/.test(at(row, 'color')) ? at(row, 'color').toUpperCase() : ''
+      out.entries.push({ teacher: teacherName(at(row, 'teacher')), day, period: p.no, cls: found.id, subject: sj.subject, group: block || sj.group, color })
     }
     break
   }

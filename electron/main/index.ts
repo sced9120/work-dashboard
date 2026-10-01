@@ -16,6 +16,7 @@ import { extractFile } from './extract'
 import {
   analyzeDocument,
   answerFromSources,
+  askForTimetable,
   chatAnswer,
   composeFromForm,
   draftSlides,
@@ -29,7 +30,7 @@ import { buildFromFrame, readFrame } from './hwpgen'
 import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
 import { classTimetable, clearNeisCache, mealsOn, nextMealDay, scheduleCached, schoolInfoForDocs, searchSchools, testNeis } from './neis'
 import type { TtRow } from '../../shared/timetable'
-import { importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
+import { STD_EXAMPLE, aiReadTimetable, importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
 import { schoolContext } from './context'
 import { ymd } from '../../shared/neis'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
@@ -789,18 +790,28 @@ function registerIpc(): void {
     return importTimetable(res.filePaths)
   })
   ipcMain.handle('tt:useSheet', (_e, name: string) => rereadWithSheet(String(name ?? '')))
+  /** AI 로 읽기 — 글자를 가린 표만 보낸다 */
+  ipcMain.handle('tt:aiRead', (_e, which: string) =>
+    aiReadTimetable(
+      which === 'current' ? 'current' : 'failed',
+      (prompt, json) => askForTimetable(loadLocalSettings(), prompt, json),
+      (msg) => send('tt:aiProgress', msg)
+    )
+  )
   ipcMain.handle('tt:clear', () => db.setSetting('timetable_school', ''))
   /** 표준 자료를 엑셀로 저장 (화면에서 블록 · 창체를 얹어 편 줄) */
   ipcMain.handle('tt:exportStandard', async (_e, rows: TtRow[]) => {
     if (!mainWindow) return { ok: false, message: '창을 찾을 수 없습니다.' }
-    if (!Array.isArray(rows) || !rows.length) return { ok: false, message: '저장할 시간표 자료가 없습니다.' }
+    if (!Array.isArray(rows)) return { ok: false, message: '저장할 시간표 자료가 없습니다.' }
+    // 줄이 없으면 빈 표준 양식(보기 줄 몇 개)을 준다 — 읽지 못하는 모양의 학교가 직접 적어 불러오도록
+    const blank = !rows.length
     const res = await dialog.showSaveDialog(mainWindow, {
-      title: '시간표 표준 자료 저장',
-      defaultPath: path.join(app.getPath('documents'), '시간표_표준자료.xlsx'),
+      title: blank ? '빈 표준 양식 저장' : '시간표 표준 자료 저장',
+      defaultPath: path.join(app.getPath('documents'), blank ? '시간표_표준양식.xlsx' : '시간표_표준자료.xlsx'),
       filters: [{ name: '엑셀', extensions: ['xlsx'] }]
     })
     if (res.canceled || !res.filePath) return { ok: false, message: '취소했습니다.' }
-    fs.writeFileSync(res.filePath, await standardWorkbook(rows))
+    fs.writeFileSync(res.filePath, await standardWorkbook(blank ? STD_EXAMPLE : rows))
     savedPaths.add(path.resolve(res.filePath))
     return { ok: true, message: `저장했습니다: ${res.filePath}`, path: res.filePath }
   })

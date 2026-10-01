@@ -8,7 +8,16 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ParseOptions, SchoolTimetable, SheetText, TtRow } from '../../shared/timetable'
 import { DAY_NAMES, STD_COLUMNS, TT_SCHOOL_KEY, parseTimetable } from '../../shared/timetable'
+import { chunkRows, convertPrompt, maskSheet, parseLines, parseStructure, structurePrompt, toStandardSheet } from '../../shared/ttai'
 import * as db from './db'
+
+/** 모양을 못 알아본 파일 — [AI로 읽기] 를 누르면 이것을 읽는다 (이 실행 동안만) */
+let failedFiles: string[] = []
+
+const today = (d = new Date()): string => {
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
 
 function cellText(v: ExcelJS.CellValue): string {
   if (v === null || v === undefined) return ''
@@ -126,7 +135,7 @@ async function sheetsOf(file: string, prefix: string): Promise<SheetText[]> {
 export async function importTimetable(
   files: string[],
   opts: ParseOptions = {}
-): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string }> {
+): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string; canAi?: boolean }> {
   const sheets: SheetText[] = []
   for (const f of files) {
     if (!/\.xlsx$/i.test(f)) return { ok: false, error: `${path.basename(f)}: 엑셀(.xlsx) 파일만 읽습니다. 옛 엑셀(.xls)은 엑셀에서 .xlsx 로 저장해 주세요.` }
@@ -138,15 +147,77 @@ export async function importTimetable(
       return { ok: false, error: `${path.basename(f)}: ${e instanceof Error ? e.message : String(e)}` }
     }
   }
-  const p = (n: number): string => String(n).padStart(2, '0')
   const d = new Date()
-  const now = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-  const { tt, error } = parseTimetable(sheets, files.map((f) => path.basename(f)).join(', '), now, opts)
-  if (!tt) return { ok: false, error }
+  const { tt, error } = parseTimetable(sheets, files.map((f) => path.basename(f)).join(', '), today(d), opts)
+  if (!tt) {
+    failedFiles = files
+    return { ok: false, error, canAi: true }
+  }
+  failedFiles = []
   tt.stamp = d.toISOString()
   tt.sources = files
   db.setSetting(TT_SCHOOL_KEY, JSON.stringify(tt))
   return { ok: true, tt }
+}
+
+/**
+ * AI 로 시간표 읽기 — 이 PC 에서 한글 낱말을 W1, W2 … 로 가린 표만 보내 표준 자료로 받는다(shared/ttai.ts).
+ * which: 'failed' 는 방금 모양을 못 알아본 파일, 'current' 는 지금 불러와 둔 파일(다른 모양으로 잘못 읽었을 때).
+ */
+export async function aiReadTimetable(
+  which: 'failed' | 'current',
+  ask: (prompt: string, json: boolean) => Promise<string>,
+  progress: (msg: string) => void
+): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string }> {
+  const cur = loadTimetable()
+  const files = which === 'failed' ? failedFiles : cur?.sources ?? []
+  if (!files.length) return { ok: false, error: '읽을 파일을 알 수 없습니다. 시간표 파일을 다시 불러와 주세요.' }
+  const sheets: SheetText[] = []
+  try {
+    for (const f of files) sheets.push(...(await sheetsOf(f, files.length > 1 ? `${path.basename(f, path.extname(f))} · ` : '')))
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+  // 지금 읽어 둔 시트가 있으면 그것, 아니면 칸이 가장 많이 찬 시트 하나
+  const filled = (s: SheetText): number => s.rows.reduce((n, r) => n + r.filter((v) => v.trim()).length, 0)
+  const want = which === 'current' ? cur?.versions?.used[0] : undefined
+  const sheet = sheets.find((s) => s.name === want) ?? [...sheets].sort((a, b) => filled(b) - filled(a))[0]
+  if (!sheet || !filled(sheet)) return { ok: false, error: '빈 시트입니다.' }
+
+  const masked = maskSheet(sheet)
+  try {
+    progress('표의 짜임을 묻는 중…')
+    const st = parseStructure(await ask(structurePrompt(masked), true), masked.rows.length)
+    if (!st) return { ok: false, error: 'AI 가 표의 짜임을 알아내지 못했습니다. 표준 양식으로 적어 불러와 주세요.' }
+    const chunks = chunkRows(masked, st)
+    if (!chunks.length) return { ok: false, error: 'AI 가 수업이 적힌 줄을 찾지 못했습니다.' }
+    if (chunks.length > 40) return { ok: false, error: '표가 너무 커서 AI 로 읽지 않았습니다. 시트를 나눠 불러와 주세요.' }
+    const lines = []
+    for (let i = 0; i < chunks.length; i++) {
+      progress(`수업을 읽는 중… ${i + 1}/${chunks.length}`)
+      lines.push(...parseLines(await ask(convertPrompt(masked, st, chunks[i]), false)))
+    }
+    const std = toStandardSheet(lines, sheet, masked, new Set(chunks.flat()))
+    if (!std.used) return { ok: false, error: 'AI 답에서 수업을 하나도 읽지 못했습니다. 다른 모델로 해 보거나 표준 양식으로 적어 주세요.' }
+    const d = new Date()
+    const { tt, error } = parseTimetable([std.sheet], files.map((f) => path.basename(f)).join(', '), today(d))
+    if (!tt) return { ok: false, error }
+    // 자료줄 안에서 글이 있는 칸 가운데 몇 칸을 읽었는지
+    let dataCells = 0
+    for (const r of chunks.flat()) dataCells += (sheet.rows[r - 1] ?? []).filter((v) => v.trim()).length
+    tt.layouts = ['AI로 읽음']
+    tt.warnings.unshift(
+      `AI 로 읽었습니다(${st.shape || sheet.name}). 자료줄의 글이 있는 칸 ${dataCells}개 가운데 ${std.cells.size}개에서 수업 ${std.used}줄을 읽었습니다` +
+        `${std.dropped ? `(빈 칸을 가리킨 ${std.dropped}줄은 버림)` : ''}. 이름 칸은 수업이 아니라 세지 않습니다. 틀린 곳이 있을 수 있으니 선생님 몇 분을 골라 확인해 주세요.`
+    )
+    tt.stamp = d.toISOString()
+    tt.sources = files
+    db.setSetting(TT_SCHOOL_KEY, JSON.stringify(tt))
+    failedFiles = []
+    return { ok: true, tt }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 /** 같은 파일을 다른 시트 기준으로 다시 읽는다 (시트마다 수업이 다른 판일 때) */
@@ -155,6 +226,16 @@ export async function rereadWithSheet(name: string): Promise<{ ok: boolean; tt?:
   if (!cur?.sources?.length) return { ok: false, error: '처음 불러온 파일을 알 수 없습니다. 시간표 파일을 다시 불러와 주세요.' }
   return importTimetable(cur.sources, { sheet: name })
 }
+
+/** 빈 표준 양식의 보기 줄 (지우고 학교 시간표를 적는다) */
+export const STD_EXAMPLE: TtRow[] = [
+  { teacher: '홍길동', day: 0, period: 1, cls: '1-1', subject: '국어', block: '', kind: '수업' },
+  { teacher: '홍길동', day: 0, period: 2, cls: '2-3', subject: '문학', block: '', kind: '수업' },
+  { teacher: '홍길동', day: 1, period: 3, cls: '3-2', subject: '고전', block: 'A', kind: '블록' },
+  { teacher: '홍길동', day: 2, period: 4, cls: '3-2', subject: '[공강]', block: '', kind: '공강' },
+  { teacher: '', day: 2, period: 5, cls: '전체', subject: '동아리', block: '', kind: '동아리' },
+  { teacher: '', day: 2, period: 6, cls: '전체', subject: '창체', block: '', kind: '창체' }
+]
 
 /**
  * 표준 자료를 엑셀로 — 첫 시트 "시간표 자료"(교사 · 요일 · 교시 · 반 · 과목 · 블록 · 구분), 둘째 시트 "적는 법".
