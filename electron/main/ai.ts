@@ -21,6 +21,7 @@ import { parseComposed } from '../../shared/hwpform'
 import { frameOutline, readFrame } from './hwpgen'
 import type { Deck } from '../../shared/slides'
 import { normalizeDeck } from '../../shared/slides'
+import { httpFetch } from './http'
 
 /** 한 번에 모델에 보내는 글자 수. 긴 매뉴얼은 여러 번 나눠 보낸다. */
 const CHUNK_SIZE = 28000
@@ -350,7 +351,7 @@ async function openaiChat(
   }
 
   let useTemperature = openaiSupportsTemperature(model)
-  let res = await fetch(url, { method: 'POST', headers, body: body(useTemperature) })
+  let res = await httpFetch(url, { method: 'POST', headers, body: body(useTemperature) })
 
   // temperature 를 못 받는 걸 미처 몰랐던 모델은 한 번만 재시도한다.
   if (!res.ok && useTemperature && res.status === 400) {
@@ -358,7 +359,7 @@ async function openaiChat(
     if (/temperature/i.test(txt) && /unsupported|does not support|not.*supported/i.test(txt)) {
       openaiNoTemperature.add(model)
       useTemperature = false
-      res = await fetch(url, { method: 'POST', headers, body: body(false) })
+      res = await httpFetch(url, { method: 'POST', headers, body: body(false) })
     } else {
       // 재시도 없음. 아래 공통 처리로 넘긴다.
       throw new Error(await describeHttpError(new Response(txt, { status: res.status }), 'OpenAI'))
@@ -380,7 +381,7 @@ async function geminiChat(
   json: boolean
 ): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
-  const res = await fetch(url, {
+  const res = await httpFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
@@ -414,7 +415,7 @@ async function claudeChat(
   json: boolean
 ): Promise<string> {
   const sys = json ? jsonSystem(system) : system
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await httpFetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -524,6 +525,11 @@ async function callModel(
   json = true
 ): Promise<string> {
   return chatModel(settings, feature, override, '', [{ role: 'user', content: prompt }], json)
+}
+
+/** 시간표 AI 읽기(shared/ttai.ts)가 쓰는 한 번 묻기 — 글자를 가린 표만 보낸다 */
+export async function askForTimetable(settings: LocalSettings, prompt: string, json: boolean): Promise<string> {
+  return callModel(settings, 'analyze', null, prompt, json)
 }
 
 export async function analyzeDocument(
@@ -683,7 +689,8 @@ function docDraftPrompt(
   jobTitle: string,
   form: DocForm,
   values: Record<string, string>,
-  examples: Template[]
+  examples: Template[],
+  schoolInfo = ''
 ): string {
   let budget = EXAMPLE_TOTAL
   const shown: string[] = []
@@ -718,7 +725,8 @@ ${form.guide}
 
   return `당신은 대한민국 학교에서 행정 문서를 오래 다뤄 온 교사입니다.
 ${schoolName ? `학교명은 '${schoolName}' 입니다.` : ''}${jobTitle ? `
-지금 이 문서를 쓰는 사람이 맡은 업무는 '${jobTitle}' 입니다.` : ''}
+지금 이 문서를 쓰는 사람이 맡은 업무는 '${jobTitle}' 입니다.` : ''}${schoolInfo ? `
+${schoolInfo}` : ''}
 
 ${shape}
 
@@ -747,7 +755,9 @@ export async function generateDocDraft(
   values: Record<string, string>,
   examples: Template[],
   aliases: AliasPair[],
-  override?: ModelChoice
+  override?: ModelChoice,
+  /** 나이스에서 받은 학교 주소 · 대표 전화 · 누리집 */
+  schoolInfo = ''
 ): Promise<DocDraftResult> {
   const maskedValues: Record<string, string> = {}
   for (const [k, v] of Object.entries(values)) maskedValues[k] = maskText(v, aliases)
@@ -758,7 +768,7 @@ export async function generateDocDraft(
     content: maskText(t.content, aliases)
   }))
 
-  const prompt = docDraftPrompt(schoolName, jobTitle, form, maskedValues, maskedExamples)
+  const prompt = docDraftPrompt(schoolName, jobTitle, form, maskedValues, maskedExamples, schoolInfo)
 
   // 마지막 방어선: 가렸는데도 실명이 남아 있으면 전송을 멈춘다.
   const leaked = leakCheck(prompt, aliases)
@@ -899,6 +909,8 @@ export async function composeFromForm(
     schoolName: string
     /** 문서 만들기에서 고른 문서 종류의 이름과 쓰는 법(말투·꼭 넣을 것) */
     guide?: string
+    /** 나이스에서 받은 학교 주소 · 대표 전화 · 누리집 */
+    schoolInfo?: string
     override?: ModelChoice
   }
 ): Promise<ComposeResult> {
@@ -922,7 +934,8 @@ export async function composeFromForm(
   const masked = maskText(content, aliases)
 
   const prompt = `당신은 대한민국 학교에서 행정 문서를 오래 다뤄 온 교사입니다.${schoolName ? `
-학교명은 '${schoolName}' 입니다.` : ''}
+학교명은 '${schoolName}' 입니다.` : ''}${args.schoolInfo ? `
+${args.schoolInfo}` : ''}
 
 [양식]은 학교에서 쓰는 한글 문서 '${formName}' 의 모습입니다. 이 양식의 구성과 문단 모양을 본떠
 [넣을 내용]으로 **새 문서를 처음부터 끝까지** 써 주세요. 글꼴·문단 모양은 프로그램이 양식대로 입힙니다.
@@ -1111,6 +1124,8 @@ export async function chatAnswer(
 담당자가 맡은 일로 고른 것: ${mine.slice(0, 600)}` : ''}
 아래 [참고 자료]는 이 담당자가 프로그램에 보관해 둔 공문·업무·일지 중 지금 질문과 관련 있어 보이는 것들입니다.
 "도움자료:" 로 시작하는 것은 교육청이 업무마다 엮어 둔 학교업무 도움자료 폴더의 파일 목록입니다.
+"나이스" 로 시작하는 것은 나이스(교육정보 개방 포털)에서 받은 이 학교의 급식 · 학사일정이고, "내 시간표" · "우리 반 시간표" 는
+담당자가 불러온 학교 시간표에서 뽑은 것입니다. 급식 · 일정 · 수업 시간을 물으면 이것을 그대로 근거로 답하세요.
 
 답변 규칙:
 - 참고 자료에 근거가 있으면 그 내용을 우선으로 삼고, 문장 끝에 [1] [2] 처럼 근거 번호를 답니다.

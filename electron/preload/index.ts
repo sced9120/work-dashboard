@@ -37,6 +37,8 @@ import type {
   UpdateInfo
 } from '../../shared/types'
 import type { HelpCatalog, HelpHit, HelpMatch } from '../../shared/helpdocs'
+import type { NeisDay, NeisLesson, NeisMealDay, NeisResult, NeisSchool } from '../../shared/neis'
+import type { SchoolTimetable, TtRow } from '../../shared/timetable'
 import type {
   ComposeResult,
   DocItem,
@@ -84,7 +86,10 @@ const api = {
     add: (v: CalEventInput): Promise<number> => ipcRenderer.invoke('events:add', v),
     update: (id: number, patch: Partial<CalEventInput>): Promise<void> =>
       ipcRenderer.invoke('events:update', id, patch),
-    remove: (id: number): Promise<void> => ipcRenderer.invoke('events:delete', id)
+    remove: (id: number): Promise<void> => ipcRenderer.invoke('events:delete', id),
+    /** 한꺼번에 넣기. 같은 날 같은 제목이 이미 있으면 건너뛴다 */
+    addMany: (list: CalEventInput[]): Promise<{ added: number; skipped: number }> =>
+      ipcRenderer.invoke('events:addMany', list)
   },
   journal: {
     list: (): Promise<JournalEntry[]> => ipcRenderer.invoke('journal:list'),
@@ -183,6 +188,42 @@ const api = {
       ipcRenderer.on('ai:progress', handler)
       return () => ipcRenderer.removeListener('ai:progress', handler)
     }
+  },
+  /** 나이스 교육정보 개방 포털 (학교 공개 자료) */
+  neis: {
+    schools: (name: string): Promise<NeisResult<NeisSchool[]>> => ipcRenderer.invoke('neis:schools', name),
+    meals: (day: string): Promise<NeisMealDay> => ipcRenderer.invoke('neis:meals', day),
+    /** day 다음(dir=1) 또는 앞(dir=-1)으로 급식이 있는 날 */
+    nextMeals: (day: string, dir: 1 | -1): Promise<NeisMealDay> => ipcRenderer.invoke('neis:nextMeals', day, dir),
+    schedule: (from: string, to: string): Promise<NeisResult<NeisDay[]>> => ipcRenderer.invoke('neis:schedule', from, to),
+    test: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('neis:test'),
+    clearCache: (): Promise<void> => ipcRenderer.invoke('neis:clearCache'),
+    /** 학급 시간표 (키 필요) */
+    classTimetable: (grade: number, cls: number, from: string, to: string): Promise<NeisResult<NeisLesson[]>> =>
+      ipcRenderer.invoke('neis:classTimetable', grade, cls, from, to)
+  },
+  /** 학교 시간표 (엑셀에서 읽은 것) */
+  tt: {
+    get: (): Promise<SchoolTimetable | null> => ipcRenderer.invoke('tt:get'),
+    /** 파일을 골라 읽는다. 고르지 않으면 { ok: false, error: '' } */
+    /** canAi: 모양을 못 알아봤다 — [AI로 읽기] 를 보일 수 있다 */
+    import: (): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string; canAi?: boolean }> => ipcRenderer.invoke('tt:import'),
+    /** 시트마다 수업이 다른 판일 때, 같은 파일을 이 시트 기준으로 다시 읽는다 */
+    useSheet: (name: string): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string }> => ipcRenderer.invoke('tt:useSheet', name),
+    /** AI 로 읽기 — 'failed' 방금 못 읽은 파일, 'current' 지금 불러온 파일. 한글 낱말은 가려 보낸다 */
+    aiRead: (which: 'failed' | 'current'): Promise<{ ok: boolean; tt?: SchoolTimetable; error?: string }> =>
+      ipcRenderer.invoke('tt:aiRead', which),
+    onAiProgress: (cb: (msg: string) => void): (() => void) => {
+      const handler = (_e: unknown, msg: string): void => cb(msg)
+      ipcRenderer.on('tt:aiProgress', handler)
+      return () => ipcRenderer.removeListener('tt:aiProgress', handler)
+    },
+    clear: (): Promise<void> => ipcRenderer.invoke('tt:clear'),
+    /** 표준 자료(교사 · 요일 · 교시 · 반 · 과목 · 블록 · 구분)를 엑셀로 저장 */
+    exportStandard: (rows: TtRow[]): Promise<ActionResult> => ipcRenderer.invoke('tt:exportStandard', rows)
+  },
+  image: {
+    savePng: (args: { name: string; dataUrl: string }): Promise<ActionResult> => ipcRenderer.invoke('image:savePng', args)
   },
   /** 학교업무 도움자료 목록 */
   help: {

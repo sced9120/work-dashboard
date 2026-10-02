@@ -8,6 +8,7 @@ import {
   resetModels
 } from '../../shared/types'
 import { LEVEL_KEY, SCHOOL_LEVELS } from '../../shared/helpdocs'
+import NeisSettings from '../components/NeisSettings'
 import { useToast } from '../lib/toast'
 
 interface Props {
@@ -28,7 +29,8 @@ const DEFAULT_LOCAL: LocalSettings = {
   notify_deadlines: false,
   notify_days: 3,
   keep_in_tray: false,
-  open_at_login: false
+  open_at_login: false,
+  neis_key: ''
 }
 
 /** 서비스별 이름·키 발급처·키 생김새 */
@@ -119,7 +121,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     // Settings 는 feature_models 를 다루지 않는다. 다른 화면(ModelPicker)이
     // 그 사이 저장했을 값을 덮어쓰지 않도록, 직전 값을 그대로 다시 실어 보낸다.
     const latest = await window.api.local.load()
-    await window.api.local.save({ ...local, feature_models: latest.feature_models })
+    await window.api.local.save({ ...local, feature_models: latest.feature_models, neis_key: latest.neis_key })
     toast('저장했습니다.', 'ok')
   }
 
@@ -129,7 +131,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     // Settings 는 feature_models 를 다루지 않는다. 다른 화면(ModelPicker)이
     // 그 사이 저장했을 값을 덮어쓰지 않도록, 직전 값을 그대로 다시 실어 보낸다.
     const latest = await window.api.local.load()
-    await window.api.local.save({ ...local, feature_models: latest.feature_models })
+    await window.api.local.save({ ...local, feature_models: latest.feature_models, neis_key: latest.neis_key })
     setTestMsg(await window.api.ai.test())
     setTesting(false)
   }
@@ -185,7 +187,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
 
     setLocal(next)
     const latest = await window.api.local.load()
-    await window.api.local.save({ ...next, feature_models: latest.feature_models })
+    await window.api.local.save({ ...next, feature_models: latest.feature_models, neis_key: latest.neis_key })
   }
 
   const lists = { custom: local.custom_models ?? {}, hidden: local.hidden_models ?? {} }
@@ -288,6 +290,18 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
           </button>
         </div>
       </div>
+
+      <NeisSettings
+        schoolName={school}
+        level={level}
+        onApplyProfile={async (name, lv) => {
+          setSchool(name)
+          setLevel(lv)
+          await window.api.setting.set('school_name', name)
+          await window.api.setting.set(LEVEL_KEY, lv)
+          await onProfileChanged()
+        }}
+      />
 
       <div className="card">
         <div className="card-title">AI 연결</div>

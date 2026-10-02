@@ -16,7 +16,14 @@ interface Props {
   onOpenFull?: () => void
   /** 달력 화면에서 [작게] 를 눌렀을 때 — 홈의 작은 달력으로 돌아간다 */
   onShrink?: () => void
+  /** 한 달 · 한 주 보기. 바꾸면 onView 로 알린다(홈 위젯이 기억한다) */
+  view?: CalView
+  onView?: (v: CalView) => void
+  /** 한 달 보기에서 칸마다 막대를 몇 줄까지 (홈에서 넓게 펼쳤을 때 늘린다) */
+  monthLanes?: number
 }
+
+export type CalView = 'month' | 'week'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -185,12 +192,20 @@ function ddayLabel(due: string): string {
   return `D-${d}`
 }
 
+/** 그 날이 든 주의 일요일 */
+function sundayOf(day: string): string {
+  return addDays(day, -new Date(`${day}T00:00:00`).getDay())
+}
+
 export default function Calendar({
   tasks,
   big,
   compact,
   onOpenFull,
-  onShrink
+  onShrink,
+  view: viewProp,
+  onView,
+  monthLanes
 }: Props): JSX.Element {
   const toast = useToast()
   const today = todayStr()
@@ -202,6 +217,12 @@ export default function Calendar({
   const [events, setEvents] = useState<CalEvent[]>([])
   const [deadlines, setDeadlines] = useState<Deadline[]>([])
   const [selected, setSelected] = useState<string>(today)
+  const [view, setView] = useState<CalView>(viewProp ?? 'month')
+  useEffect(() => {
+    if (viewProp) setView(viewProp)
+  }, [viewProp])
+  /** 한 주 보기에서 보고 있는 주의 일요일 */
+  const [anchor, setAnchor] = useState(() => sundayOf(today))
 
   /** 편집 중인 일정. id 가 없으면 새로 넣는 중 */
   const [form, setForm] = useState<(CalEventInput & { id?: number }) | null>(null)
@@ -216,8 +237,8 @@ export default function Calendar({
   const [dragging, setDragging] = useState(false)
   const [dropDay, setDropDay] = useState<string | null>(null)
 
-  /** 한 주에 막대를 몇 줄까지 그릴지 */
-  const lanes = compact ? 2 : big ? 4 : 3
+  /** 한 주에 막대를 몇 줄까지 그릴지. 한 주 보기는 칸이 넓어 더 많이 */
+  const lanes = view === 'week' ? (compact ? 5 : big ? 9 : 7) : (monthLanes ?? (compact ? 2 : big ? 4 : 3))
 
   const load = useCallback(async () => {
     const [ev, dl] = await Promise.all([
@@ -256,12 +277,20 @@ export default function Calendar({
     return cells
   }, [cursor])
 
-  /** 격자를 일주일씩 자른다. 막대는 주 단위로 그린다. */
+  /** 격자를 일주일씩 자른다. 막대는 주 단위로 그린다. 한 주 보기면 그 주 하나만 */
   const weeks = useMemo(() => {
+    if (view === 'week') {
+      return [
+        Array.from({ length: 7 }, (_, i) => {
+          const date = addDays(anchor, i)
+          return { date, inMonth: true, dow: i }
+        })
+      ]
+    }
     const out: (typeof grid)[] = []
     for (let i = 0; i < grid.length; i += 7) out.push(grid.slice(i, i + 7))
     return out
-  }, [grid])
+  }, [grid, view, anchor])
 
   /**
    * 공휴일. 달력 격자에는 앞뒤 달이 함께 나오므로 해도 앞뒤로 한 해씩 담는다.
@@ -299,6 +328,14 @@ export default function Calendar({
   )
 
   const move = (delta: number): void => {
+    if (view === 'week') {
+      const next = addDays(anchor, 7 * delta)
+      setAnchor(next)
+      // 공휴일 · 이 달 업무가 따라오도록 달도 옮긴다 (주 가운데인 수요일 기준)
+      const mid = addDays(next, 3)
+      setCursor({ year: Number(mid.slice(0, 4)), month: Number(mid.slice(5, 7)) })
+      return
+    }
     setCursor((c) => {
       const m = c.month + delta
       if (m < 1) return { year: c.year - 1, month: 12 }
@@ -311,6 +348,20 @@ export default function Calendar({
     const d = new Date()
     setCursor({ year: d.getFullYear(), month: d.getMonth() + 1 })
     setSelected(today)
+    setAnchor(sundayOf(today))
+  }
+
+  const changeView = (v: CalView): void => {
+    setView(v)
+    onView?.(v)
+    if (v === 'week') {
+      // 고른 날이 보고 있는 달에 있으면 그 주를, 아니면 이번 주를
+      const inMonth = selected.startsWith(`${cursor.year}-${pad(cursor.month)}-`)
+      setAnchor(sundayOf(inMonth ? selected : today))
+    } else {
+      const mid = addDays(anchor, 3)
+      setCursor({ year: Number(mid.slice(0, 4)), month: Number(mid.slice(5, 7)) })
+    }
   }
 
   const openNew = (day: string): void => {
@@ -433,19 +484,35 @@ export default function Calendar({
   const selectedHoliday = holidays.get(selected)
 
   return (
-    <div className={`cal ${big ? "cal-big" : ""} ${compact ? "cal-compact" : ""}`}>
+    <div className={`cal ${big ? "cal-big" : ""} ${compact ? "cal-compact" : ""} ${view === 'week' ? 'cal-weekview' : ''}`}>
       {/* ── 달 이동 ── */}
       <div className="cal-bar">
-        <button className="cal-nav" onClick={() => move(-1)} title="이전 달">
+        <button className="cal-nav" onClick={() => move(-1)} title={view === 'week' ? '이전 주' : '이전 달'}>
           ‹
         </button>
         <div className="cal-title">
-          {cursor.year}년 <b>{cursor.month}월</b>
+          {view === 'week' ? (
+            <>
+              {Number(anchor.slice(0, 4))}년 <b>{short(anchor)} ~ {short(addDays(anchor, 6))}</b>
+            </>
+          ) : (
+            <>
+              {cursor.year}년 <b>{cursor.month}월</b>
+            </>
+          )}
         </div>
-        <button className="cal-nav" onClick={() => move(1)} title="다음 달">
+        <button className="cal-nav" onClick={() => move(1)} title={view === 'week' ? '다음 주' : '다음 달'}>
           ›
         </button>
         <span className="spacer" />
+        <span className="cal-viewtoggle" role="group" aria-label="보기">
+          <button className={view === 'month' ? 'on' : ''} onClick={() => changeView('month')} title="한 달씩 보기">
+            월
+          </button>
+          <button className={view === 'week' ? 'on' : ''} onClick={() => changeView('week')} title="한 주씩 보기 — 일정을 더 많이 보여 줍니다">
+            주
+          </button>
+        </span>
         <button className="btn btn-sm" onClick={goToday}>
           오늘
         </button>

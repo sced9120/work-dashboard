@@ -13,6 +13,7 @@ import Search from './pages/Search'
 import Chat from './pages/Chat'
 import Committee from './pages/Committee'
 import HelpDocs from './pages/HelpDocs'
+import Timetable from './pages/Timetable'
 import Slides from './pages/Slides'
 import Deadlines from './pages/Deadlines'
 import Journal from './pages/Journal'
@@ -24,6 +25,7 @@ import Settings from './pages/Settings'
 export type PageId =
   | '홈'
   | '달력'
+  | '시간표'
   | '로드맵'
   | '워크플로우'
   | '가이드'
@@ -48,6 +50,7 @@ const NAV: { section: string; items: { id: PageId; icon: string; label: string }
     items: [
       { id: '홈', icon: '🏠', label: '홈' },
       { id: '달력', icon: '🗓', label: '달력' },
+      { id: '시간표', icon: '🕘', label: '시간표' },
       { id: '기한', icon: '⏰', label: '절차 기한' },
       { id: '일지', icon: '✍️', label: '업무 일지' }
     ]
@@ -300,6 +303,7 @@ function Shell(): JSX.Element {
 
         {page === '홈' && <Home jobTitle={jobTitle} onGo={setPage} />}
         {page === '달력' && <CalendarPage onGo={setPage} />}
+        {page === '시간표' && <Timetable onGo={setPage} />}
         {page === '로드맵' && <Roadmap />}
         {page === '워크플로우' && <Workflows onGo={setPage} />}
         {page === '가이드' && <Guide />}

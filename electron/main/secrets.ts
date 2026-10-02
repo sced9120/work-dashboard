@@ -33,7 +33,8 @@ const DEFAULTS: LocalSettings = {
   notify_deadlines: false,
   notify_days: 3,
   keep_in_tray: false,
-  open_at_login: false
+  open_at_login: false,
+  neis_key: ''
 }
 
 interface StoredShape {
@@ -49,9 +50,9 @@ interface StoredShape {
   keep_in_tray?: boolean
   open_at_login?: boolean
   /** base64로 인코딩된 암호문 */
-  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string }
+  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string }
   /** 암호화를 못 쓰는 환경일 때만 사용 */
-  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string }
+  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string }
 }
 
 function coerceProvider(p: string | undefined): Provider {
@@ -148,6 +149,7 @@ function readLocalSettings(): LocalSettings {
   const openai_key = useEnc ? decrypt(raw.enc?.openai_key) : (raw.plain?.openai_key ?? '')
   const gemini_key = useEnc ? decrypt(raw.enc?.gemini_key) : (raw.plain?.gemini_key ?? '')
   const claude_key = useEnc ? decrypt(raw.enc?.claude_key) : (raw.plain?.claude_key ?? '')
+  const neis_key = useEnc ? decrypt(raw.enc?.neis_key) : (raw.plain?.neis_key ?? '')
 
   return {
     provider: coerceProvider(raw.provider),
@@ -163,7 +165,8 @@ function readLocalSettings(): LocalSettings {
     notify_deadlines: raw.notify_deadlines ?? DEFAULTS.notify_deadlines,
     notify_days: raw.notify_days ?? DEFAULTS.notify_days,
     keep_in_tray: raw.keep_in_tray ?? DEFAULTS.keep_in_tray,
-    open_at_login: raw.open_at_login ?? DEFAULTS.open_at_login
+    open_at_login: raw.open_at_login ?? DEFAULTS.open_at_login,
+    neis_key
   }
 }
 
@@ -189,13 +192,15 @@ export function saveLocalSettings(next: LocalSettings): void {
     out.enc = {
       openai_key: enc(next.openai_key),
       gemini_key: enc(next.gemini_key),
-      claude_key: enc(next.claude_key)
+      claude_key: enc(next.claude_key),
+      neis_key: enc(next.neis_key ?? '')
     }
   } else {
     out.plain = {
       openai_key: next.openai_key,
       gemini_key: next.gemini_key,
-      claude_key: next.claude_key
+      claude_key: next.claude_key,
+      neis_key: next.neis_key ?? ''
     }
   }
 
