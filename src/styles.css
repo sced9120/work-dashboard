@@ -4624,3 +4624,199 @@ select.shelf-link {
   color: var(--muted);
   font-weight: 400;
 }
+
+/* 구글 캘린더에서 받아 겹쳐 보이는 일정 — 점선 테두리로 내 일정과 가른다 */
+.cal-ev.c-gcal,
+.cal-dot.c-gcal {
+  background: #ffffff;
+  color: #1a5fb4;
+  border: 1px dashed #8ab4f8;
+  border-left: 3px solid #1a73e8;
+  cursor: default;
+}
+
+.badge.badge-gcal {
+  background: #e8f0fe;
+  color: #1a5fb4;
+}
+
+.gcal-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 18px;
+}
+
+.gcal-cols h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.gcal-steps {
+  margin: 8px 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+/* ---------- 홈 자유 배치 (창처럼) ---------- */
+
+.hw-board {
+  position: relative;
+  min-height: 300px;
+}
+
+.hw-board.busy {
+  user-select: none;
+}
+
+.hw.free {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hw.free .hw-head {
+  cursor: grab;
+  touch-action: none;
+}
+
+.hw.free.live {
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.18);
+  outline: 2px solid var(--accent);
+}
+
+.hw.free.live .hw-head {
+  cursor: grabbing;
+}
+
+.hw.free .hw-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.hw.free.folded {
+  height: auto;
+}
+
+.hw-corner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  z-index: 2;
+  touch-action: none;
+}
+
+.hw-corner::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: var(--border-strong);
+  border-style: solid;
+  border-width: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.hw.free:hover .hw-corner::after,
+.hw-board.editing .hw-corner::after,
+.hw.free.live .hw-corner::after {
+  opacity: 1;
+}
+
+.hw-corner.nw {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
+}
+
+.hw-corner.nw::after {
+  left: 3px;
+  top: 3px;
+  border-left-width: 2px;
+  border-top-width: 2px;
+}
+
+.hw-corner.ne {
+  right: 0;
+  top: 0;
+  cursor: nesw-resize;
+}
+
+.hw-corner.ne::after {
+  right: 3px;
+  top: 3px;
+  border-right-width: 2px;
+  border-top-width: 2px;
+}
+
+.hw-corner.sw {
+  left: 0;
+  bottom: 0;
+  cursor: nesw-resize;
+}
+
+.hw-corner.sw::after {
+  left: 3px;
+  bottom: 3px;
+  border-left-width: 2px;
+  border-bottom-width: 2px;
+}
+
+.hw-corner.se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+
+.hw-corner.se::after {
+  right: 3px;
+  bottom: 3px;
+  border-right-width: 2px;
+  border-bottom-width: 2px;
+}
+
+.hw-board.editing .hw.free {
+  outline: 2px dashed var(--border-strong);
+  outline-offset: 2px;
+}
+
+.hw-modes {
+  align-items: stretch;
+}
+
+.hw-mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+  max-width: 340px;
+}
+
+.hw-mode.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.hw-mode input {
+  width: 15px;
+  height: 15px;
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.hw-mode span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hw-mode small {
+  font-size: 12px;
+  color: var(--muted);
+}

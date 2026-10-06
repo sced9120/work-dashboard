@@ -34,7 +34,8 @@ const DEFAULTS: LocalSettings = {
   notify_days: 3,
   keep_in_tray: false,
   open_at_login: false,
-  neis_key: ''
+  neis_key: '',
+  gcal_url: ''
 }
 
 interface StoredShape {
@@ -50,9 +51,9 @@ interface StoredShape {
   keep_in_tray?: boolean
   open_at_login?: boolean
   /** base64로 인코딩된 암호문 */
-  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string }
+  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string; gcal_url?: string }
   /** 암호화를 못 쓰는 환경일 때만 사용 */
-  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string }
+  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string; gcal_url?: string }
 }
 
 function coerceProvider(p: string | undefined): Provider {
@@ -150,6 +151,7 @@ function readLocalSettings(): LocalSettings {
   const gemini_key = useEnc ? decrypt(raw.enc?.gemini_key) : (raw.plain?.gemini_key ?? '')
   const claude_key = useEnc ? decrypt(raw.enc?.claude_key) : (raw.plain?.claude_key ?? '')
   const neis_key = useEnc ? decrypt(raw.enc?.neis_key) : (raw.plain?.neis_key ?? '')
+  const gcal_url = useEnc ? decrypt(raw.enc?.gcal_url) : (raw.plain?.gcal_url ?? '')
 
   return {
     provider: coerceProvider(raw.provider),
@@ -166,7 +168,8 @@ function readLocalSettings(): LocalSettings {
     notify_days: raw.notify_days ?? DEFAULTS.notify_days,
     keep_in_tray: raw.keep_in_tray ?? DEFAULTS.keep_in_tray,
     open_at_login: raw.open_at_login ?? DEFAULTS.open_at_login,
-    neis_key
+    neis_key,
+    gcal_url
   }
 }
 
@@ -193,14 +196,16 @@ export function saveLocalSettings(next: LocalSettings): void {
       openai_key: enc(next.openai_key),
       gemini_key: enc(next.gemini_key),
       claude_key: enc(next.claude_key),
-      neis_key: enc(next.neis_key ?? '')
+      neis_key: enc(next.neis_key ?? ''),
+      gcal_url: enc(next.gcal_url ?? '')
     }
   } else {
     out.plain = {
       openai_key: next.openai_key,
       gemini_key: next.gemini_key,
       claude_key: next.claude_key,
-      neis_key: next.neis_key ?? ''
+      neis_key: next.neis_key ?? '',
+      gcal_url: next.gcal_url ?? ''
     }
   }
 

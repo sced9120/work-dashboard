@@ -354,6 +354,7 @@ electron/
     http.ts       바깥 요청은 Electron net.fetch 로 (윈도우 인증서 · 프록시, 학교망 보안 인증서 대응)
     timetable.ts  학교 시간표 엑셀 읽기 (규칙은 shared/timetable.ts — 학급 · 교사 · 주간 시간표 세 모양)
     context.ts    업무 도우미에 이 학교의 급식 · 학사일정 · 내 시간표를 질문에 맞을 때만 싣기
+    gcal.ts       구글 캘린더 — 비공개 iCal 주소로 받아 보기, .ics 로 보내기 (규칙은 shared/ics.ts)
     slides.ts     발표자료(.pptx) 만들기 — 기본 디자인 / 참고 PPT 의 마스터 그대로 쓰기
     extract/
       index.ts    PDF · 엑셀 · 워드 · 텍스트에서 글자 뽑기
@@ -366,6 +367,7 @@ src/
 shared/types.ts   양쪽이 함께 쓰는 타입
 shared/helpdocs.ts 학교업무 도움자료 찾기 (학교급·줄임말·파일 이름으로 맞추기)
 shared/timetable.ts 시간표 읽기 · 내 시간표 · 맞교체 · 보강 찾기
+shared/ics.ts     iCal(.ics) 읽기(반복 · 빠진 날 · 시간대) · 쓰기
 scripts/make-icon.mjs  아이콘 생성 (외부 도구 없이 픽셀을 직접 그림)
 ```
 

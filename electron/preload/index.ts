@@ -38,6 +38,7 @@ import type {
 } from '../../shared/types'
 import type { HelpCatalog, HelpHit, HelpMatch } from '../../shared/helpdocs'
 import type { NeisDay, NeisLesson, NeisMealDay, NeisResult, NeisSchool } from '../../shared/neis'
+import type { IcsEvent } from '../../shared/ics'
 import type { SchoolTimetable, TtRow } from '../../shared/timetable'
 import type {
   ComposeResult,
@@ -90,6 +91,15 @@ const api = {
     /** 한꺼번에 넣기. 같은 날 같은 제목이 이미 있으면 건너뛴다 */
     addMany: (list: CalEventInput[]): Promise<{ added: number; skipped: number }> =>
       ipcRenderer.invoke('events:addMany', list)
+  },
+  /** 구글 캘린더 — 비공개 iCal 주소로 받아 보기 · .ics 로 보내기 */
+  gcal: {
+    events: (from: string, to: string): Promise<{ ok: boolean; events: IcsEvent[]; error?: string }> =>
+      ipcRenderer.invoke('gcal:events', from, to),
+    test: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('gcal:test'),
+    clearCache: (): Promise<void> => ipcRenderer.invoke('gcal:clearCache'),
+    exportIcs: (args: { from: string; to: string; deadlines: boolean; memo: boolean }): Promise<{ ok: boolean; message: string; count?: number; path?: string }> =>
+      ipcRenderer.invoke('gcal:export', args)
   },
   journal: {
     list: (): Promise<JournalEntry[]> => ipcRenderer.invoke('journal:list'),

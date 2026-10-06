@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react'
 import type { CalEvent, CalEventInput, Deadline, Task } from '../../shared/types'
+import type { IcsEvent } from '../../shared/ics'
 import { BLANK_EVENT, EVENT_COLORS } from '../../shared/types'
 import { holidayLabel, holidayMap, lunarKnown, LUNAR_TO } from '../lib/holidays'
 import { useToast } from '../lib/toast'
@@ -89,7 +90,9 @@ export function layoutWeek(
   days: string[],
   events: CalEvent[],
   deadlines: Deadline[],
-  lanes: number
+  lanes: number,
+  /** 구글 캘린더에서 받아 겹쳐 보이는 일정 (읽기만) */
+  external: IcsEvent[] = []
 ): { bars: WeekBar[]; hidden: number[] } {
   const first = days[0]
   const last = days[days.length - 1]
@@ -137,6 +140,27 @@ export function layoutWeek(
       rank: 1
     })
   }
+
+  external.forEach((g, gi) => {
+    const from = g.start
+    const to = g.end >= from ? g.end : from
+    if (to < first || from > last) return
+    const s = from < first ? 0 : days.indexOf(from)
+    const t = to > last ? days.length - 1 : days.indexOf(to)
+    if (s < 0 || t < 0) return
+    const fromPrev = from < first
+    items.push({
+      key: `g${gi}-${from}`,
+      start: s,
+      span: t - s + 1,
+      fromPrev,
+      toNext: to > last,
+      label: `${!fromPrev && g.time ? `${g.time} ` : ''}${g.title}`,
+      color: 'c-gcal',
+      done: false,
+      rank: 2
+    })
+  })
 
   // 기한 먼저, 그다음 일찍 시작하는 것, 같으면 긴 것 — 긴 막대가 위에 서야 덜 얽힌다
   items.sort(
@@ -253,6 +277,14 @@ export default function Calendar({
     void load()
   }, [load])
 
+  /** 구글 캘린더 일정 (주소를 넣어 둔 경우만, 읽기만) */
+  const [gcal, setGcal] = useState<IcsEvent[]>([])
+  const [gcalOn, setGcalOn] = useState(false)
+  const [gcalErr, setGcalErr] = useState('')
+  useEffect(() => {
+    void (async () => setGcalOn(!!(await window.api.local.load()).gcal_url?.trim()))()
+  }, [])
+
   /** 달력 격자에 깔 날짜들 (앞뒤 달 포함해 7의 배수로 채운다) */
   const grid = useMemo(() => {
     const first = new Date(cursor.year, cursor.month - 1, 1)
@@ -308,6 +340,26 @@ export default function Calendar({
       .filter((h) => h.date.startsWith(head))
       .sort((a, b) => a.date.localeCompare(b.date))
   }, [holidays, cursor])
+
+  // 보이는 날짜가 바뀌면 그 사이의 구글 일정을 받는다 (프로그램이 15분 동안 들고 있는다)
+  const rangeFrom = weeks[0]?.[0]?.date ?? ''
+  const rangeTo = weeks[weeks.length - 1]?.[6]?.date ?? ''
+  useEffect(() => {
+    if (!gcalOn || !rangeFrom || !rangeTo) {
+      setGcal([])
+      return
+    }
+    let alive = true
+    void (async () => {
+      const r = await window.api.gcal.events(rangeFrom, rangeTo)
+      if (!alive) return
+      setGcal(r.events)
+      setGcalErr(r.ok ? '' : r.error ?? '')
+    })()
+    return () => {
+      alive = false
+    }
+  }, [gcalOn, rangeFrom, rangeTo])
 
   const eventsOn = useCallback(
     (day: string) => events.filter((e) => covers(e, day)),
@@ -480,6 +532,7 @@ export default function Calendar({
   }
 
   const selectedEvents = eventsOn(selected)
+  const selectedGcal = gcal.filter((g) => g.start <= selected && selected <= (g.end || g.start))
   const selectedDeadlines = deadlinesOn(selected)
   const selectedHoliday = holidays.get(selected)
 
@@ -544,7 +597,7 @@ export default function Calendar({
       <div className={`cal-weeks ${dragging ? 'dragging' : ''}`}>
         {weeks.map((week) => {
           const days = week.map((c) => c.date)
-          const { bars, hidden } = layoutWeek(days, events, deadlines, lanes)
+          const { bars, hidden } = layoutWeek(days, events, deadlines, lanes, gcal)
 
           return (
             <div
@@ -631,6 +684,11 @@ export default function Calendar({
         })}
       </div>
 
+      {gcalErr && (
+        <p className="small" style={{ margin: '6px 2px 0', color: 'var(--danger)' }}>
+          구글 캘린더를 받지 못했습니다: {gcalErr}
+        </p>
+      )}
       {!compact && (
         <p className="hint" style={{ margin: '6px 2px 0' }}>
           일정을 <b>끌어서</b> 다른 날에 놓으면 옮겨집니다. 여러 날짜리 일정은 기간을 그대로
@@ -655,12 +713,29 @@ export default function Calendar({
           </button>
         </div>
 
-        {selectedDeadlines.length === 0 && selectedEvents.length === 0 ? (
+        {selectedDeadlines.length === 0 && selectedEvents.length === 0 && selectedGcal.length === 0 ? (
           <p className="muted small" style={{ margin: 0 }}>
             이 날에는 아무것도 없습니다. 날짜를 두 번 눌러도 바로 넣을 수 있습니다.
           </p>
         ) : (
           <div className="list">
+            {selectedGcal.map((g, gi) => (
+              <div className="item" key={`gc-${gi}`}>
+                <div className="item-head">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="item-title">
+                      <span className="badge badge-gcal">구글</span> {g.title}
+                    </div>
+                    <div className="item-meta">
+                      {g.time || '하루 종일'}
+                      {g.end !== g.start ? ` · ${g.start} ~ ${g.end}` : ''}
+                      {g.location ? ` · ${g.location}` : ''} · 구글 캘린더에서 고칩니다
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
             {selectedDeadlines.map((d) => (
               <div className="item" key={`dl-${d.id}`}>
                 <div className="item-head">

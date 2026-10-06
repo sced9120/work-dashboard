@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Task } from '../../shared/types'
 import Calendar from '../components/Calendar'
 import ScheduleImport from '../components/ScheduleImport'
+import GcalPanel from '../components/GcalPanel'
 import type { PageId } from '../App'
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
 export default function CalendarPage({ onGo }: Props): JSX.Element {
   const [tasks, setTasks] = useState<Task[]>([])
   const [importing, setImporting] = useState(false)
+  const [google, setGoogle] = useState(false)
   /** 학사일정을 넣은 뒤 달력을 다시 그린다 */
   const [round, setRound] = useState(0)
 
@@ -33,12 +35,20 @@ export default function CalendarPage({ onGo }: Props): JSX.Element {
           <h1>달력</h1>
           <p>일정과 절차 기한을 한 달씩 봅니다. 날짜를 두 번 누르면 바로 일정을 넣습니다.</p>
         </div>
-        {!importing && (
-          <button className="btn" onClick={() => setImporting(true)}>
-            📥 나이스 학사일정 가져오기
-          </button>
-        )}
+        <div className="row">
+          {!google && (
+            <button className="btn" onClick={() => setGoogle(true)} title="원할 때만 — 구글 일정 함께 보기 · 이 달력의 일정을 구글로 보내기">
+              🔗 구글 캘린더
+            </button>
+          )}
+          {!importing && (
+            <button className="btn" onClick={() => setImporting(true)}>
+              📥 나이스 학사일정 가져오기
+            </button>
+          )}
+        </div>
       </div>
+      {google && <GcalPanel onClose={() => setGoogle(false)} onChanged={() => setRound((r) => r + 1)} />}
       {importing && (
         <ScheduleImport onDone={() => setRound((r) => r + 1)} onClose={() => setImporting(false)} onGo={onGo} />
       )}

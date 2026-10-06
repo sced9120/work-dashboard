@@ -104,6 +104,8 @@ export interface LocalSettings {
   open_at_login: boolean
   /** 나이스 교육정보 개방 포털 인증키. AI 키처럼 이 PC 에만 둔다 */
   neis_key: string
+  /** 구글 캘린더 "iCal 형식의 비공개 주소". 아는 사람은 누구나 일정을 볼 수 있어 키처럼 이 PC 에만 둔다 */
+  gcal_url: string
 }
 
 export interface ExtractedDoc {

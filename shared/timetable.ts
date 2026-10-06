@@ -74,6 +74,8 @@ export interface SchoolTimetable {
   expected?: Record<string, number>
   /** 표준 목록에서 읽은 창체 · 동아리 시간 (grade 0 = 모든 학년) */
   fixed?: TtFixed[]
+  /** 담임 칸이 있는 파일: 선생님 → 담임 반. 이름을 고르면 우리 반을 채워 준다 */
+  homerooms?: Record<string, string>
 }
 
 /** 창체 · 동아리처럼 학년 전체가 함께 하는 고정 시간 */
@@ -206,10 +208,17 @@ export const isFree = (c: { subject: string } | null): boolean => !c || /^\[?(�
 
 /** "홍길동(16)" "홍길동 선생님" → 홍길동 */
 function teacherName(text: string): string {
-  return norm(text)
-    .replace(/\s*[(（]\s*\d+\s*[)）]\s*$/, '')
+  const first = text.replace(/\r/g, '').split('\n').map((s) => s.trim()).find(Boolean) ?? ''
+  return norm(first)
+    .replace(/\s*[(（][^)）]*[)）]\s*$/, '')
     .replace(/\s*(선생님|교사)$/, '')
 }
+
+/** 블록 글자 한 자 — 3학년 A~Z, 2학년 가~하 처럼 적는 학교가 있다 */
+const BLOCK_LETTER = /^([A-Z]|[가나다라마바사아자차카타파하])$/
+
+/** 반이 아닌 줄 글이 창체 · 동아리인지 */
+const fixedWord = (t: string): FixedKind | '' => (/^창체|^자율|^진로활동/.test(t) ? '창체' : /^동아리/.test(t) ? '동아리' : '')
 
 /** "홍길동(16)" → 16 */
 function hoursIn(text: string): number | null {
@@ -229,9 +238,11 @@ interface Found {
   /** 선생님 이름 칸에 적힌 시수 */
   expected: Map<string, number>
   fixed: TtFixed[]
+  /** 담임 칸에서 읽은 선생님 → 담임 반 */
+  homerooms: Map<string, string>
 }
 
-const emptyFound = (layout: TtLayout): Found => ({ entries: [], periods: new Map(), layout, unknown: 0, expected: new Map(), fixed: [] })
+const emptyFound = (layout: TtLayout): Found => ({ entries: [], periods: new Map(), layout, unknown: 0, expected: new Map(), fixed: [], homerooms: new Map() })
 
 /** 머리 칸 오른쪽에 요일이 늘어서고 아래에 교시가 내려가는 묶음 */
 function readBlocks(sheet: SheetText, mode: '학급 묶음' | '교사 묶음'): Found {
@@ -288,8 +299,20 @@ function readBlocks(sheet: SheetText, mode: '학급 묶음' | '교사 묶음'): 
 }
 
 /** 주간 시간표 — 요일 줄과 교시 줄이 위에 있고, 줄마다 선생님 */
+/**
+ * 주간 시간표.
+ * - 한 줄 판: 줄마다 선생님, 칸은 "103⏎국어"
+ * - 두 줄 판: 선생님 한 분이 두 줄(이름 칸을 합쳐 둠). 윗줄은 과목 또는 블록 글자(A · 가), 아랫줄은 반(1-7)
+ */
 function readMatrix(sheet: SheetText): Found {
   const out = emptyFound('주간 시간표')
+  let fixedSeenRef: Set<string> = new Set()
+  const addFixed = (kind: FixedKind, x: { day: number; period: number }): void => {
+    const key = `${kind}|${x.day}|${x.period}`
+    if (fixedSeenRef.has(key)) return
+    fixedSeenRef.add(key)
+    out.fixed.push({ kind, grade: 0, day: x.day, period: x.period - 1 })
+  }
   for (let r = 0; r + 1 < sheet.rows.length; r++) {
     const row = sheet.rows[r] ?? []
     const cols: { col: number; day: number; period: number }[] = []
@@ -302,22 +325,63 @@ function readMatrix(sheet: SheetText): Found {
     const nameCol = Math.min(...cols.map((x) => x.col)) - 1
     if (nameCol < 0) continue
     for (const x of cols) if (!out.periods.has(x.period)) out.periods.set(x.period, { no: x.period, label: `${x.period}교시`, start: '' })
+    // 머리 줄의 담임 · 시수 칸 (요일 칸 오른쪽)
+    const lastCol = Math.max(...cols.map((x) => x.col))
+    const headCol = (re: RegExp): number => row.findIndex((v, c) => c > lastCol && re.test(norm(v ?? '')))
+    const homeCol = headCol(/^담임$/)
+    const hoursCol = headCol(/^(시수|계|합계)$/)
+    const isClassText = (t: string): boolean => !!classIn(t.replace(/\n/g, ' '))
+    fixedSeenRef = new Set<string>()
     for (let k = r + 2; k < sheet.rows.length; k++) {
       const head = sheet.rows[k]?.[nameCol] ?? ''
       if (!looksTeacher(head)) continue
       const teacher = teacherName(head)
-      const hours = hoursIn(head)
+      const hours = hoursIn(head) ?? (hoursCol >= 0 ? Number(norm(sheet.rows[k]?.[hoursCol] ?? '')) || null : null)
       if (hours !== null) out.expected.set(teacher, hours)
-      for (const x of cols) {
-        const raw = (sheet.rows[k]?.[x.col] ?? '').trim()
-        if (!raw) continue
-        const found = classIn(raw.replace(/\n/g, ' '))
-        if (!found) {
-          out.unknown++
-          continue
-        }
-        out.entries.push({ teacher, day: x.day, period: x.period, cls: found.id, ...subjectOf(found.rest || '수업'), color: sheet.fills?.[k]?.[x.col] ?? '' })
+      if (homeCol >= 0) {
+        const home = classIn(norm(sheet.rows[k]?.[homeCol] ?? ''))
+        if (home) out.homerooms.set(teacher, home.id)
       }
+      // 두 줄 판: 다음 줄도 같은 선생님(이름 칸을 합쳐 둠)이고, 윗줄에는 반이 없고 아랫줄에는 반이 있다
+      const next = sheet.rows[k + 1]
+      const nextHead = next?.[nameCol] ?? ''
+      const topCells = cols.map((x) => (sheet.rows[k]?.[x.col] ?? '').trim())
+      const botCells = cols.map((x) => (next?.[x.col] ?? '').trim())
+      const paired =
+        !!next &&
+        teacherName(nextHead) === teacher &&
+        !topCells.some(isClassText) &&
+        botCells.some(isClassText)
+      cols.forEach((x, i) => {
+        const color = sheet.fills?.[k]?.[x.col] || (paired ? sheet.fills?.[k + 1]?.[x.col] : '') || ''
+        if (!paired) {
+          const raw = topCells[i]
+          if (!raw) return
+          const found = classIn(raw.replace(/\n/g, ' '))
+          if (!found) {
+            const fx = fixedWord(norm(raw))
+            if (fx) addFixed(fx, x)
+            else if (!isFree({ subject: norm(raw) })) out.unknown++
+            return
+          }
+          out.entries.push({ teacher, day: x.day, period: x.period, cls: found.id, ...subjectOf(found.rest || '수업'), color })
+          return
+        }
+        const top = norm(topCells[i])
+        const bot = botCells[i]
+        const found = bot ? classIn(bot.replace(/\n/g, ' ')) : null
+        if (!found) {
+          // 반이 없는 칸 — 창체 · 동아리 · 공강, 그 밖(연수 · 협의회 · 소인수 반 등)은 세기만 한다
+          const fx = fixedWord(top) || fixedWord(norm(bot))
+          if (fx) addFixed(fx, x)
+          else if ((top || bot) && !isFree({ subject: top || norm(bot) })) out.unknown++
+          return
+        }
+        const letter = top.match(BLOCK_LETTER)
+        const sj = letter ? { subject: `${letter[1]}블록`, group: letter[1] } : subjectOf(top || found.rest || '수업')
+        out.entries.push({ teacher, day: x.day, period: x.period, cls: found.id, ...sj, color })
+      })
+      if (paired) k++
     }
     break
   }
@@ -508,6 +572,8 @@ export function parseTimetable(
   const dayPeriods = days.map((_, d) => Math.max(0, ...entries.filter((e) => e.day === d).map((e) => e.period)))
   const expected = new Map<string, number>()
   for (const f of found) for (const [t, n] of f.expected) if (!expected.has(t)) expected.set(t, n)
+  const homerooms: Record<string, string> = {}
+  for (const f of found) for (const [t, c] of f.homerooms) if (!homerooms[t]) homerooms[t] = c
   const fixedSeen = new Set<string>()
   const fixed = found.flatMap((f) => f.fixed).filter((x) => {
     const k = `${x.kind}|${x.grade}|${x.day}|${x.period}`
@@ -541,7 +607,8 @@ export function parseTimetable(
       warnings,
       ...(pick.skipped.length ? { versions: { sheets: perSheet.map((s) => s.name), used: pick.used.map((s) => s.name) } } : {}),
       ...(expected.size ? { expected: Object.fromEntries(expected) } : {}),
-      ...(fixed.length ? { fixed } : {})
+      ...(fixed.length ? { fixed } : {}),
+      ...(Object.keys(homerooms).length ? { homerooms } : {})
     }
   }
 }

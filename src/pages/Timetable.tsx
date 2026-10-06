@@ -251,7 +251,22 @@ function MyTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Element {
         </div>
         {T.tt ? (
           <div className="row">
-            <select value={T.me} onChange={(e) => void T.save(TT_ME_KEY, e.target.value)} style={{ width: 'auto', minWidth: 160 }}>
+            <select
+              value={T.me}
+              onChange={(e) =>
+                void (async () => {
+                  const name = e.target.value
+                  // 담임 칸이 있는 시간표면 우리 반도 채운다 (이미 정해 둔 것은 그대로)
+                  const home = name ? T.tt?.homerooms?.[name] : ''
+                  if (home && !T.myClass) {
+                    await window.api.setting.set(MY_CLASS_KEY, home)
+                    toast(`담임 반 ${home} 을(를) 우리 반으로 정했습니다.`, 'ok')
+                  }
+                  await T.save(TT_ME_KEY, name)
+                })()
+              }
+              style={{ width: 'auto', minWidth: 160 }}
+            >
               <option value="">— 제 이름을 고르세요 —</option>
               {T.tt.teachers.map((t) => (
                 <option key={t} value={t}>
@@ -340,7 +355,8 @@ function MyTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Element {
         <div className="card">
           <div className="card-title">과목 이름 바꿔 보이기</div>
           <p className="hint" style={{ marginTop: 0 }}>
-            시간표 파일의 과목 이름이 짧게 줄어 있으면(예: 수학 → 공통수학) 보이는 이름만 바꿉니다.
+            시간표 파일의 과목 이름이 짧게 줄어 있으면(예: 수학 → 공통수학) 보이는 이름만 바꿉니다. 블록으로만 적힌
+            칸(예: C블록)에도 과목 이름을 붙일 수 있습니다.
           </p>
           <div className="row">
             <select value={aliasFrom} onChange={(e) => setAliasFrom(e.target.value)} style={{ width: 'auto' }}>

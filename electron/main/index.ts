@@ -28,6 +28,7 @@ import {
 import { fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
 import { buildFromFrame, readFrame } from './hwpgen'
 import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
+import { clearGcalCache, exportIcs, gcalEvents, gcalTest } from './gcal'
 import { classTimetable, clearNeisCache, mealsOn, nextMealDay, scheduleCached, schoolInfoForDocs, searchSchools, testNeis } from './neis'
 import type { TtRow } from '../../shared/timetable'
 import { STD_EXAMPLE, aiReadTimetable, importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
@@ -261,6 +262,17 @@ function registerIpc(): void {
   ipcMain.handle('events:delete', (_e, id: number) => db.deleteEvent(id))
   ipcMain.handle('events:addMany', (_e, list: CalEventInput[]) =>
     db.addEventsMany(Array.isArray(list) ? list.slice(0, 1000) : [])
+  )
+
+  /* ---------- 구글 캘린더 (원하는 사람만) ---------- */
+  const dayArg = (v: unknown): string => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '')
+  ipcMain.handle('gcal:events', (_e, from: string, to: string) =>
+    dayArg(from) && dayArg(to) ? gcalEvents(dayArg(from), dayArg(to)) : { ok: false, events: [], error: '기간이 맞지 않습니다.' }
+  )
+  ipcMain.handle('gcal:test', () => gcalTest())
+  ipcMain.handle('gcal:clearCache', () => clearGcalCache())
+  ipcMain.handle('gcal:export', (_e, args: { from: string; to: string; deadlines: boolean; memo: boolean }) =>
+    exportIcs(mainWindow, { from: dayArg(args?.from), to: dayArg(args?.to), deadlines: !!args?.deadlines, memo: !!args?.memo })
   )
 
   /* ---------- 알림 ---------- */
