@@ -19,8 +19,8 @@
 
 | 파일 | 어떤 경우에 |
 |---|---|
-| `WorkDashboard-Setup-2.3.0.exe` | **보통은 이것.** 설치하면 바탕화면에 아이콘이 생깁니다 |
-| `WorkDashboard-Portable-2.3.0.exe` | 학교 PC라 설치가 막혀 있을 때. 설치 없이 그 파일만 더블클릭 |
+| `WorkDashboard-Setup-X.X.exe` | **보통은 이것.** 설치하면 바탕화면에 아이콘이 생깁니다 |
+| `WorkDashboard-Portable-X.X.exe` | 학교 PC라 설치가 막혀 있을 때. 설치 없이 그 파일만 더블클릭 |
 
 크기는 약 100MB라 내려받는 데 1~2분 걸릴 수 있습니다.
 
