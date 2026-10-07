@@ -6,6 +6,7 @@ import Calendar from '../components/Calendar'
 import type { CalView } from '../components/Calendar'
 import LastYear from '../components/LastYear'
 import MealCard from '../components/MealCard'
+import TodayPanel from '../components/TodayPanel'
 import {
   ClassTtWidget,
   DeadlinesWidget,
@@ -37,6 +38,7 @@ interface Props {
 
 export type WidgetId =
   | 'school'
+  | 'today'
   | 'meal'
   | 'mytt'
   | 'classtt'
@@ -65,6 +67,7 @@ interface WidgetDef {
 
 export const WIDGETS: Record<WidgetId, WidgetDef> = {
   school: { icon: '🏫', title: '학교 정보', desc: '나이스에서 받은 학교 이름 · 주소 · 전화 · 누리집 (작은 띠)', wide: true, rank: 0, page: '설정', h: 50 },
+  today: { icon: '✦', title: '오늘', desc: '지금 몇 교시 · 오늘 일정 · 도우미에게 묻기 · 절차 기한 · 급식을 한 판에', wide: true, rank: 0.5, h: 620 },
   meal: { icon: '🍱', title: '오늘 급식', desc: '조식 · 중식 · 석식 (나이스)', wide: true, rank: 1, h: 270 },
   mytt: { icon: '🕘', title: '내 시간표', desc: '지금 몇 교시인지, 다음 수업 · 한 주 시간표 그림', wide: false, rank: 2, page: '시간표', h: 480 },
   classtt: { icon: '⭐', title: '우리 반 시간표', desc: '담임 학급 시간표 (시간표 파일 또는 나이스)', wide: false, rank: 3, page: '시간표', h: 330 },
@@ -96,7 +99,13 @@ interface HomeMode {
 
 const HOME_KEY = 'home_widgets'
 const MODE_KEY = 'home_mode'
-const DEFAULT_ORDER: WidgetId[] = ['school', 'meal', 'mytt', 'schedule', 'calendar', 'deadlines', 'tasks', 'lastyear', 'notices', 'quick']
+/**
+ * 처음 설치했을 때의 홈. 급식 · 기한 · 빠른 이동 · 내 시간표는 '오늘' 위젯 안에 들어 있어 따로 두지 않는다
+ * (홈 꾸미기에서 다시 더할 수 있다).
+ */
+const DEFAULT_ORDER: WidgetId[] = ['school', 'today', 'schedule', 'calendar', 'tasks', 'lastyear', 'notices']
+/** 이미 홈을 꾸며 쓰던 분께 '오늘' 위젯을 한 번만 끼워 넣었는지 */
+const TODAY_ADDED_KEY = 'home_today_added'
 const defaults = (): WidgetState[] => DEFAULT_ORDER.map((id) => ({ id, wide: WIDGETS[id].wide, folded: false }))
 
 const okBox = (b: unknown): b is Box =>
@@ -184,8 +193,22 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
   useEffect(() => {
     void load()
     void (async () => {
-      const [raw, m] = await Promise.all([window.api.setting.get(HOME_KEY), window.api.setting.get(MODE_KEY)])
-      setLayout(parseLayout(raw))
+      const [raw, m, added] = await Promise.all([
+        window.api.setting.get(HOME_KEY),
+        window.api.setting.get(MODE_KEY),
+        window.api.setting.get(TODAY_ADDED_KEY)
+      ])
+      let list = parseLayout(raw)
+      // 새 위젯 '오늘' 은 한 번만 맨 위(학교 정보 띠 다음)에 끼워 넣는다. 닫으면 다시 넣지 않는다.
+      if (added !== '1') {
+        if (raw && !list.some((w) => w.id === 'today')) {
+          const at = list[0]?.id === 'school' ? 1 : 0
+          list = [...list.slice(0, at), { id: 'today', wide: true, folded: false }, ...list.slice(at)]
+          void window.api.setting.set(HOME_KEY, JSON.stringify(list))
+        }
+        void window.api.setting.set(TODAY_ADDED_KEY, '1')
+      }
+      setLayout(list)
       setMode(parseMode(m))
     })()
   }, [load])
@@ -350,6 +373,8 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
     switch (w.id) {
       case 'school':
         return <SchoolStrip onGo={onGo} />
+      case 'today':
+        return <TodayPanel onGo={onGo} />
       case 'meal':
         return <MealCard onGo={onGo} />
       case 'mytt':

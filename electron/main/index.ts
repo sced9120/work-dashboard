@@ -6,6 +6,7 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  nativeTheme,
   shell,
   Tray
 } from 'electron'
@@ -929,6 +930,10 @@ function registerIpc(): void {
   ipcMain.handle('shell:open', (_e, url: string) => {
     if (/^https?:\/\//i.test(url)) return shell.openExternal(url)
     return Promise.resolve('')
+  })
+  // 화면 테마의 밝기를 창 제목 줄 · 스크롤바에도 맞춘다 (고른 값은 화면 쪽 localStorage 에 있다)
+  ipcMain.handle('ui:nativeTheme', (_e, mode: string) => {
+    nativeTheme.themeSource = mode === 'light' || mode === 'dark' ? mode : 'system'
   })
   // file:// 로 띄운 창에서는 navigator.clipboard 가 막히므로 메인에서 처리한다.
   ipcMain.handle('clipboard:write', (_e, text: string) => clipboard.writeText(text))

@@ -1,0 +1,333 @@
+/* 따라 배우기 — 실제 화면 위 안내 · 목록 · 처음 안내 (src/components/Tour.tsx) */
+
+.tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+.tour-dim,
+.tour-block,
+.tour-hole,
+.tour-pop {
+  position: fixed;
+}
+.tour-dim {
+  inset: 0;
+  background: var(--tour-dim);
+  pointer-events: auto;
+}
+/* 비춘 곳: 둘레를 어둡게 칠하는 그림자 + 테두리. 누르는 것은 막지 않는다 */
+.tour-hole {
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 2px var(--tour-ring),
+    0 0 0 9999px var(--tour-dim);
+  pointer-events: none;
+  transition: left 0.18s ease, top 0.18s ease, width 0.18s ease, height 0.18s ease;
+}
+.tour-hole.act {
+  animation: tour-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tour-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px var(--tour-ring),
+      0 0 0 9999px var(--tour-dim);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px var(--tour-ring),
+      0 0 0 9999px var(--tour-dim);
+  }
+}
+/* 비춘 곳 밖(그리고 설명만 하는 단계에서는 비춘 곳까지) 누르지 못하게 막는 투명판 */
+.tour-block {
+  pointer-events: auto;
+}
+
+.tour-pop {
+  pointer-events: auto;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3);
+  transition: left 0.18s ease, top 0.18s ease;
+}
+.tour-pop-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tour-where {
+  font-weight: 700;
+  color: var(--accent);
+}
+.tour-count {
+  font-variant-numeric: tabular-nums;
+}
+.tour-bar {
+  height: 4px;
+  margin: 8px 0 10px;
+  border-radius: 99px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.tour-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+.tour-pop h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+.tour-pop p {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text-2);
+}
+.tour-pop .tour-do {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+.tour-pop .tour-miss {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.tour-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.tour-btns .spacer {
+  flex: 1;
+}
+
+/* ---------- 목록 ---------- */
+
+.tour-hub-back {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--tour-dim);
+}
+.tour-hub {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 22px 24px 18px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+}
+.tour-hub-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.tour-hub-head h2 {
+  font-size: 20px;
+}
+.tour-hub-head p {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.tour-x {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--muted);
+  cursor: pointer;
+}
+.tour-x:hover {
+  color: var(--text);
+}
+.tour-hub-prog {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.tour-hub-prog .tour-bar {
+  flex: 1;
+  margin: 0;
+  height: 6px;
+}
+.tour-hub-acts {
+  margin-top: 12px;
+}
+.tour-hub-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  margin-top: 16px;
+}
+@media (max-width: 720px) {
+  .tour-hub-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.tour-hub-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.tour-hub-sec {
+  padding: 0 4px 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.tour-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.tour-item:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+.tour-item.here {
+  border-color: var(--accent);
+}
+.tour-item-ico {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+  color: var(--text);
+}
+.tour-item.done .tour-item-ico {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.tour-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+.tour-item-body b {
+  font-size: 13.5px;
+}
+.tour-item-body small {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tour-item-state {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.tour-item.done .tour-item-state {
+  color: var(--ok);
+}
+.tour-hub-tip {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ---------- 처음 안내 ---------- */
+
+.tour-invite {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 70;
+  display: flex;
+  gap: 12px;
+  width: 340px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
+  animation: tour-in 0.35s ease;
+}
+@keyframes tour-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.tour-invite-ico {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--chip);
+  color: var(--on-chip);
+}
+.tour-invite-body b {
+  font-size: 14.5px;
+}
+.tour-invite-body p {
+  margin: 2px 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-hole,
+  .tour-pop,
+  .tour-invite {
+    transition: none;
+    animation: none;
+  }
+}

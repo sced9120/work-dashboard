@@ -273,6 +273,10 @@ const api = {
   shell: {
     open: (url: string): Promise<string | void> => ipcRenderer.invoke('shell:open', url)
   },
+  ui: {
+    /** 창 제목 줄 · 스크롤바 밝기. 'system' | 'light' | 'dark' */
+    setNativeTheme: (mode: string): Promise<void> => ipcRenderer.invoke('ui:nativeTheme', mode)
+  },
   clipboard: {
     write: (text: string): Promise<void> => ipcRenderer.invoke('clipboard:write', text)
   },

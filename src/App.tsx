@@ -21,6 +21,10 @@ import LearnBanner from './components/LearnBanner'
 import UpdateNotice, { alreadySeen, markSeen, phaseOf } from './components/UpdateNotice'
 import Data from './pages/Data'
 import Settings from './pages/Settings'
+import Icon from './components/Icon'
+import TourHost from './components/Tour'
+import { AI_ITEM, DATA_ITEM, NAV } from './lib/nav'
+import { setUiPrefs, useUiPrefs } from './lib/theme'
 
 export type PageId =
   | '홈'
@@ -40,50 +44,11 @@ export type PageId =
   | '데이터'
   | '설정'
 
-/**
- * 메뉴가 열한 개를 넘어서면서 한 줄로 늘어놓으니 무엇이 무엇인지 찾기 어려웠다.
- * 하는 일에 따라 네 묶음으로 나눈다.
- */
-const NAV: { section: string; items: { id: PageId; icon: string; label: string }[] }[] = [
-  {
-    section: '오늘',
-    items: [
-      { id: '홈', icon: '🏠', label: '홈' },
-      { id: '달력', icon: '🗓', label: '달력' },
-      { id: '시간표', icon: '🕘', label: '시간표' },
-      { id: '기한', icon: '⏰', label: '절차 기한' },
-      { id: '일지', icon: '✍️', label: '업무 일지' }
-    ]
-  },
-  {
-    section: '업무 살펴보기',
-    items: [
-      { id: '로드맵', icon: '📊', label: '연간 업무 로드맵' },
-      { id: '워크플로우', icon: '🧩', label: '업무 워크플로우' },
-      { id: '검색', icon: '🔎', label: '통합 검색' },
-      { id: '도우미', icon: '💬', label: '업무 도우미 (AI)' },
-      { id: '가이드', icon: '📋', label: '업무 상세 가이드' },
-      { id: '도움자료', icon: '🧭', label: '학교업무 도움자료' }
-    ]
-  },
-  {
-    section: '자료 만들기',
-    items: [
-      { id: '학습', icon: '📥', label: '문서로 업무 만들기' },
-      { id: '위원회', icon: '📑', label: '학교 문서 만들기' },
-      { id: '발표', icon: '🖥', label: '발표자료 만들기' }
-    ]
-  },
-  {
-    section: '관리',
-    items: [
-      { id: '데이터', icon: '💾', label: '인수인계 · 백업' },
-      { id: '설정', icon: '⚙️', label: '설정' }
-    ]
-  }
-]
-
 function Shell(): JSX.Element {
+  const ui = useUiPrefs()
+  /** 따라 배우기 목록을 열었는지, 지금 어느 화면을 배우는 중인지 */
+  const [learnHub, setLearnHub] = useState(false)
+  const [learning, setLearning] = useState<PageId | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [jobTitle, setJobTitle] = useState('')
   const [schoolName, setSchoolName] = useState('')
@@ -175,38 +140,122 @@ function Shell(): JSX.Element {
     }
   }, [])
 
+  // Ctrl+K 는 어디서든 통합 검색, F1 은 지금 화면 따라 배우기
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPage('검색')
+      } else if (e.key === 'F1') {
+        e.preventDefault()
+        setLearnHub(false)
+        setLearning(page)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [page])
+
   if (!loaded) return <div className="onboard muted">불러오는 중…</div>
 
   if (!jobTitle) {
     return <Onboarding onDone={reloadProfile} />
   }
 
-  return (
-    <div className="shell">
-      <nav className="sidebar">
-        <div className="brand">
-          <div className="brand-title">{jobTitle}</div>
-          <div className="brand-sub">{schoolName || '업무 인수인계 대시보드'}</div>
-        </div>
+  const collapsed = ui.navCollapsed
+  /** 접힌 메뉴에서는 이름이 안 보이므로 마우스를 올리면 뜨게 한다 */
+  const tip = (label: string): string | undefined => (collapsed ? label : undefined)
 
-        {NAV.map((group) => (
-          <div className="nav-group" key={group.section}>
-            <div className="nav-section">{group.section}</div>
-            {group.items.map((n) => (
-              <button
-                key={n.id}
-                className={`nav-btn ${page === n.id ? 'active' : ''}`}
-                onClick={() => setPage(n.id)}
-              >
-                <span className="nav-icon">{n.icon}</span>
-                <span>{n.label}</span>
-              </button>
+  return (
+    <div className={`shell ${collapsed ? 'nav-collapsed' : ''}`}>
+      <nav className="sidebar" aria-label="메뉴">
+        <button
+          className={`side-ai ${page === AI_ITEM.id ? 'active' : ''}`}
+          onClick={() => setPage(AI_ITEM.id)}
+          title={tip(AI_ITEM.label)}
+        >
+          <span className="side-ai-ico">
+            <Icon name="spark" size={20} />
+          </span>
+          <span className="side-label">업무 도우미</span>
+        </button>
+
+        <div className="side-dock">
+          <div className="side-scroll">
+            {NAV.map((group) => (
+              <div className="nav-group" key={group.section}>
+                <div className="nav-section">{group.section}</div>
+                {group.items.map((n) => (
+                  <button
+                    key={n.id}
+                    className={`nav-btn ${page === n.id ? 'active' : ''}`}
+                    onClick={() => setPage(n.id)}
+                    title={tip(n.label)}
+                  >
+                    <span className="nav-icon">
+                      <Icon name={n.icon} />
+                    </span>
+                    <span className="side-label">{n.label}</span>
+                  </button>
+                ))}
+              </div>
             ))}
           </div>
-        ))}
 
-        <div className="sidebar-foot">버전 {version}</div>
+          <div className="sidebar-foot">
+            <button
+              className={`nav-btn ${page === DATA_ITEM.id ? 'active' : ''}`}
+              onClick={() => setPage(DATA_ITEM.id)}
+              title={tip(DATA_ITEM.label)}
+            >
+              <span className="nav-icon">
+                <Icon name={DATA_ITEM.icon} />
+              </span>
+              <span className="side-label">{DATA_ITEM.label}</span>
+            </button>
+            <button className="nav-btn side-learn" onClick={() => setLearnHub(true)} title={tip('따라 배우기 (F1)')}>
+              <span className="nav-icon">
+                <Icon name="cap" />
+              </span>
+              <span className="side-label">따라 배우기</span>
+            </button>
+            <button
+              className={`side-me ${page === '설정' ? 'active' : ''}`}
+              onClick={() => setPage('설정')}
+              title={collapsed ? `${jobTitle} · 설정` : '설정'}
+            >
+              <span className="side-av">{jobTitle.trim().slice(0, 1) || '나'}</span>
+              <span className="side-label side-me-text">
+                <b>{jobTitle}</b>
+                <small>{schoolName || '업무 인수인계 대시보드'}</small>
+              </span>
+              <span className="side-label side-me-gear">
+                <Icon name="sliders" size={16} />
+              </span>
+            </button>
+            <div className="side-ver side-label">버전 {version}</div>
+          </div>
+        </div>
       </nav>
+
+      <button
+        className="side-knob"
+        onClick={() => setUiPrefs({ navCollapsed: !collapsed })}
+        aria-label={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
+        aria-expanded={!collapsed}
+        title={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
+      >
+        <Icon name="chevron" size={16} />
+      </button>
+
+      <TourHost
+        page={page}
+        onGo={setPage}
+        hub={learnHub}
+        onHub={setLearnHub}
+        running={learning}
+        onRun={setLearning}
+      />
 
       {/* 새 버전이 나오면 무엇이 달라졌는지 먼저 보여 준다 */}
       {update && updatePopup && (
