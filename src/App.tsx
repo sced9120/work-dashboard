@@ -28,6 +28,7 @@ import TourHost from './components/Tour'
 import { AI_ITEM, DATA_ITEM, isShown, requestMenuEdit, sidebarNav, useNavPrefs } from './lib/nav'
 import { setUiPrefs, useUiPrefs } from './lib/theme'
 import { hasUnseenNew, loadCatalog, useCatalog } from './lib/catalog'
+import { openFeedback } from './lib/feedback'
 import { focusSearch } from './pages/Search'
 
 export type PageId =
@@ -278,6 +279,15 @@ function Shell(): JSX.Element {
               </span>
               <span className="side-label">따라 배우기</span>
             </button>
+            {/* 설문지 주소는 remote/catalog.json 에서 — 없으면 단추를 숨긴다 */}
+            {cat.catalog.feedback && (
+              <button className="nav-btn side-feedback" onClick={() => void openFeedback(cat.catalog.feedback)} title={tip('의견 · 오류 보내기')}>
+                <span className="nav-icon">
+                  <Icon name="chat" />
+                </span>
+                <span className="side-label">의견 보내기</span>
+              </button>
+            )}
             <button
               className={`side-me ${page === '설정' ? 'active' : ''}`}
               onClick={() => setPage('설정')}

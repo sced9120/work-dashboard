@@ -50,7 +50,8 @@ export const TOURS: Record<PageId, Tour> = {
       { sel: '.hw-add', title: '배치와 위젯 더하기', body: '격자 배치는 두 칸에 맞춰 놓고, 자유 배치는 창처럼 아무 데나 놓습니다. 아래에서 빠진 위젯을 다시 더할 수 있습니다.', optional: true },
       { sel: '.main button', text: '꾸미기 끝', click: true, title: '꾸미기 끝을 눌러 마치세요', body: '바꾼 배치는 바로 저장됩니다. 아무것도 안 바꿨으면 그대로입니다.', optional: true },
       { sel: '.side-knob', title: '메뉴 접고 펼치기', body: '이 동그라미를 누르면 왼쪽 메뉴가 아이콘만 남기고 접힙니다. 접힌 메뉴는 마우스를 올리면 이름이 뜹니다.' },
-      { sel: '.side-learn', title: '언제든 다시 배우기', body: '여기를 누르면 이 목록이 열립니다. 어느 화면에서든 F1을 누르면 그 화면을 바로 배웁니다.' }
+      { sel: '.side-learn', title: '언제든 다시 배우기', body: '여기를 누르면 이 목록이 열립니다. 어느 화면에서든 F1을 누르면 그 화면을 바로 배웁니다.' },
+      { sel: '.side-feedback', title: '의견 보내기', body: '불편한 점 · 오류 · 바라는 기능을 만든이에게 보냅니다. 설문지가 브라우저로 열리고, 프로그램 버전은 미리 채워집니다.', optional: true }
     ]
   },
   달력: {

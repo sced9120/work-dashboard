@@ -31,6 +31,7 @@ export type IconName =
   | 'grid'
   | 'link'
   | 'note'
+  | 'chat'
 
 const PATHS: Record<IconName, JSX.Element> = {
   home: <path d="M3.5 10.5 12 3.5l8.5 7V20a1 1 0 0 1-1 1H15v-6H9v6H4.5a1 1 0 0 1-1-1z" />,
@@ -138,6 +139,12 @@ const PATHS: Record<IconName, JSX.Element> = {
     <>
       <path d="M5.5 3.5h13a1 1 0 0 1 1 1v10l-6 6h-8a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z" />
       <path d="M19.5 14.5h-5a1 1 0 0 0-1 1v5M8.5 8.5h7M8.5 12h4" />
+    </>
+  ),
+  chat: (
+    <>
+      <path d="M4 5.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7l-4.5 4v-4H6a2 2 0 0 1-2-2z" />
+      <path d="M8.5 9h7M8.5 12.5h4.5" />
     </>
   )
 }

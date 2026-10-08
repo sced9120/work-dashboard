@@ -29,6 +29,7 @@ const { catalog, dropped } = sanitizeCatalog(raw)
 console.log(`도구 ${catalog.tools.length}개 · 받은 테마 ${catalog.themes.length}개`)
 for (const t of catalog.tools) console.log(`  ✓ 도구 ${t.id} — ${t.name}`)
 for (const t of catalog.themes) console.log(`  ✓ 테마 ${t.id} — ${t.name} (${t.base})`)
+console.log(catalog.feedback ? `  ✓ 의견 보내기 설문지: ${catalog.feedback}` : '  · 의견 보내기 설문지 없음 (단추를 숨깁니다)')
 if (dropped.length) {
   console.error(`\n✗ 쓰지 못하는 곳 ${dropped.length}군데 (프로그램은 이것만 빼고 나머지를 씁니다):`)
   for (const d of dropped) console.error(`  - ${d}`)

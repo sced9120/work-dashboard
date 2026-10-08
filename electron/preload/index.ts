@@ -343,6 +343,8 @@ const api = {
       ipcRenderer.invoke('slides:save', args)
   },
   appVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
+  /** 의견 보내기에 채울 운영체제 이름 · 버전 */
+  appOs: (): Promise<string> => ipcRenderer.invoke('app:os'),
   update: {
     check: (): Promise<UpdateInfo> => ipcRenderer.invoke('update:check'),
     download: (): Promise<{ ok: boolean; error?: string }> =>

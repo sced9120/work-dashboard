@@ -1,5 +1,5 @@
 /*
- * 화면 테마 — 기본 · 회색 벤토 · 글래스, 각각 밝게 · 어둡게.
+ * 화면 테마 — 기본 · 회색 벤토 · 글래스 · 미드나잇 · 라벤더, 각각 밝게 · 어둡게.
  *
  * styles.css 는 그대로 두고 여기서 덮어쓴다. <html data-theme="…" data-mode="light|dark"> 를
  * src/lib/theme.ts 가 단다. 순서:
@@ -14,6 +14,7 @@
  *   9. 도구 모음 · 메뉴 고르기 · 바로가기
  *  10. 자유 메모장
  *  11. 시간표 → 동교과 선생님
+ *  12. 미드나잇 · 라벤더 테마
  * 내 시간표 그림(.ttb)과 발표자료 미리보기(.slide-thumb)는 출력물 모양이라 어느 테마에서도 원래 색이다.
  */
 
@@ -2500,4 +2501,420 @@ select:focus {
   gap: 5px;
   font-size: 12.5px;
   cursor: pointer;
+}
+
+/* ================= 12. 미드나잇 · 라벤더 (v3.2.1) ================= */
+
+/* ---- 미드나잇 · 어둡게 (본모습): 검정 바탕 · 진회색 카드 · 보라 강조 · 주황 포인트 ---- */
+:root[data-theme='midnight'][data-mode='dark'] {
+  --app-bg: #18181b;
+  --bg: #18181b;
+  --surface: #212125;
+  --surface-2: #1c1c20;
+  --surface-3: #2a2a30;
+  --surface-solid: #212125;
+  --field-bg: #151518;
+  --btn-bg: #26262b;
+  --border: #2c2c33;
+  --border-strong: #46464f;
+  --text: #f4f4f6;
+  --text-2: #d4d4da;
+  --muted: #8d8d98;
+  --accent: #8b5cf6;
+  --accent-soft: rgba(139, 92, 246, 0.16);
+  --accent-strong: #7c3aed;
+  --on-accent: #ffffff;
+  --focus-ring: rgba(139, 92, 246, 0.3);
+  --btn-hover-line: #55555f;
+  --danger: #ff6b5a;
+  --danger-soft: rgba(255, 90, 60, 0.14);
+  --danger-line: rgba(255, 107, 90, 0.35);
+  --danger-hover: rgba(255, 90, 60, 0.22);
+  --danger-hover-line: rgba(255, 107, 90, 0.5);
+  --warn: #ffb547;
+  --warn-soft: rgba(255, 181, 71, 0.13);
+  --ok: #34d399;
+  --ok-soft: rgba(52, 211, 153, 0.13);
+  --note-info-line: rgba(139, 92, 246, 0.35);
+  --note-info-fg: #c4b5fd;
+  --note-warn-line: rgba(255, 181, 71, 0.3);
+  --note-ok-line: rgba(52, 211, 153, 0.3);
+  --note-danger-line: rgba(255, 107, 90, 0.35);
+  --toast-bg: #2a2a30;
+  --toast-fg: #ffffff;
+  --radius: 14px;
+  --radius-lg: 18px;
+  --radius-btn: 999px;
+  --home-gap: 14px;
+  --shadow: none;
+  --glass: none;
+  --raise: #8b5cf6;
+  --on-raise: #ffffff;
+  --raise-danger: #ffd0c7;
+  --chip: #8b5cf6;
+  --on-chip: #ffffff;
+  --stack-1: #2a2a30;
+  --stack-2: #36363e;
+  --fan-1: #2f2a45;
+  --fan-2: #4b3d86;
+  --on-fan: #f4f4f6;
+  --card-shadow: rgba(0, 0, 0, 0.5);
+  --side-w: 220px;
+  --side-w-mini: 64px;
+  --side-bg: #131315;
+  --side-fg: #8d8d98;
+  --side-title: #ffffff;
+  --side-muted: #6b6b75;
+  --side-section: #5d5d67;
+  --side-hover: rgba(255, 255, 255, 0.05);
+  --side-active: rgba(255, 255, 255, 0.08);
+  --side-on-active: #ffffff;
+  --side-line: #24242a;
+  --tour-dim: rgba(0, 0, 0, 0.66);
+  --tour-ring: #ff5a1f;
+  --hot: #ff5a1f;
+}
+
+/* ---- 미드나잇 · 밝게: 같은 강조색을 밝은 바탕에 ---- */
+:root[data-theme='midnight']:not([data-mode='dark']) {
+  --app-bg: #f2f2f5;
+  --bg: #f2f2f5;
+  --surface: #ffffff;
+  --surface-2: #f7f7f9;
+  --surface-3: #ececf1;
+  --surface-solid: #ffffff;
+  --field-bg: #ffffff;
+  --btn-bg: #ffffff;
+  --border: #e5e5ea;
+  --border-strong: #c9c9d2;
+  --text: #18181b;
+  --text-2: #3a3a42;
+  --muted: #71717a;
+  --accent: #7c3aed;
+  --accent-soft: #f1eafe;
+  --accent-strong: #6d28d9;
+  --on-accent: #ffffff;
+  --focus-ring: rgba(124, 58, 237, 0.15);
+  --btn-hover-line: #a1a1aa;
+  --note-info-line: #e2d6fb;
+  --note-info-fg: #5b21b6;
+  --toast-bg: #18181b;
+  --toast-fg: #ffffff;
+  --radius: 14px;
+  --radius-lg: 18px;
+  --radius-btn: 999px;
+  --home-gap: 14px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --raise: #18181b;
+  --on-raise: #ffffff;
+  --raise-danger: #ff9b8b;
+  --chip: #7c3aed;
+  --on-chip: #ffffff;
+  --stack-1: #f4f4f6;
+  --stack-2: #dedee5;
+  --fan-1: #ebe4fd;
+  --fan-2: #c4b5fd;
+  --on-fan: #18181b;
+  --card-shadow: rgba(24, 24, 27, 0.16);
+  --side-w: 220px;
+  --side-w-mini: 64px;
+  --side-bg: #ffffff;
+  --side-fg: #52525b;
+  --side-title: #18181b;
+  --side-muted: #a1a1aa;
+  --side-section: #a1a1aa;
+  --side-hover: #f4f4f6;
+  --side-active: #18181b;
+  --side-on-active: #ffffff;
+  --side-line: #e5e5ea;
+  --tour-ring: #ff5a1f;
+  --hot: #ff5a1f;
+}
+
+:root[data-theme='midnight'] .sidebar {
+  border-right: 1px solid var(--side-line);
+}
+:root[data-theme='midnight'] .side-ai {
+  border-radius: 12px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 26%, transparent), color-mix(in srgb, var(--accent) 8%, transparent));
+  color: var(--side-title);
+}
+:root[data-theme='midnight'] .side-ai .side-ai-ico {
+  color: var(--accent);
+}
+:root[data-theme='midnight'] .side-ai.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+:root[data-theme='midnight'] .side-ai.active .side-ai-ico {
+  color: #ffffff;
+}
+:root[data-theme='midnight'] .sidebar .nav-btn,
+:root[data-theme='midnight'] .side-me {
+  border-radius: 10px;
+}
+:root[data-theme='midnight'] .sidebar .nav-btn.active .nav-icon {
+  color: var(--accent);
+}
+:root[data-theme='midnight'][data-mode='dark'] .sidebar .nav-btn.active .nav-icon {
+  color: #a78bfa;
+}
+:root[data-theme='midnight'] .side-av {
+  background: var(--hot);
+  color: #ffffff;
+}
+:root[data-theme='midnight'] .side-knob {
+  border: 0;
+  background: var(--hot);
+  color: #ffffff;
+  box-shadow: 0 0 0 5px var(--bg);
+}
+:root[data-theme='midnight'] .side-knob:hover {
+  color: #ffffff;
+  transform: translateY(-50%) scale(1.06);
+}
+:root[data-theme='midnight'] .card,
+:root[data-theme='midnight'] .hw {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+:root[data-theme='midnight'] .hw-grid {
+  gap: var(--home-gap);
+}
+:root[data-theme='midnight'] .page-head h1 {
+  font-size: 23px;
+  letter-spacing: -0.02em;
+}
+:root[data-theme='midnight'] input[type='text'],
+:root[data-theme='midnight'] input[type='password'],
+:root[data-theme='midnight'] select,
+:root[data-theme='midnight'] textarea {
+  border-color: var(--border);
+  border-radius: 10px;
+}
+
+/* ---- 라벤더 · 밝게: 연보라 바탕 · 큰 흰 판 · 보라 메뉴 띠 ---- */
+:root[data-theme='lavender'] {
+  --app-bg: radial-gradient(60% 50% at 88% 6%, rgba(255, 255, 255, 0.55), transparent 70%), linear-gradient(160deg, #e3e2f3, #d3d1ec);
+  --bg: #dcdbef;
+  --main-bg: #ffffff;
+  --surface: #f6f6fc;
+  --surface-2: #efeef9;
+  --surface-3: #e8e6f6;
+  --surface-solid: #ffffff;
+  --field-bg: #ffffff;
+  --btn-bg: #ffffff;
+  --border: #e6e4f4;
+  --border-strong: #c9c5ea;
+  --text: #1e1b3a;
+  --text-2: #3b3760;
+  --muted: #8a87a8;
+  --accent: #6c5ce7;
+  --accent-soft: #ecebfd;
+  --accent-strong: #5a4bd6;
+  --on-accent: #ffffff;
+  --focus-ring: rgba(108, 92, 231, 0.18);
+  --btn-hover-line: #b3aee6;
+  --danger: #d9364f;
+  --danger-soft: #fdecef;
+  --warn: #a8690f;
+  --warn-soft: #fdf3e2;
+  --ok: #23845f;
+  --ok-soft: #e4f6ef;
+  --note-info-line: #d9d6fa;
+  --note-info-fg: #4b3fc4;
+  --toast-bg: #1e1b3a;
+  --toast-fg: #ffffff;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --radius-btn: 12px;
+  --home-gap: 14px;
+  --shadow: none;
+  --glass: none;
+  --raise: #7367f0;
+  --on-raise: #ffffff;
+  --raise-danger: #ffd2da;
+  --chip: #6c5ce7;
+  --on-chip: #ffffff;
+  --stack-1: #f1f0fb;
+  --stack-2: #dcd9f6;
+  --fan-1: #e3e0fb;
+  --fan-2: #b9b1f5;
+  --on-fan: #1e1b3a;
+  --card-shadow: rgba(60, 50, 140, 0.18);
+  --side-w: 220px;
+  --side-w-mini: 66px;
+  --side-bg: linear-gradient(180deg, #7b6ff5, #6a5ce8);
+  --side-fg: rgba(255, 255, 255, 0.86);
+  --side-title: #ffffff;
+  --side-muted: rgba(255, 255, 255, 0.66);
+  --side-section: rgba(255, 255, 255, 0.62);
+  --side-hover: rgba(255, 255, 255, 0.14);
+  --side-active: #ffffff;
+  --side-on-active: #5a4bd6;
+  --side-line: rgba(255, 255, 255, 0.22);
+  --tour-dim: rgba(30, 27, 58, 0.55);
+  --tour-ring: #ffb547;
+}
+
+/* ---- 라벤더 · 어둡게: 남색 밤하늘에 보라 띠 ---- */
+:root[data-theme='lavender'][data-mode='dark'] {
+  --app-bg: linear-gradient(160deg, #16152c, #0f0e20);
+  --bg: #131226;
+  --main-bg: #1b1a33;
+  --surface: #24223f;
+  --surface-2: #1f1d38;
+  --surface-3: #2c2a4b;
+  --surface-solid: #24223f;
+  --field-bg: #17162d;
+  --btn-bg: #2a2847;
+  --border: #333057;
+  --border-strong: #4a4677;
+  --text: #ecebff;
+  --text-2: #cfccf0;
+  --muted: #9a96c4;
+  --accent: #8c82ff;
+  --accent-soft: rgba(140, 130, 255, 0.16);
+  --accent-strong: #a49cff;
+  --on-accent: #14122b;
+  --focus-ring: rgba(140, 130, 255, 0.3);
+  --btn-hover-line: #5e5a95;
+  --danger: #ff7a8a;
+  --danger-soft: rgba(255, 122, 138, 0.14);
+  --danger-line: rgba(255, 122, 138, 0.35);
+  --danger-hover: rgba(255, 122, 138, 0.22);
+  --danger-hover-line: rgba(255, 122, 138, 0.5);
+  --warn: #ffc46b;
+  --warn-soft: rgba(255, 196, 107, 0.12);
+  --ok: #5fd3a8;
+  --ok-soft: rgba(95, 211, 168, 0.13);
+  --note-info-line: rgba(140, 130, 255, 0.35);
+  --note-info-fg: #c9c4ff;
+  --note-warn-line: rgba(255, 196, 107, 0.3);
+  --note-ok-line: rgba(95, 211, 168, 0.3);
+  --note-danger-line: rgba(255, 122, 138, 0.35);
+  --toast-bg: #2c2a4b;
+  --toast-fg: #ffffff;
+  --raise: #6f63f0;
+  --on-raise: #ffffff;
+  --raise-danger: #ffc2cc;
+  --chip: #8c82ff;
+  --on-chip: #14122b;
+  --stack-1: #2c2a4b;
+  --stack-2: #3a3763;
+  --fan-1: #2f2c55;
+  --fan-2: #5a51b8;
+  --on-fan: #ecebff;
+  --card-shadow: rgba(0, 0, 0, 0.45);
+  --side-bg: linear-gradient(180deg, #5d52dc, #4b40c4);
+  --side-fg: rgba(255, 255, 255, 0.82);
+  --side-muted: rgba(255, 255, 255, 0.6);
+  --side-section: rgba(255, 255, 255, 0.55);
+  --side-hover: rgba(255, 255, 255, 0.12);
+  --side-active: #ffffff;
+  --side-on-active: #4b40c4;
+  --side-line: rgba(255, 255, 255, 0.18);
+  --tour-dim: rgba(5, 4, 15, 0.66);
+  --tour-ring: #ffc46b;
+}
+
+:root[data-theme='lavender'] .shell {
+  padding: 14px;
+  column-gap: 14px;
+}
+:root[data-theme='lavender'] .sidebar {
+  padding: 14px 10px 12px;
+  border-radius: 28px;
+}
+:root[data-theme='lavender'] .side-ai {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+:root[data-theme='lavender'] .side-ai:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+:root[data-theme='lavender'] .side-ai.active {
+  background: var(--side-active);
+  color: var(--side-on-active);
+}
+:root[data-theme='lavender'] .sidebar .nav-btn,
+:root[data-theme='lavender'] .side-me {
+  border-radius: 12px;
+}
+:root[data-theme='lavender'] .side-edit {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.78);
+}
+:root[data-theme='lavender'] .nav-new {
+  box-shadow: 0 0 0 2px #6f62ee;
+}
+:root[data-theme='lavender'] .main {
+  background: var(--main-bg);
+  border-radius: 28px;
+  padding-top: 26px;
+}
+:root[data-theme='lavender'] .side-knob {
+  left: calc(14px + var(--side-w) - 14px);
+  border: 0;
+  background: var(--surface-solid);
+  color: var(--accent);
+  box-shadow: 0 2px 10px rgba(60, 50, 140, 0.28);
+}
+:root[data-theme='lavender'] .card,
+:root[data-theme='lavender'] .hw {
+  border-color: transparent;
+  box-shadow: none;
+  border-radius: var(--radius-lg);
+}
+:root[data-theme='lavender'] .card + .card {
+  margin-top: var(--home-gap);
+}
+:root[data-theme='lavender'] .hw-grid {
+  gap: var(--home-gap);
+}
+:root[data-theme='lavender'] .page-head h1 {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+:root[data-theme='lavender'] input[type='text'],
+:root[data-theme='lavender'] input[type='password'],
+:root[data-theme='lavender'] select,
+:root[data-theme='lavender'] textarea {
+  border-color: var(--border);
+  border-radius: 12px;
+}
+
+/* 설정 → 화면 테마 미리보기 (미드나잇은 고르면 어둡게가 되므로 늘 어두운 모습으로) */
+.theme-prev[data-prev='midnight'],
+.theme-prev[data-prev='midnight'][data-prev-mode] {
+  --p-bg: #18181b;
+  --p-side: #131315;
+  --p-tile: #232327;
+  --p-line: #2c2c33;
+  --p-raise: #8b5cf6;
+  --p-chip: #ff5a1f;
+}
+.theme-prev[data-prev='midnight'] i {
+  border-radius: 9px;
+}
+.theme-prev[data-prev='lavender'] {
+  --p-bg: #dcdbef;
+  --p-side: #7367f0;
+  --p-tile: #ffffff;
+  --p-line: transparent;
+  --p-raise: #7367f0;
+  --p-chip: #1e1b3a;
+}
+.theme-prev[data-prev='lavender'][data-prev-mode='dark'] {
+  --p-bg: #131226;
+  --p-side: #5d52dc;
+  --p-tile: #24223f;
+  --p-line: transparent;
+  --p-raise: #6f63f0;
+  --p-chip: #8c82ff;
+}
+.theme-prev[data-prev='lavender'] i {
+  border-radius: 10px;
 }

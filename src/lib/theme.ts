@@ -13,7 +13,7 @@ import { THEME_VARS, sanitizeCatalog } from '../../shared/catalog'
  * 고르면 그 내용을 통째로 여기 적어 두어, 다음에 켤 때 목록을 받기 전에도 바로 그 색으로 그린다.
  */
 
-export type ThemeId = 'classic' | 'bento' | 'glass'
+export type ThemeId = 'classic' | 'bento' | 'glass' | 'midnight' | 'lavender'
 export type ModePref = 'system' | 'light' | 'dark'
 
 export interface UiPrefs {
@@ -25,10 +25,13 @@ export interface UiPrefs {
   preset: string
 }
 
-export const THEMES: { id: ThemeId; name: string; desc: string }[] = [
+export const THEMES: { id: ThemeId; name: string; desc: string; prefer?: 'light' | 'dark' }[] = [
   { id: 'bento', name: '회색 벤토', desc: '회색 타일을 촘촘히 붙인 모양. 강조할 것은 바탕과 반대 밝기로' },
   { id: 'glass', name: '글래스', desc: '뿌연 유리 카드에 남보라 · 민트 포인트' },
-  { id: 'classic', name: '기본', desc: '지금까지 쓰던 파란 강조색 모양' }
+  { id: 'classic', name: '기본', desc: '지금까지 쓰던 파란 강조색 모양' },
+  // 어두운 모양이 본모습이라 고르면 밝기를 어둡게로 바꾼다 (밝게로 되돌릴 수 있다)
+  { id: 'midnight', name: '미드나잇', desc: '검정 바탕에 진회색 카드, 보라 · 주황 포인트. 고르면 어둡게로 바뀝니다', prefer: 'dark' },
+  { id: 'lavender', name: '라벤더', desc: '연보라 바탕에 큰 흰 판, 왼쪽은 보라 메뉴 띠' }
 ]
 
 export const MODES: { id: ModePref; label: string }[] = [

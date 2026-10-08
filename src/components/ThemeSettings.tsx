@@ -43,7 +43,7 @@ export default function ThemeSettings(): JSX.Element {
               role="radio"
               aria-checked={on}
               className={`theme-pick ${on ? 'on' : ''}`}
-              onClick={() => setUiPrefs({ theme: t.id, preset: '' })}
+              onClick={() => setUiPrefs({ theme: t.id, preset: '', ...(t.prefer && shown !== t.prefer ? { mode: t.prefer } : {}) })}
             >
               <span className="theme-prev" data-prev={t.id} data-prev-mode={shown} aria-hidden="true">
                 <i className="tp-side" />

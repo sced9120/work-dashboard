@@ -11,6 +11,7 @@ import { LEVEL_KEY, SCHOOL_LEVELS } from '../../shared/helpdocs'
 import NeisSettings from '../components/NeisSettings'
 import ThemeSettings from '../components/ThemeSettings'
 import MenuSettings from '../components/MenuSettings'
+import FeedbackCard from '../components/FeedbackCard'
 import { useToast } from '../lib/toast'
 
 interface Props {
@@ -235,6 +236,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
 
       <ThemeSettings />
       <MenuSettings />
+      <FeedbackCard />
 
       <div className="card">
         <div className="card-title">담당 업무</div>

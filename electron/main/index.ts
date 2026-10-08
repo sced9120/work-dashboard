@@ -11,6 +11,7 @@ import {
   Tray
 } from 'electron'
 import path from 'node:path'
+import os from 'node:os'
 import * as db from './db'
 import { encryptionAvailable, loadLocalSettings, saveLocalSettings } from './secrets'
 import { extractFile } from './extract'
@@ -951,6 +952,8 @@ function registerIpc(): void {
   // file:// 로 띄운 창에서는 navigator.clipboard 가 막히므로 메인에서 처리한다.
   ipcMain.handle('clipboard:write', (_e, text: string) => clipboard.writeText(text))
   ipcMain.handle('app:version', () => app.getVersion())
+  // 의견 보내기 설문지에 미리 채울 윈도우 버전 (예: Windows 10.0.26200 — 22000 이상이면 윈도우 11)
+  ipcMain.handle('app:os', () => `${os.type() === 'Windows_NT' ? 'Windows' : os.type()} ${os.release()}`)
   ipcMain.handle('update:check', () => checkForUpdate())
   ipcMain.handle('update:download', () => downloadUpdate())
   ipcMain.handle('update:install', () => {
