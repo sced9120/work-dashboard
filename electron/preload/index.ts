@@ -39,6 +39,7 @@ import type {
 import type { HelpCatalog, HelpHit, HelpMatch } from '../../shared/helpdocs'
 import type { NeisDay, NeisLesson, NeisMealDay, NeisResult, NeisSchool } from '../../shared/neis'
 import type { IcsEvent } from '../../shared/ics'
+import type { CatalogResult } from '../../shared/catalog'
 import type { SchoolTimetable, TtRow } from '../../shared/timetable'
 import type {
   ComposeResult,
@@ -100,6 +101,10 @@ const api = {
     clearCache: (): Promise<void> => ipcRenderer.invoke('gcal:clearCache'),
     exportIcs: (args: { from: string; to: string; deadlines: boolean; memo: boolean }): Promise<{ ok: boolean; message: string; count?: number; path?: string }> =>
       ipcRenderer.invoke('gcal:export', args)
+  },
+  /** 도구 모음 · 받은 테마. force 면 새로 받는다 */
+  catalog: {
+    get: (force?: boolean): Promise<CatalogResult> => ipcRenderer.invoke('catalog:get', force === true)
   },
   journal: {
     list: (): Promise<JournalEntry[]> => ipcRenderer.invoke('journal:list'),

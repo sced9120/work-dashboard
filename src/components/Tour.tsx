@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { PageId } from '../App'
-import { NAV_GROUPS, navLabel } from '../lib/nav'
+import { isShown, navLabel, shownGroups, useNavPrefs } from '../lib/nav'
 import type { Tour, TourStep } from '../lib/tours'
-import { TOURS, TOUR_ORDER } from '../lib/tours'
+import { TOURS, TOUR_ORDER, tourSteps } from '../lib/tours'
 import { useToast } from '../lib/toast'
 import Icon from './Icon'
 
@@ -68,7 +68,7 @@ const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v
 /* ---------- 한 화면 안내 ---------- */
 
 function Coach({ tour, onGo, onExit }: { tour: Tour; onGo: (p: PageId) => void; onExit: (finished: boolean) => void }): JSX.Element {
-  const steps = tour.steps
+  const [steps] = useState(() => tourSteps(tour.page))
   const [i, setI] = useState(0)
   const [hole, setHole] = useState<Hole | null>(null)
   const [missing, setMissing] = useState(false)
@@ -276,6 +276,8 @@ function Coach({ tour, onGo, onExit }: { tour: Tour; onGo: (p: PageId) => void; 
 
 interface HubProps {
   page: PageId
+  /** 왼쪽 메뉴에 켜 둔 화면만 (꺼 둔 메뉴는 목록에서 뺀다) */
+  order: PageId[]
   done: PageId[]
   onClose: () => void
   onStart: (p: PageId) => void
@@ -283,9 +285,10 @@ interface HubProps {
   onReset: () => void
 }
 
-function Hub({ page, done, onClose, onStart, onStartAll, onReset }: HubProps): JSX.Element {
-  const total = TOUR_ORDER.length
-  const n = done.length
+function Hub({ page, order, done, onClose, onStart, onStartAll, onReset }: HubProps): JSX.Element {
+  const nav = useNavPrefs()
+  const total = order.length
+  const n = done.filter((p) => order.includes(p)).length
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -335,7 +338,7 @@ function Hub({ page, done, onClose, onStart, onStartAll, onReset }: HubProps): J
         </div>
 
         <div className="tour-hub-list">
-          {NAV_GROUPS.map((g) => (
+          {shownGroups(nav).map((g) => (
             <div className="tour-hub-group" key={g.section}>
               <div className="tour-hub-sec">{g.section}</div>
               {g.items.map((it) => {
@@ -349,7 +352,7 @@ function Hub({ page, done, onClose, onStart, onStartAll, onReset }: HubProps): J
                     <span className="tour-item-body">
                       <b>{it.label}</b>
                       <small>
-                        {t.intro} · {t.steps.length}단계
+                        {t.intro} · {t.steps.length + 1}단계
                       </small>
                     </span>
                     <span className="tour-item-state">
@@ -414,6 +417,9 @@ interface Props {
 
 export default function TourHost({ page, onGo, hub, onHub, running, onRun }: Props): JSX.Element {
   const toast = useToast()
+  const nav = useNavPrefs()
+  /** 차례로 배울 화면 — 왼쪽 메뉴에서 꺼 둔 것은 뺀다 */
+  const order = TOUR_ORDER.filter((p) => isShown(nav, p))
   const [done, setDone] = useState<PageId[]>(readDone)
   /** 처음부터 차례로 배우는 중인지 */
   const [seq, setSeq] = useState(false)
@@ -453,7 +459,7 @@ export default function TourHost({ page, onGo, hub, onHub, running, onRun }: Pro
     setDone(next)
     writeDone(next)
     if (seq) {
-      const after = TOUR_ORDER.slice(TOUR_ORDER.indexOf(cur) + 1).find((p) => !next.includes(p))
+      const after = order.slice(order.indexOf(cur) + 1).find((p) => !next.includes(p))
       if (after) {
         toast(`「${navLabel(cur)}」 배우기를 마쳤습니다. 이어서 「${navLabel(after)}」입니다.`, 'ok')
         window.setTimeout(() => onRun(after), 450)
@@ -467,14 +473,14 @@ export default function TourHost({ page, onGo, hub, onHub, running, onRun }: Pro
   }
 
   const startAll = (): void => {
-    const first = TOUR_ORDER.find((p) => !done.includes(p))
+    const first = order.find((p) => !done.includes(p))
     if (first) {
       start(first, true)
       return
     }
     setDone([])
     writeDone([])
-    start(TOUR_ORDER[0], true)
+    start(order[0] ?? '홈', true)
   }
 
   return (
@@ -482,6 +488,7 @@ export default function TourHost({ page, onGo, hub, onHub, running, onRun }: Pro
       {hub && (
         <Hub
           page={page}
+          order={order}
           done={done}
           onClose={() => onHub(false)}
           onStart={(p) => start(p)}

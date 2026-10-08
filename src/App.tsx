@@ -21,10 +21,13 @@ import LearnBanner from './components/LearnBanner'
 import UpdateNotice, { alreadySeen, markSeen, phaseOf } from './components/UpdateNotice'
 import Data from './pages/Data'
 import Settings from './pages/Settings'
+import Tools from './pages/Tools'
 import Icon from './components/Icon'
 import TourHost from './components/Tour'
-import { AI_ITEM, DATA_ITEM, NAV } from './lib/nav'
+import { AI_ITEM, DATA_ITEM, isShown, requestMenuEdit, sidebarNav, useNavPrefs } from './lib/nav'
 import { setUiPrefs, useUiPrefs } from './lib/theme'
+import { hasUnseenNew, loadCatalog, useCatalog } from './lib/catalog'
+import { focusSearch } from './pages/Search'
 
 export type PageId =
   | '홈'
@@ -43,9 +46,12 @@ export type PageId =
   | '일지'
   | '데이터'
   | '설정'
+  | '도구'
 
 function Shell(): JSX.Element {
   const ui = useUiPrefs()
+  const navp = useNavPrefs()
+  const cat = useCatalog()
   /** 따라 배우기 목록을 열었는지, 지금 어느 화면을 배우는 중인지 */
   const [learnHub, setLearnHub] = useState(false)
   const [learning, setLearning] = useState<PageId | null>(null)
@@ -83,6 +89,8 @@ function Shell(): JSX.Element {
       setVersion(await window.api.appVersion())
       setLoaded(true)
     })()
+    // 도구 모음 · 받은 테마 목록 (3시간 안에 받았으면 이 PC 에 둔 것)
+    void loadCatalog()
   }, [reloadProfile])
 
   // 새 버전 확인. 실패해도 화면에 아무 것도 띄우지 않는다.
@@ -146,6 +154,8 @@ function Shell(): JSX.Element {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setPage('검색')
+        // 이미 검색 화면이어도 찾을 낱말 칸으로 커서를 옮긴다
+        window.setTimeout(focusSearch, 0)
       } else if (e.key === 'F1') {
         e.preventDefault()
         setLearnHub(false)
@@ -165,54 +175,101 @@ function Shell(): JSX.Element {
   const collapsed = ui.navCollapsed
   /** 접힌 메뉴에서는 이름이 안 보이므로 마우스를 올리면 뜨게 한다 */
   const tip = (label: string): string | undefined => (collapsed ? label : undefined)
+  const newTools = hasUnseenNew(cat.catalog.tools)
+  /** 바로가기 — 도구 모음에서 고정한 것은 지금 목록의 이름 · 주소를 따른다 */
+  const links = navp.links.map((l) => {
+    const t = l.tool ? cat.catalog.tools.find((x) => x.id === l.tool) : undefined
+    return t ? { ...l, name: t.name, url: t.url, icon: t.icon || l.icon } : l
+  })
 
   return (
     <div className={`shell ${collapsed ? 'nav-collapsed' : ''}`}>
       <nav className="sidebar" aria-label="메뉴">
-        <button
-          className={`side-ai ${page === AI_ITEM.id ? 'active' : ''}`}
-          onClick={() => setPage(AI_ITEM.id)}
-          title={tip(AI_ITEM.label)}
-        >
-          <span className="side-ai-ico">
-            <Icon name="spark" size={20} />
-          </span>
-          <span className="side-label">업무 도우미</span>
-        </button>
+        {isShown(navp, AI_ITEM.id) && (
+          <button
+            className={`side-ai ${page === AI_ITEM.id ? 'active' : ''}`}
+            onClick={() => setPage(AI_ITEM.id)}
+            title={tip(AI_ITEM.label)}
+          >
+            <span className="side-ai-ico">
+              <Icon name="spark" size={20} />
+            </span>
+            <span className="side-label">업무 도우미</span>
+          </button>
+        )}
 
         <div className="side-dock">
           <div className="side-scroll">
-            {NAV.map((group) => (
+            {sidebarNav(navp).map((group) => (
               <div className="nav-group" key={group.section}>
                 <div className="nav-section">{group.section}</div>
                 {group.items.map((n) => (
                   <button
                     key={n.id}
+                    data-page={n.id}
                     className={`nav-btn ${page === n.id ? 'active' : ''}`}
                     onClick={() => setPage(n.id)}
-                    title={tip(n.label)}
+                    title={tip(n.id === '도구' && newTools ? `${n.label} · 새 도구` : n.label)}
                   >
                     <span className="nav-icon">
                       <Icon name={n.icon} />
+                      {n.id === '도구' && newTools && <i className="nav-new" aria-label="새 도구" />}
                     </span>
                     <span className="side-label">{n.label}</span>
                   </button>
                 ))}
               </div>
             ))}
+
+            {links.length > 0 && (
+              <div className="nav-group">
+                <div className="nav-section">바로가기</div>
+                {links.map((l) => (
+                  <button
+                    key={l.id}
+                    className="nav-btn side-link"
+                    onClick={() => void window.api.shell.open(l.url)}
+                    title={collapsed ? `${l.name} ↗` : l.url}
+                  >
+                    <span className="nav-icon">{l.icon ? <span className="side-emoji">{l.icon}</span> : <Icon name="link" />}</span>
+                    <span className="side-label">{l.name}</span>
+                    <span className="side-label side-out">
+                      <Icon name="out" size={13} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              className="side-edit"
+              onClick={() => {
+                setPage('설정')
+                requestMenuEdit()
+              }}
+              title={tip('메뉴 편집')}
+            >
+              <span className="nav-icon">
+                <Icon name="sliders" size={15} />
+              </span>
+              <span className="side-label">메뉴 편집</span>
+            </button>
           </div>
 
           <div className="sidebar-foot">
-            <button
-              className={`nav-btn ${page === DATA_ITEM.id ? 'active' : ''}`}
-              onClick={() => setPage(DATA_ITEM.id)}
-              title={tip(DATA_ITEM.label)}
-            >
-              <span className="nav-icon">
-                <Icon name={DATA_ITEM.icon} />
-              </span>
-              <span className="side-label">{DATA_ITEM.label}</span>
-            </button>
+            {isShown(navp, DATA_ITEM.id) && (
+              <button
+                data-page={DATA_ITEM.id}
+                className={`nav-btn ${page === DATA_ITEM.id ? 'active' : ''}`}
+                onClick={() => setPage(DATA_ITEM.id)}
+                title={tip(DATA_ITEM.label)}
+              >
+                <span className="nav-icon">
+                  <Icon name={DATA_ITEM.icon} />
+                </span>
+                <span className="side-label">{DATA_ITEM.label}</span>
+              </button>
+            )}
             <button className="nav-btn side-learn" onClick={() => setLearnHub(true)} title={tip('따라 배우기 (F1)')}>
               <span className="nav-icon">
                 <Icon name="cap" />
@@ -366,6 +423,7 @@ function Shell(): JSX.Element {
         {page === '일지' && <Journal />}
         {page === '데이터' && <Data onChanged={reloadProfile} />}
         {page === '설정' && <Settings onProfileChanged={reloadProfile} />}
+        {page === '도구' && <Tools />}
       </main>
     </div>
   )

@@ -30,6 +30,7 @@ import { fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
 import { buildFromFrame, readFrame } from './hwpgen'
 import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
 import { clearGcalCache, exportIcs, gcalEvents, gcalTest } from './gcal'
+import { getCatalog } from './catalog'
 import { classTimetable, clearNeisCache, mealsOn, nextMealDay, scheduleCached, schoolInfoForDocs, searchSchools, testNeis } from './neis'
 import type { TtRow } from '../../shared/timetable'
 import { STD_EXAMPLE, aiReadTimetable, importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
@@ -275,6 +276,9 @@ function registerIpc(): void {
   ipcMain.handle('gcal:export', (_e, args: { from: string; to: string; deadlines: boolean; memo: boolean }) =>
     exportIcs(mainWindow, { from: dayArg(args?.from), to: dayArg(args?.to), deadlines: !!args?.deadlines, memo: !!args?.memo })
   )
+
+  /* ---------- 도구 모음 · 받은 테마 (저장소의 remote/catalog.json) ---------- */
+  ipcMain.handle('catalog:get', (_e, force?: boolean) => getCatalog(force === true))
 
   /* ---------- 알림 ---------- */
   ipcMain.handle('notify:checkNow', () => checkDeadlinesNow())

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DocFull, ModelChoice, SearchHit } from '../../shared/types'
 import type { HelpHit } from '../../shared/helpdocs'
 import type { PageId } from '../App'
@@ -17,7 +17,13 @@ const SOURCE_LIMIT = 8
 /** 그 가운데 학교업무 도움자료에 내줄 수 있는 자리. 내 자료가 적을 때만 채운다. */
 const HELP_LIMIT = 3
 
+/** Ctrl+K — 검색 화면이 이미 열려 있어도 찾을 낱말 칸으로 커서를 옮긴다 */
+export function focusSearch(): void {
+  window.dispatchEvent(new Event('wd:focus-search'))
+}
+
 export default function Search({ jobTitle, onGo }: Props): JSX.Element {
+  const inputRef = useRef<HTMLInputElement>(null)
   const toast = useToast()
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<SearchHit[] | null>(null)
@@ -36,6 +42,17 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
 
   const refreshCount = useCallback(async () => {
     setDocCount(await window.api.docs.count())
+  }, [])
+
+  // 화면을 열면 바로 칠 수 있게. 적어 둔 낱말이 있으면 통째로 골라 두어 새로 치면 바뀐다
+  useEffect(() => {
+    const focus = (): void => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+    focus()
+    window.addEventListener('wd:focus-search', focus)
+    return () => window.removeEventListener('wd:focus-search', focus)
   }, [])
 
   useEffect(() => {
@@ -157,6 +174,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="row">
           <input
+            ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

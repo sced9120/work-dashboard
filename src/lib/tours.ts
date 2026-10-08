@@ -1,4 +1,5 @@
 import type { PageId } from '../App'
+import { navLabel } from './nav'
 
 /**
  * 따라 배우기 — 메뉴마다 실제 화면 위에서 한 단계씩 짚어 주는 안내.
@@ -211,13 +212,24 @@ export const TOURS: Record<PageId, Tour> = {
       { ...card('초기화'), title: '초기화는 조심', body: '모든 자료를 지웁니다. 되돌릴 수 없으니 꼭 내보내기를 먼저 하세요.', optional: true }
     ]
   },
+  도구: {
+    page: '도구',
+    intro: '만든이가 올려 두는 선생님용 도구 (세특 도우미 등)',
+    steps: [
+      { sel: H1, title: '도구 모음', body: '선생님 일을 덜어 줄 도구를 모아 둔 곳입니다. 새 도구가 올라오면 프로그램을 업데이트하지 않아도 여기 생기고, 왼쪽 메뉴에 ● 표시가 뜹니다.' },
+      { sel: '.main .tool-card', title: '도구 한 장', body: '열기를 누르면 브라우저에서 열립니다. 이 프로그램의 업무 · 학생 자료는 도구로 보내지 않습니다.', optional: true },
+      { sel: '.main .tool-card button', text: '메뉴에', title: '메뉴에 고정', body: '자주 쓰는 도구는 고정해 두면 왼쪽 메뉴 ‘바로가기’에서 한 번에 열립니다.', optional: true },
+      { sel: '.main button', text: '새로 받기', title: '새로 받기', body: '목록은 3시간마다 저절로 새로 받습니다. 방금 올라온 도구를 바로 보려면 누르세요.' }
+    ]
+  },
   설정: {
     page: '설정',
     intro: '화면 테마 · 담당 업무 · 나이스 · AI · 알림',
     steps: [
       { sel: H1, title: '설정', body: '화면 테마, 담당 업무, 나이스 연결, AI 연결, 알림을 정합니다.' },
       { sel: '.main .theme-picks', click: true, title: '테마를 골라 보세요', body: '누르는 즉시 바뀝니다. 마음에 안 들면 다른 것을 다시 누르면 됩니다.' },
-      { sel: '.main .theme-seg', title: '밝기', body: '윈도우 설정 따르기 · 밝게 · 어둡게 가운데 고릅니다. 이 PC에만 저장됩니다.' },
+      { sel: '.main .theme-seg', title: '밝기', body: '윈도우 설정 따르기 · 밝게 · 어둡게 가운데 고릅니다. 이 PC에만 저장됩니다. 만든이가 올려 둔 받은 테마가 있으면 테마 아래에 함께 뜹니다.' },
+      { sel: '.main #menu-settings', title: '왼쪽 메뉴 고르기', body: '안 쓰는 메뉴는 끄고 ↑ ↓ 로 차례를 바꿉니다. 자주 가는 누리집은 바로가기로 더하면 왼쪽 메뉴에서 바로 열립니다.', optional: true },
       { ...card('담당 업무'), title: '담당 업무', body: '담당 업무명과 학교 정보는 인수인계 파일에 함께 들어갑니다. 업무분장표를 붙여 두면 도우미가 참고합니다.', optional: true },
       { ...card('나이스 연결'), title: '나이스 연결', body: '학교를 연결하면 급식 · 학사일정 · 학급 시간표를 받아 옵니다. 인증키는 무료로 바로 발급됩니다.', optional: true },
       { ...card('AI 연결'), title: 'AI 연결', body: '쓸 AI 서비스를 고르고 키를 넣습니다. 키는 이 PC에만 암호화해 둡니다.', optional: true },
@@ -227,4 +239,29 @@ export const TOURS: Record<PageId, Tour> = {
 }
 
 /** 처음부터 차례로 배울 때의 순서 */
-export const TOUR_ORDER: PageId[] = ['홈', '달력', '시간표', '기한', '일지', '로드맵', '워크플로우', '검색', '도우미', '가이드', '도움자료', '학습', '위원회', '발표', '데이터', '설정']
+export const TOUR_ORDER: PageId[] = ['홈', '달력', '시간표', '기한', '일지', '로드맵', '워크플로우', '검색', '도우미', '가이드', '도움자료', '학습', '위원회', '발표', '도구', '데이터', '설정']
+
+/** 왼쪽 메뉴에서 그 화면 단추 (도우미는 맨 위 ✦, 설정은 맨 아래 내 이름 칸) */
+function navSel(page: PageId): string {
+  if (page === '도우미') return '.sidebar .side-ai'
+  if (page === '설정') return '.sidebar .side-me'
+  return `.sidebar .nav-btn[data-page="${page}"]`
+}
+
+/**
+ * 실제로 밟는 단계 — 맨 앞에 왼쪽 메뉴의 그 단추를 먼저 비춘다(어느 메뉴로 오는지 알게).
+ * 메뉴를 꺼 두었으면 그 단계는 건너뛴다.
+ */
+export function tourSteps(page: PageId): TourStep[] {
+  const t = TOURS[page]
+  const label = navLabel(page)
+  return [
+    {
+      sel: navSel(page),
+      title: `왼쪽 메뉴 · ${label}`,
+      body: `왼쪽 메뉴의 「${label}」을(를) 누르면 이 화면이 열립니다. ${t.intro}.`,
+      optional: true
+    },
+    ...t.steps
+  ]
+}

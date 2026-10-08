@@ -26,6 +26,9 @@ jobs:
         # package-lock.json 을 갱신할 수 없는 환경에서 의존성을 추가하므로 npm install 을 쓴다.
         run: npm install --no-audit --no-fund
 
+      - name: 도구 모음 목록 검사 (remote/catalog.json)
+        run: node scripts/check-catalog.mjs
+
       - name: 타입 검사
         run: npm run typecheck
 

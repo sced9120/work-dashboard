@@ -28,6 +28,8 @@ export type IconName =
   | 'pin'
   | 'plus'
   | 'out'
+  | 'grid'
+  | 'link'
 
 const PATHS: Record<IconName, JSX.Element> = {
   home: <path d="M3.5 10.5 12 3.5l8.5 7V20a1 1 0 0 1-1 1H15v-6H9v6H4.5a1 1 0 0 1-1-1z" />,
@@ -121,7 +123,16 @@ const PATHS: Record<IconName, JSX.Element> = {
   ),
   pin: <path d="M9 3.5h6l-1 6 3.5 3.5h-11L10 9.5zM12 13v7.5" />,
   plus: <path d="M12 5v14M5 12h14" />,
-  out: <path d="M14 4.5h5.5V10M19.5 4.5 11 13M18 14v4.5a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2H11" />
+  out: <path d="M14 4.5h5.5V10M19.5 4.5 11 13M18 14v4.5a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2H11" />,
+  grid: (
+    <>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+      <path d="M16.75 13.5v6.5M13.5 16.75H20" />
+    </>
+  ),
+  link: <path d="M10 14a4 4 0 0 0 5.7 0l3.1-3.1a4 4 0 0 0-5.7-5.7L11.6 6.7M14 10a4 4 0 0 0-5.7 0l-3.1 3.1a4 4 0 0 0 5.7 5.7l1.5-1.5" />
 }
 
 interface Props {
