@@ -370,6 +370,7 @@ shared/helpdocs.ts 학교업무 도움자료 찾기 (학교급·줄임말·파�
 shared/timetable.ts 시간표 읽기 · 내 시간표 · 맞교체 · 보강 찾기
 shared/ics.ts     iCal(.ics) 읽기(반복 · 빠진 날 · 시간대) · 쓰기
 shared/catalog.ts 도구 모음 · 받은 테마 규칙 — https 주소만, 테마는 정해 둔 색 토큰만
+shared/ttpeers.ts 동교과 선생님 찾기 — 과목 이름 → 교과군, 주로 가르치는 과목끼리
 remote/catalog.json  업데이트 없이 내려 주는 도구 · 테마 목록 (고치는 법은 remote/README.md)
 scripts/check-catalog.mjs  위 목록 검사 (main 에 올리면 '타입 검사' 일이 돌린다)
 scripts/make-icon.mjs  아이콘 생성 (외부 도구 없이 픽셀을 직접 그림)

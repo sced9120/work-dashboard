@@ -71,7 +71,7 @@ export default function Data({ onChanged }: Props): JSX.Element {
         </p>
         <div className="note note-ok" style={{ marginBottom: 12 }}>
           API 키와 <b>절차 기한 목록</b>은 이 파일에 들어가지 않습니다. 기한에는 학생 이름이 섞이기
-          쉬워 기본으로 빼고 내보냅니다.
+          쉬워 기본으로 빼고 내보냅니다. <b>자유 메모장</b>은 ‘다음 담당자에게도 넘기기’를 켠 것만 들어갑니다.
         </div>
 
         <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 12 }}>

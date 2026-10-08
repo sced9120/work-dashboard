@@ -24,6 +24,8 @@ import {
 import type { PageId } from '../App'
 import TimetableSetup, { rulesSummary } from '../components/TimetableSetup'
 import ChainList from '../components/ChainList'
+import PeerPanel from '../components/PeerPanel'
+import { findPeers, peerList } from '../../shared/ttpeers'
 import TimetableBoard, { drawTimetable } from '../components/TimetableBoard'
 import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
@@ -77,8 +79,10 @@ export default function Timetable({ onGo }: Props): JSX.Element {
       setAiOffer('')
       await T.reload()
       const one = r.tt!.versions ? ` 시트마다 수업이 달라 「${r.tt!.versions.used.join('」 「')}」 만 읽었습니다([파일 · 설정] 에서 바꿀 수 있음).` : ''
+      const peers = T.me && r.tt!.teachers.includes(T.me) ? peerList(r.tt!, T.me, T.alias, T.peers).length : 0
+      const peerNote = peers ? ` 동교과 선생님 ${peers}분을 찾아 두었습니다([수업 바꾸기] 에서 확인).` : ''
       toast(
-        `시간표를 읽었습니다: 반 ${r.tt!.classes.length}개, 선생님 ${r.tt!.teachers.length}분.${one} ` +
+        `시간표를 읽었습니다: 반 ${r.tt!.classes.length}개, 선생님 ${r.tt!.teachers.length}분.${one}${peerNote} ` +
           '수업 바꾸기는 [수업 바꾸기] 에서 시간표 정리(읽은 자료 · 블록 · 창체 · 동아리)를 마친 뒤 쓸 수 있습니다.',
         'ok'
       )
@@ -619,8 +623,12 @@ function ChangeTab({
       ? (d: number, p: number): boolean =>
           !!T.manual[slotKey(d, p)]?.trim() || !!rules.cce[myGrade]?.includes(slotKey(d, p)) || !!rules.club?.[myGrade]?.includes(slotKey(d, p))
       : undefined
+  // 동교과 선생님 — 나면 고친 명단, 다른 분이면 시간표에서 찾은 명단
+  const peers = new Set(
+    !who ? [] : who === T.me ? peerList(tt, who, T.alias, T.peers).map((p) => p.name) : findPeers(tt, who, T.alias).found.map((f) => f.name)
+  )
   // 교체 방법은 ChainList 가 찾고, 여기서는 막힌 까닭(블록 · 창체)과 보강만 쓴다
-  const plan: ChangePlan | null = slot !== null && who && d1 >= 0 ? planChange(tt, who, d1, slot, rules, meBusy) : null
+  const plan: ChangePlan | null = slot !== null && who && d1 >= 0 ? planChange(tt, who, d1, slot, rules, meBusy, peers) : null
   const mine = who === T.me
 
   return (
@@ -640,6 +648,7 @@ function ChangeTab({
           시간표 정리 고치기
         </button>
       </div>
+      {T.me && tt.teachers.includes(T.me) && <PeerPanel tt={tt} me={T.me} alias={T.alias} prefs={T.peers} save={T.save} />}
       <div className="card">
         <div className="card-title">1. 언제, 누구의 수업을 비우나요?</div>
         <div className="row">
@@ -694,6 +703,7 @@ function ChangeTab({
             notes={plan.notes}
             cls={plan.cls}
             subject={plan.subject}
+            peers={peers}
           />
 
           <div className="card">
@@ -703,8 +713,9 @@ function ChangeTab({
             </div>
             <div className="tt-covers">
               {plan.covers.map((c) => (
-                <span key={c.teacher} className={`tt-cover ${c.sameSubject ? 'same' : ''}`} title={`그날 수업 ${c.load}시간`}>
+                <span key={c.teacher} className={`tt-cover ${c.sameSubject || c.peer ? 'same' : ''} ${c.peer ? 'peer' : ''}`} title={`그날 수업 ${c.load}시간`}>
                   {c.teacher}
+                  {c.peer && <span className="tt-peer-tag">동교과</span>}
                   <small>
                     {c.sameSubject ? '같은 과목 · ' : ''}그날 {c.load}시간
                   </small>
@@ -712,7 +723,7 @@ function ChangeTab({
               ))}
             </div>
             <p className="hint" style={{ marginBottom: 0 }}>
-              같은 과목을 가르치는 분, 그날 수업이 적은 분을 앞에 두었습니다.
+              {peers.size ? '동교과 선생님, ' : ''}같은 과목을 가르치는 분, 그날 수업이 적은 분을 앞에 두었습니다.
             </p>
           </div>
 

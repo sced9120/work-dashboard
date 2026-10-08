@@ -19,6 +19,8 @@ import type {
   DocInput,
   JournalEntry,
   JournalInput,
+  Memo,
+  MemoPatch,
   DocKind,
   ExtractedDoc,
   LocalSettings,
@@ -112,6 +114,14 @@ const api = {
     update: (id: number, j: JournalInput): Promise<void> =>
       ipcRenderer.invoke('journal:update', id, j),
     remove: (id: number): Promise<void> => ipcRenderer.invoke('journal:delete', id)
+  },
+  /** 자유 메모장 — 글 메모 · 자유 워크플로우 */
+  memos: {
+    list: (): Promise<Memo[]> => ipcRenderer.invoke('memos:list'),
+    add: (kind: 'memo' | 'flow', title: string, content: string): Promise<number> =>
+      ipcRenderer.invoke('memos:add', kind, title, content),
+    update: (id: number, patch: MemoPatch): Promise<void> => ipcRenderer.invoke('memos:update', id, patch),
+    remove: (id: number): Promise<void> => ipcRenderer.invoke('memos:delete', id)
   },
   notify: {
     checkNow: (): Promise<void> => ipcRenderer.invoke('notify:checkNow')

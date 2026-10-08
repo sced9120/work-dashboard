@@ -24,6 +24,14 @@ interface Props {
   notes: string[]
   cls: string
   subject: string
+  /** 동교과 선생님 — 이분들과 함께 바꾸는 방법을 앞에 둔다 */
+  peers: ReadonlySet<string>
+}
+
+/** 함께 바꿀 선생님이 모두 동교과면 0, 일부면 1, 없으면 2 */
+function peerRank(o: ChainOption, peers: ReadonlySet<string>): number {
+  const n = o.teachers.filter((t) => peers.has(t)).length
+  return n && n === o.teachers.length ? 0 : n ? 1 : 2
 }
 
 const WEEK = ['일', '월', '화', '수', '목', '금', '토']
@@ -43,9 +51,11 @@ const KINDS: { kind: ChainKind; label: string; help: string }[] = [
  * 교체 방법 — 1:1 맞교체를 먼저, 그다음 순환 교체 · 2중 교체를 보여 준다. 3중 교체는 눌러야 찾는다(오래 걸릴 수 있다).
  * 수업마다 어디서 어디로 옮기는지 날짜와 함께 보여 주고, 복사해 메신저 · 교체 신청서에 붙일 수 있다.
  */
-export default function ChainList({ tt, rules, who, me, manual, myClass, date, period, locked, notes, cls, subject }: Props): JSX.Element {
+export default function ChainList({ tt, rules, who, me, manual, myClass, date, period, locked, notes, cls, subject, peers }: Props): JSX.Element {
   const toast = useToast()
   const [deep, setDeep] = useState(false)
+  /** 동교과 선생님과 함께 바꾸는 방법을 먼저 */
+  const [peerFirst, setPeerFirst] = useState(true)
   const [searching, setSearching] = useState(false)
   const [kind, setKind] = useState<ChainKind | ''>('')
   const [shown, setShown] = useState(8)
@@ -71,10 +81,17 @@ export default function ChainList({ tt, rules, who, me, manual, myClass, date, p
     return findChains(tt, who, d1, period, rules, { maxSteps: deep ? 3 : 2, meBusy, allowed: (d) => weekDate(date, d) >= today })
   }, [tt, rules, who, me, manual, myClass, date, period, d1, locked, deep, today])
 
+  // 찾은 차례(간단한 것 · 가까운 날 먼저)는 그대로 두고 동교과만 앞으로
+  const ranked = useMemo(
+    () => (peerFirst && peers.size ? options.map((o, i) => ({ o, i, r: peerRank(o, peers) })).sort((a, b) => a.r - b.r || a.i - b.i).map((x) => x.o) : options),
+    [options, peerFirst, peers]
+  )
+  const peerCount = useMemo(() => options.filter((o) => peerRank(o, peers) < 2).length, [options, peers])
+
   useEffect(() => setSearching(false), [options])
 
   const counts = KINDS.map((k) => ({ ...k, n: options.filter((o) => o.kind === k.kind).length }))
-  const list = kind ? options.filter((o) => o.kind === kind) : options
+  const list = kind ? ranked.filter((o) => o.kind === kind) : ranked
   const label = (t: string): string => (t === me ? '나' : `${t} 선생님`)
   const at = (d: number, p: number): string => `${md(weekDate(date, d))} ${tt.periods[p]?.label ?? `${p + 1}교시`}`
 
@@ -161,7 +178,14 @@ export default function ChainList({ tt, rules, who, me, manual, myClass, date, p
                     <div style={{ minWidth: 0 }}>
                       <div className="item-title">
                         <span className={`tt-kind k-${o.steps}`}>{o.kind === '맞교체' ? '1:1 맞교체' : o.kind}</span>{' '}
-                        {o.teachers.length ? `${o.teachers.map(label).join(' · ')}과 함께` : ''}
+                        {o.teachers.map((t, k) => (
+                          <span key={t}>
+                            {k > 0 && ' · '}
+                            {label(t)}
+                            {peers.has(t) && <span className="tt-peer-tag">동교과</span>}
+                          </span>
+                        ))}
+                        {o.teachers.length ? '과 함께' : ''}
                       </div>
                       <ul className="tt-moves">
                         {o.moves.map((m, k) => (
@@ -196,7 +220,16 @@ export default function ChainList({ tt, rules, who, me, manual, myClass, date, p
                 {searching ? '찾는 중…' : '🔗 3중 교체까지 더 찾기'}
               </button>
             )}
-            <span className="muted small">함께 바꿀 선생님이 적은 것, 가까운 날을 앞에 두었습니다.</span>
+            {peers.size > 0 && (
+              <label className="tt-peer-first" title="동교과 선생님과 함께 바꾸는 방법을 목록 앞에 둡니다">
+                <input type="checkbox" checked={peerFirst} onChange={(e) => setPeerFirst(e.target.checked)} />
+                동교과 먼저 ({peerCount}가지)
+              </label>
+            )}
+            <span className="muted small">
+              {peerFirst && peers.size ? '동교과 선생님과 함께하는 방법을 맨 앞에, 그다음 ' : ''}함께 바꿀 선생님이 적은 것, 가까운 날을 앞에
+              두었습니다.
+            </span>
           </div>
         </>
       )}

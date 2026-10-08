@@ -14,6 +14,8 @@ import type {
   DocInput,
   JournalEntry,
   JournalInput,
+  Memo,
+  MemoPatch,
   Notice,
   NoticeInput,
   SearchHit,
@@ -76,7 +78,14 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS hwp_forms (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      name TEXT, filename TEXT, kind TEXT, data BLOB, added_at TEXT,
-     doc_kind TEXT DEFAULT '')`
+     doc_kind TEXT DEFAULT '')`,
+  // 자유 메모장 (v3.2.0). kind 는 'memo'(글) · 'flow'(자유 워크플로우, content 에 Workflow JSON).
+  // 나 혼자 쓰는 것이 기본이라 share=1 인 것만 인수인계 파일에 남긴다.
+  `CREATE TABLE IF NOT EXISTS memos (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     kind TEXT DEFAULT 'memo', title TEXT, content TEXT,
+     pinned INTEGER DEFAULT 0, share INTEGER DEFAULT 0,
+     created_at TEXT, updated_at TEXT)`
 ]
 
 let SQL: SqlJsStatic | null = null
@@ -587,6 +596,55 @@ export function deleteJournal(id: number): void {
   run('DELETE FROM journal WHERE id=?', [id])
 }
 
+/* ---------- 자유 메모장 ---------- */
+
+function stamp(): string {
+  const d = new Date()
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${today()} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+export function listMemos(): Memo[] {
+  return rows<Memo>('SELECT * FROM memos ORDER BY pinned DESC, updated_at DESC, id DESC')
+}
+
+export function addMemo(kind: Memo['kind'], title: string, content: string): number {
+  const now = stamp()
+  return insert('INSERT INTO memos (kind, title, content, pinned, share, created_at, updated_at) VALUES (?,?,?,0,0,?,?)', [
+    kind === 'flow' ? 'flow' : 'memo',
+    title,
+    content,
+    now,
+    now
+  ])
+}
+
+/** 고친 칸만. 제목 · 내용을 고쳤을 때만 '고친 때' 를 바꾼다(고정 · 넘기기 표시는 차례를 흔들지 않게) */
+export function updateMemo(id: number, patch: MemoPatch): void {
+  const sets: [string, unknown][] = []
+  if (typeof patch.title === 'string') sets.push(['title', patch.title])
+  if (typeof patch.content === 'string') sets.push(['content', patch.content])
+  if (sets.length) sets.push(['updated_at', stamp()])
+  if (patch.pinned !== undefined) sets.push(['pinned', patch.pinned ? 1 : 0])
+  if (patch.share !== undefined) sets.push(['share', patch.share ? 1 : 0])
+  if (!sets.length) return
+  run(`UPDATE memos SET ${sets.map(([k]) => `${k}=?`).join(', ')} WHERE id=?`, [...sets.map(([, v]) => v), id])
+}
+
+export function deleteMemo(id: number): void {
+  run('DELETE FROM memos WHERE id=?', [id])
+}
+
+/** 워크플로우 상자 글자만 이어 붙인다 (찾기용) */
+function flowText(content: string): string {
+  try {
+    const v = JSON.parse(content) as { nodes?: { text?: string }[]; edges?: { label?: string }[] }
+    return [...(v.nodes ?? []).map((n) => n.text ?? ''), ...(v.edges ?? []).map((e) => e.label ?? '')].filter(Boolean).join('\n')
+  } catch {
+    return ''
+  }
+}
+
 /** 기한이 다가온 것만 골라 낸다. 알림에 쓴다. */
 /* ---------- 달력 일정 ---------- */
 
@@ -799,6 +857,28 @@ export function searchAll(query: string, limit = 60): SearchHit[] {
       date: j.entry_date ?? '',
       score,
       snippets: makeSnippets(content, terms)
+    })
+  }
+
+  for (const m of listMemos()) {
+    const title = m.title ?? ''
+    const body = m.kind === 'flow' ? flowText(m.content ?? '') : (m.content ?? '')
+    const hay = `${title}\n${body}`.toLowerCase()
+    if (!terms.every((term) => hay.includes(term))) continue
+
+    const score = terms.reduce(
+      (sum, term) => sum + countOf(hay, term) + countOf(title.toLowerCase(), term) * 5,
+      0
+    )
+    hits.push({
+      kind: 'memo',
+      id: m.id,
+      title: title || body.split('\n')[0].slice(0, 60) || '(내용 없음)',
+      subtitle: `${m.kind === 'flow' ? '자유 워크플로우' : '자유 메모'} · ${(m.updated_at ?? '').slice(0, 10)}`,
+      filename: '',
+      date: (m.updated_at ?? '').slice(0, 10),
+      score,
+      snippets: makeSnippets(body, terms)
     })
   }
 
@@ -1040,12 +1120,14 @@ export function cleanupYear(plan: CleanupPlan): CleanupResult {
  * 업무가 아니라 지금 담당자 한 사람의 것이라 인수인계 파일에 넣지 않는 설정.
  * 학교 시간표에는 선생님들 이름이 들어 있고, 내 이름 · 내 시간표 · 우리 반은 다음 담당자와 다르다.
  */
-const PERSONAL_SETTINGS = ['timetable_school', 'timetable_me', 'timetable_manual', 'timetable_alias', 'my_class']
+const PERSONAL_SETTINGS = ['timetable_school', 'timetable_me', 'timetable_manual', 'timetable_alias', 'my_class', 'timetable_peers']
 
 export async function exportTo(targetPath: string, includePersonal = false): Promise<void> {
   if (!SQL) SQL = await initSqlJs({ wasmBinary: loadWasm() })
   const copy = new SQL.Database(need().export())
   if (!includePersonal) copy.run('DELETE FROM deadlines')
+  // 자유 메모장은 '다음 담당자에게도 넘기기' 를 켠 것만
+  copy.run('DELETE FROM memos WHERE share IS NOT 1')
   copy.run(`DELETE FROM settings WHERE key IN (${PERSONAL_SETTINGS.map(() => '?').join(',')})`, PERSONAL_SETTINGS)
   // 지운 줄은 파일의 빈 쪽에 글자가 그대로 남는다. 다시 짜서 지운 것이 파일에 남지 않게 한다.
   copy.run('VACUUM')
@@ -1094,6 +1176,7 @@ export function clearAll(): void {
   need().run('DELETE FROM documents')
   need().run('DELETE FROM journal')
   need().run('DELETE FROM events')
+  need().run('DELETE FROM memos')
   persist()
   seedIfEmpty(need())
   persist()

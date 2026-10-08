@@ -100,6 +100,17 @@ export const TOURS: Record<PageId, Tour> = {
       { sel: '.main button', text: '기록', exact: true, title: '기록', body: '누르면 아래 목록에 쌓입니다. 지금은 눌러 보지 않아도 됩니다.', optional: true }
     ]
   },
+  메모장: {
+    page: '메모장',
+    intro: '아무 글이나 적는 메모 · 주제 없이 그리는 워크플로우',
+    steps: [
+      { sel: H1, title: '자유 메모장', body: '떠오른 것을 바로 적는 메모와, 업무 주제에 매이지 않은 자유 워크플로우를 한곳에 둡니다. 적는 대로 저절로 저장됩니다.' },
+      { sel: '.main .memo-new button', text: '메모', title: '새 메모', body: '누르면 빈 메모가 생기고 바로 적을 수 있습니다. 제목을 비워 두면 첫 줄이 이름이 됩니다.' },
+      { sel: '.main .memo-new button', text: '워크플로우', title: '자유 워크플로우', body: '시작 · 단계 · 판단 · 끝 상자를 이어 흐름도를 그립니다. [업무 워크플로우] 화면 아래에도 모여 보입니다.' },
+      { sel: '.main .memo-list', title: '목록', body: '고정한 것이 맨 위, 나머지는 고친 차례입니다. 위 칸에서 찾고 메모 · 워크플로우로 골라 봅니다. 통합 검색(Ctrl+K)에도 걸립니다.' },
+      { sel: '.main .memo-share', title: '다음 담당자에게도 넘기기', body: '자유 메모장은 나만 보는 것이 기본입니다. 이것을 켠 메모만 인수인계 파일에 들어갑니다.', optional: true }
+    ]
+  },
   로드맵: {
     page: '로드맵',
     intro: '한 해 업무를 인포그래픽 · 업무별 · 목록으로',
@@ -239,7 +250,7 @@ export const TOURS: Record<PageId, Tour> = {
 }
 
 /** 처음부터 차례로 배울 때의 순서 */
-export const TOUR_ORDER: PageId[] = ['홈', '달력', '시간표', '기한', '일지', '로드맵', '워크플로우', '검색', '도우미', '가이드', '도움자료', '학습', '위원회', '발표', '도구', '데이터', '설정']
+export const TOUR_ORDER: PageId[] = ['홈', '달력', '시간표', '기한', '일지', '메모장', '로드맵', '워크플로우', '검색', '도우미', '가이드', '도움자료', '학습', '위원회', '발표', '도구', '데이터', '설정']
 
 /** 왼쪽 메뉴에서 그 화면 단추 (도우미는 맨 위 ✦, 설정은 맨 아래 내 이름 칸) */
 function navSel(page: PageId): string {

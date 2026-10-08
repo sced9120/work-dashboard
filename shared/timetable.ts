@@ -991,6 +991,8 @@ export interface CoverOption {
   load: number
   /** 같은 과목을 가르치는가 */
   sameSubject: boolean
+  /** 동교과 선생님 명단에 있는가 (shared/ttpeers.ts) */
+  peer: boolean
 }
 
 export interface ChangePlan {
@@ -1017,7 +1019,7 @@ function lockReason(rules: TtRules | null, cls: string, d: number, p: number, ce
 /**
  * 내 수업(d1, p1)을 비울 때 찾을 수 있는 것.
  * - 맞교체: 같은 반을 같은 주에 가르치는 다른 선생님 수업 가운데, 그 시간에 내가 비고 그 선생님이 (d1,p1)에 비는 것
- * - 보강: (d1,p1)에 수업이 없는 선생님. 같은 과목이고 그날 수업이 적은 분을 앞에
+ * - 보강: (d1,p1)에 수업이 없는 선생님. 동교과 · 같은 과목이고 그날 수업이 적은 분을 앞에
  * 블록(여러 반이 함께 움직이는 선택 수업) 시간의 수업은 한 반만 바꿀 수 없어 맞교체 후보를 내지 않고,
  * 블록 시간 · 창체 · 동아리 자리로도 옮기지 않는다. meBusy: 파일에 없지만 내가 비지 않은 시간(손으로 적은 칸 · 우리 반 창체 · 동아리)
  */
@@ -1027,7 +1029,8 @@ export function planChange(
   d1: number,
   p1: number,
   rules: TtRules | null = null,
-  meBusy?: (d: number, p: number) => boolean
+  meBusy?: (d: number, p: number) => boolean,
+  peers: ReadonlySet<string> = new Set()
 ): ChangePlan | null {
   const mine = tt.classes.filter((c) => c.grid[d1]?.[p1]?.teachers.includes(me))
   if (!mine.length) return null
@@ -1065,9 +1068,16 @@ export function planChange(
     .map((t) => ({
       teacher: t,
       load: tt.periods.filter((_, p) => busy(tt, t, d1, p)).length,
-      sameSubject: !!subjects.get(t)?.has(cell.subject)
+      sameSubject: !!subjects.get(t)?.has(cell.subject),
+      peer: peers.has(t)
     }))
-    .sort((a, b) => Number(b.sameSubject) - Number(a.sameSubject) || a.load - b.load || a.teacher.localeCompare(b.teacher, 'ko'))
+    .sort(
+      (a, b) =>
+        Number(b.peer) - Number(a.peer) ||
+        Number(b.sameSubject) - Number(a.sameSubject) ||
+        a.load - b.load ||
+        a.teacher.localeCompare(b.teacher, 'ko')
+    )
   if (p1 + 1 > (tt.dayPeriods[d1] ?? 99)) notes.push('그날 정규 교시 뒤의 수업입니다.')
   return { cls: mine.map((c) => c.id).join('·'), subject: cell.subject, group: cell.group, locked: !!myLock, swaps, covers, notes }
 }

@@ -232,8 +232,8 @@ export type DocInput = Omit<Doc, 'id' | 'chars' | 'school_year'> & {
 /* ---------- 통합 검색 ---------- */
 
 export interface SearchHit {
-  /** 등록된 업무인지, 보관된 공문 원문인지, 업무 일지인지 */
-  kind: 'task' | 'document' | 'journal'
+  /** 등록된 업무인지, 보관된 공문 원문인지, 업무 일지인지, 자유 메모인지 */
+  kind: 'task' | 'document' | 'journal' | 'memo'
   id: number
   title: string
   /** 업무면 시기, 문서면 접수일자 */
@@ -334,6 +334,27 @@ export interface JournalEntry {
 }
 
 export type JournalInput = Omit<JournalEntry, 'id'>
+
+/**
+ * 자유 메모장의 한 장 — 글 메모, 또는 업무 주제에 매이지 않은 자유 워크플로우.
+ * 나 혼자 쓰는 것이 기본이라, share 를 켠 것만 인수인계 파일로 넘긴다.
+ */
+export interface Memo {
+  id: number
+  kind: 'memo' | 'flow'
+  title: string
+  /** 메모면 글, 워크플로우면 Workflow JSON */
+  content: string
+  /** 1이면 목록 맨 위에 */
+  pinned: number
+  /** 1이면 인수인계 파일에 함께 넘긴다 */
+  share: number
+  /** YYYY-MM-DD HH:MM */
+  created_at: string
+  updated_at: string
+}
+
+export type MemoPatch = Partial<Pick<Memo, 'title' | 'content' | 'pinned' | 'share'>>
 
 /* ---------- 달력 일정 ---------- */
 

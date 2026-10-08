@@ -71,6 +71,7 @@ import type {
   DocKind,
   JournalInput,
   LocalSettings,
+  MemoPatch,
   ModelChoice,
   NoticeInput,
   TaskInput,
@@ -251,6 +252,14 @@ function registerIpc(): void {
   ipcMain.handle('journal:add', (_e, j: JournalInput) => db.addJournal(j))
   ipcMain.handle('journal:update', (_e, id: number, j: JournalInput) => db.updateJournal(id, j))
   ipcMain.handle('journal:delete', (_e, id: number) => db.deleteJournal(id))
+
+  /* ---------- 자유 메모장 ---------- */
+  ipcMain.handle('memos:list', () => db.listMemos())
+  ipcMain.handle('memos:add', (_e, kind: 'memo' | 'flow', title: string, content: string) =>
+    db.addMemo(kind, String(title ?? ''), String(content ?? ''))
+  )
+  ipcMain.handle('memos:update', (_e, id: number, patch: MemoPatch) => db.updateMemo(Number(id), patch ?? {}))
+  ipcMain.handle('memos:delete', (_e, id: number) => db.deleteMemo(Number(id)))
 
   /* ---------- 달력 일정 ---------- */
   ipcMain.handle('events:list', () => db.listEvents())

@@ -4,6 +4,7 @@ import type { HelpHit } from '../../shared/helpdocs'
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
 import ModelPicker from '../components/ModelPicker'
+import { requestMemo } from '../lib/memos'
 
 interface Props {
   jobTitle: string
@@ -111,7 +112,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
           })
         } else {
           sources.push({
-            label: `${h.kind === 'journal' ? '업무 일지' : '업무'}: ${h.title} (${h.subtitle})`,
+            label: `${h.kind === 'journal' ? '업무 일지' : h.kind === 'memo' ? '자유 메모' : '업무'}: ${h.title} (${h.subtitle})`,
             text: h.snippets.join('\n')
           })
         }
@@ -288,7 +289,9 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
                             ? '공문 원문'
                             : h.kind === 'journal'
                               ? '업무 일지'
-                              : '등록된 업무'}
+                              : h.kind === 'memo'
+                                ? '자유 메모'
+                                : '등록된 업무'}
                         </span>{' '}
                         {h.title}
                       </div>
@@ -319,6 +322,17 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
                       {h.kind === 'journal' && (
                         <button className="btn btn-sm btn-ghost" onClick={() => onGo('일지')}>
                           일지에서 보기
+                        </button>
+                      )}
+                      {h.kind === 'memo' && (
+                        <button
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => {
+                            requestMemo({ open: h.id })
+                            onGo('메모장')
+                          }}
+                        >
+                          메모장에서 보기
                         </button>
                       )}
                     </div>

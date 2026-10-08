@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { MyTimetable, SchoolTimetable, TtRules } from '../../shared/timetable'
 import { MY_CLASS_KEY, TT_MANUAL_KEY, TT_ME_KEY, TT_RULES_KEY, TT_TIMES_KEY, myTimetable, withTimes } from '../../shared/timetable'
+import type { PeerPrefs } from '../../shared/ttpeers'
+import { EMPTY_PEERS, TT_PEERS_KEY, parsePeers } from '../../shared/ttpeers'
 
 /** 과목 이름을 바꿔 보이기 { 수학: '공통수학' } */
 export const TT_ALIAS_KEY = 'timetable_alias'
@@ -30,6 +32,8 @@ export interface TimetableState {
   myClass: string
   /** 블록 · 창체 설정 (수업 바꾸기 전에 확인) */
   rules: TtRules | null
+  /** 동교과 선생님 명단에서 뺀 분 · 더한 분 */
+  peers: PeerPrefs
   /** 학교 시간표 + 손으로 고친 칸 + 교시 시각 + 과목 이름 바꾸기를 모두 얹은 내 시간표. 아무것도 없으면 null */
   my: MyTimetable | null
   reload: () => Promise<void>
@@ -46,16 +50,18 @@ export function useTimetable(): TimetableState {
   const [alias, setAlias] = useState<Record<string, string>>({})
   const [myClass, setMyClass] = useState('')
   const [rules, setRules] = useState<TtRules | null>(null)
+  const [peers, setPeers] = useState<PeerPrefs>(EMPTY_PEERS)
 
   const reload = useCallback(async () => {
-    const [t, m, man, tm, al, mc, ru] = await Promise.all([
+    const [t, m, man, tm, al, mc, ru, pe] = await Promise.all([
       window.api.tt.get(),
       window.api.setting.get(TT_ME_KEY),
       window.api.setting.get(TT_MANUAL_KEY),
       window.api.setting.get(TT_TIMES_KEY),
       window.api.setting.get(TT_ALIAS_KEY),
       window.api.setting.get(MY_CLASS_KEY),
-      window.api.setting.get(TT_RULES_KEY)
+      window.api.setting.get(TT_RULES_KEY),
+      window.api.setting.get(TT_PEERS_KEY)
     ])
     setTt(t)
     setMe(m)
@@ -66,6 +72,7 @@ export function useTimetable(): TimetableState {
     setMyClass(mc)
     const r = parse<TtRules | null>(ru, null)
     setRules(r && Array.isArray(r.blocks) && r.cce && typeof r.cce === 'object' ? r : null)
+    setPeers(parsePeers(pe))
     setLoaded(true)
   }, [])
 
@@ -91,7 +98,7 @@ export function useTimetable(): TimetableState {
     }
   }, [tt, me, manual, times, alias])
 
-  return { loaded, tt, me, manual, times, alias, myClass, rules, my, reload, save }
+  return { loaded, tt, me, manual, times, alias, myClass, rules, peers, my, reload, save }
 }
 
 /** 오늘 요일 칸(월=0, 주말은 -1)과 지금 시각 HH:MM */

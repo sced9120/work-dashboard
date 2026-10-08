@@ -22,6 +22,7 @@ import UpdateNotice, { alreadySeen, markSeen, phaseOf } from './components/Updat
 import Data from './pages/Data'
 import Settings from './pages/Settings'
 import Tools from './pages/Tools'
+import Memos from './pages/Memos'
 import Icon from './components/Icon'
 import TourHost from './components/Tour'
 import { AI_ITEM, DATA_ITEM, isShown, requestMenuEdit, sidebarNav, useNavPrefs } from './lib/nav'
@@ -47,6 +48,7 @@ export type PageId =
   | '데이터'
   | '설정'
   | '도구'
+  | '메모장'
 
 function Shell(): JSX.Element {
   const ui = useUiPrefs()
@@ -424,6 +426,7 @@ function Shell(): JSX.Element {
         {page === '데이터' && <Data onChanged={reloadProfile} />}
         {page === '설정' && <Settings onProfileChanged={reloadProfile} />}
         {page === '도구' && <Tools />}
+        {page === '메모장' && <Memos />}
       </main>
     </div>
   )

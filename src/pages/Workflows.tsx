@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Task, Workflow } from '../../shared/types'
+import type { Memo, Task, Workflow } from '../../shared/types'
 import type { PageId } from '../App'
 import WorkflowEditor from '../components/WorkflowEditor'
+import { flowOf, memoName, requestMemo } from '../lib/memos'
 import { useToast } from '../lib/toast'
 import { groupByTopic } from '../lib/topics'
 
@@ -36,6 +37,8 @@ export default function Workflows({ onGo }: Props): JSX.Element {
   const toast = useToast()
   const [items, setItems] = useState<Item[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  /** 자유 메모장의 자유 워크플로우 (업무 주제에 매이지 않은 것) */
+  const [free, setFree] = useState<Memo[]>([])
   const [open, setOpen] = useState<string | null>(null)
   const [draft, setDraft] = useState<Workflow | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -44,10 +47,12 @@ export default function Workflows({ onGo }: Props): JSX.Element {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [rows, list] = await Promise.all([
+      const [rows, list, memos] = await Promise.all([
         window.api.setting.byPrefix(WF_PREFIX),
-        window.api.tasks.list()
+        window.api.tasks.list(),
+        window.api.memos.list()
       ])
+      setFree(memos.filter((m) => m.kind === 'flow'))
       const parsed: Item[] = []
       for (const r of rows) {
         const wf = parseWorkflow(r.value)
@@ -160,6 +165,42 @@ export default function Workflows({ onGo }: Props): JSX.Element {
             </div>
           )}
         </>
+      )}
+
+      {!loading && (
+        <div className="card wf-free">
+          <div className="card-title">
+            <span>자유 워크플로우</span>
+            <span className="muted small">업무 주제에 매이지 않은 흐름도 · [자유 메모장]에 들어 있습니다</span>
+          </div>
+          <div className="wfcards">
+            {free.map((m) => (
+              <button
+                key={m.id}
+                className="wfcard"
+                onClick={() => {
+                  requestMemo({ open: m.id })
+                  onGo('메모장')
+                }}
+              >
+                <span className="wfcard-name">{memoName(m)}</span>
+                <span className="wfcard-n">
+                  상자 {flowOf(m.content).nodes.length} · {m.share ? '인수인계에 넘김' : '나만 봄'}
+                </span>
+              </button>
+            ))}
+            <button
+              className="wfcard wfcard-new"
+              onClick={() => {
+                requestMemo({ create: 'flow' })
+                onGo('메모장')
+              }}
+            >
+              <span className="wfcard-name">＋ 자유 워크플로우 그리기</span>
+              <span className="wfcard-n">주제 없이 바로 그립니다</span>
+            </button>
+          </div>
+        </div>
       )}
     </>
   )

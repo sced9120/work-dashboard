@@ -12,6 +12,8 @@
  *   7. 홈 '오늘' 위젯
  *   8. 설정 → 화면 테마
  *   9. 도구 모음 · 메뉴 고르기 · 바로가기
+ *  10. 자유 메모장
+ *  11. 시간표 → 동교과 선생님
  * 내 시간표 그림(.ttb)과 발표자료 미리보기(.slide-thumb)는 출력물 모양이라 어느 테마에서도 원래 색이다.
  */
 
@@ -2202,4 +2204,300 @@ select:focus {
 .theme-sub .muted {
   margin-left: 6px;
   font-weight: 400;
+}
+
+/* ================= 10. 자유 메모장 ================= */
+
+.memo-wrap {
+  display: grid;
+  grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
+  gap: var(--home-gap);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .memo-wrap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.memo-list {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 0;
+  max-height: calc(100vh - 170px);
+}
+.memo-new {
+  display: flex;
+  gap: 6px;
+}
+.memo-new .btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.memo-filter {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+.memo-filter button {
+  flex: 1;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.memo-filter button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+.memo-items {
+  flex: 1;
+  min-height: 80px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -6px;
+  padding: 0 6px;
+}
+.memo-empty-list {
+  margin: 10px 4px;
+}
+.memo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.memo-item:hover {
+  background: var(--surface-2);
+}
+.memo-item.on {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.memo-item-ico {
+  flex: none;
+  margin-top: 2px;
+  color: var(--muted);
+}
+.memo-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+.memo-item-body b,
+.memo-item-body small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.memo-item-body b {
+  font-size: 13.5px;
+}
+.memo-item-body small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.memo-item-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+.memo-item-meta small {
+  font-size: 11px;
+}
+.memo-share-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.memo-edit {
+  min-width: 0;
+  margin-bottom: 0;
+}
+.memo-blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 20px;
+  text-align: center;
+}
+.memo-blank p {
+  margin: 0;
+  max-width: 420px;
+}
+.memo-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.memo-title {
+  flex: 1;
+  min-width: 0;
+  border-color: transparent;
+  background: transparent;
+  font-size: 19px;
+  font-weight: 700;
+  padding-left: 4px;
+}
+:root .memo-title:hover,
+:root .memo-title:focus {
+  border-color: var(--border);
+  background: var(--field-bg);
+}
+.memo-save {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.memo-save.dirty,
+.memo-save.saving {
+  color: var(--warn);
+}
+.memo-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 6px 0 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.memo-tools .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.memo-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.memo-text {
+  width: 100%;
+  min-height: calc(100vh - 330px);
+  resize: vertical;
+  font-size: 14.5px;
+  line-height: 1.75;
+}
+
+/* 업무 워크플로우 → 자유 워크플로우 */
+.wf-free {
+  margin-top: 16px;
+}
+.wfcard-new {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+/* ================= 11. 시간표 → 동교과 선생님 ================= */
+
+.tt-peers.unconfirmed {
+  border-color: var(--accent);
+}
+.tt-peer-confirm {
+  margin-bottom: 10px;
+}
+.tt-peer-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tt-peer {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+.tt-peer.same {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.tt-peer.added {
+  border-style: dashed;
+}
+.tt-peer small {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.tt-peer-x {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-solid);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tt-peer-x:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.tt-peer-edit {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.tt-peer-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--on-chip);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  vertical-align: 1px;
+}
+.tt-cover.peer {
+  border-width: 2px;
+}
+.tt-peer-first {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  cursor: pointer;
 }
