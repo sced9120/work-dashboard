@@ -88,11 +88,8 @@ global.fetch = async (url, opts = {}) => {
 
   console.log('\n4. 엑셀로 저장')
   // 화면처럼 두 답을 이어 붙여 저장
-  const ts = require(path.join(__dirname, '../node_modules/typescript'))
-  const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../shared/mdtable.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText
-  const M = { exports: {} }
-  new Function('module', 'exports', 'require', code)(M, M.exports, require)
-  const tables = M.exports.answersToTables([a1, a2])
+  const M = require('./tsload.cjs').loadShared('mdtable')
+  const tables = M.answersToTables([a1, a2])
   ok(tables.length === 1 && tables[0].rows.map((r) => r[0]).join() === '1,2,3,4' && tables[0].rows[2][4] === 'I want to be a teacher.', `두 답을 한 표로 (덜 나온 행은 이어 받은 것으로): ${tables[0].rows.map((r) => r[0]).join()}`)
   const out = path.join(USER_DATA, 'ocr.xlsx')
   next.save.push(out)
@@ -105,6 +102,24 @@ global.fetch = async (url, opts = {}) => {
   ok(ws.getCell('B2').value === '00123' && typeof ws.getCell('A2').value === 'string', '학번 앞의 0 을 지킴 (모든 칸 글자 그대로)')
   ok(ws.getCell('E2').value === 'I think AI should be allowed.' && ws.getCell('E3').value === '=SUM(A1) is not a formula here' && !ws.getCell('E3').formula, '**굵게** 표시는 떼고, = 로 시작해도 수식이 아님')
   ok(ws.rowCount === 5 && ws.views[0].ySplit === 1 && ws.autoFilter, '4행 · 머리글 고정 · 거르기')
+
+  // 손글씨 수식(LaTeX) · 아주 긴 본문(탐구 보고서)
+  const long = '가나다라마바사 아자차카타파하 '.repeat(90).trim()
+  const mathTables = M.extractTables(
+    `| 번호 | 문제 | 본문 |\n|---|---|---|\n| 1 | $A+2E=\\begin{pmatrix} 4 & 1 \\\\ 2 & 3 \\end{pmatrix}$, $\\frac{5}{3}$ | ${long} |\n| 2 | 짧음 | 짧음 |`
+  )
+  const out2 = path.join(USER_DATA, 'ocr2.xlsx')
+  next.save.push(out2)
+  ok((await call('ocr:save', mathTables, '수식')).ok, '수식 · 긴 글 표 저장')
+  const wb2 = new ExcelJS.Workbook()
+  await wb2.xlsx.readFile(out2)
+  const ws2 = wb2.worksheets[0]
+  ok(ws2.getCell('B2').value === 'A+2E=(4 1; 2 3), 5/3', `수식은 읽기 쉬운 글자로: ${ws2.getCell('B2').value}`)
+  ok(ws2.getCell('C2').value === long, '긴 글은 자르지 않고 그대로')
+  const wC = ws2.getColumn(3).width
+  const hangul = [...long].filter((c) => c !== ' ').length * 2 + [...long].filter((c) => c === ' ').length
+  ok(wC > 60 && wC <= 150 && ws2.getRow(2).height <= 409 && Math.ceil((hangul * 1.15) / wC) * 15 <= 409, `긴 글 열은 넓혀서 줄 높이 한도(409) 안에 다 보이게: 너비 ${wC} · 높이 ${ws2.getRow(2).height}`)
+  ok(ws2.getColumn(1).width < 20 && ws2.getRow(3).height === 18, '짧은 열 · 짧은 행은 그대로')
 
   console.log('\n5. 큰 파일은 Gemini 파일 저장소로 (이름은 보내지 않고, 끝나면 지움)')
   next.open.push([big])

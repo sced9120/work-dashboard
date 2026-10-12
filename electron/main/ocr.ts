@@ -333,7 +333,7 @@ export async function continueOcr(onProgress: (p: OcrProgress) => void): Promise
     const kept = dropPartialTail(s.last)
     const t = extractTables(kept)
     const lastTable = t[t.length - 1]
-    const lastRow = lastTable?.rows.length ? `| ${lastTable.rows[lastTable.rows.length - 1].join(' | ')} |` : ''
+    const lastRow = lastTable?.rows.length ? `| ${lastTable.rows[lastTable.rows.length - 1].map((c) => c.replace(/\|/g, '\\|')).join(' | ')} |` : ''
     s.turns.push({ role: 'model', parts: [{ text: kept }] }, { role: 'user', parts: [{ text: ocrContinueText(lastRow) }] })
     onProgress({ phase: 'wait', chars: 0, rows: 0 })
     const a = await generate(s, onProgress, ctrl.signal)
@@ -355,6 +355,48 @@ function widthOf(s: string): number {
   let w = 0
   for (const ch of s) w += /[ᄀ-ᇿ　-〿㄰-㆏一-鿿가-힣＀-￯]/.test(ch) ? 2 : 1
   return w
+}
+
+/** 엑셀 줄 높이 한도(409pt) · 10pt 글 한 줄 높이 */
+const ROW_MAX = 409
+const LINE = 15
+/** 줄바꿈이 낱말 단위라 생기는 빈자리만큼 넉넉히 */
+const WRAP_SLACK = 1.15
+/** 엑셀 칸 하나에 들어가는 글자 수(32,767) — 넘으면 엑셀이 파일을 '복구' 하려 든다 */
+const CELL_MAX = 32000
+
+/** 칸 글이 엑셀 한도를 넘으면 자르고 표시한다(전체는 화면의 [받은 글 보기] 에 있다) */
+function fitCell(v: string): string {
+  return v.length > CELL_MAX ? `${v.slice(0, CELL_MAX)} …(엑셀 칸 한도로 여기서 잘림 — 프로그램의 [받은 글 보기]에 전체가 있습니다)` : v
+}
+
+/** 이 너비들로 한 행이 몇 줄로 보일지 */
+function linesOf(values: string[], cols: number[]): number {
+  let lines = 1
+  values.forEach((v, j) => {
+    const w = cols[j] ?? 8
+    const n = v.split('\n').reduce((sum, l) => sum + (Math.ceil((widthOf(l) * WRAP_SLACK) / w) || 1), 0)
+    lines = Math.max(lines, n)
+  })
+  return lines
+}
+
+/**
+ * 열 너비: 내용에 맞추되 60 을 넘으면 줄을 바꿔 보이게 한다.
+ * 그래도 줄 높이 한도(409pt)를 넘는 긴 글(탐구 보고서 본문 같은)은 다 보이도록 그 열만 더 넓힌다(최대 150).
+ */
+export function columnWidths(header: string[], body: string[][]): number[] {
+  const longest = header.map((h, j) => Math.max(widthOf(h), ...body.map((r) => Math.max(0, ...(r[j] ?? '').split('\n').map(widthOf)))))
+  const cols = longest.map((w) => Math.max(8, Math.min(60, w + 2)))
+  const fit = Math.floor(ROW_MAX / LINE)
+  for (const r of body) {
+    if (linesOf(r, cols) <= fit) continue
+    r.forEach((v, j) => {
+      const need = Math.ceil((v.split('\n').reduce((sum, l) => sum + widthOf(l), 0) * WRAP_SLACK) / (fit - v.split('\n').length + 1)) + 2
+      if (need > cols[j]) cols[j] = Math.min(150, need)
+    })
+  }
+  return cols
 }
 
 function sheetName(raw: string, used: Set<string>, i: number): string {
@@ -386,11 +428,9 @@ export async function tablesToXlsx(tables: MdTable[]): Promise<Buffer> {
       c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
       c.border = border
     })
-    const widths = header.map((h) => widthOf(h))
-    t.rows.forEach((r, ri) => {
-      const values = Array.from({ length: width }, (_, j) => plainCell(r[j] ?? ''))
+    const body = t.rows.map((r) => Array.from({ length: width }, (_, j) => fitCell(plainCell(r[j] ?? ''))))
+    body.forEach((values, ri) => {
       const row = ws.addRow(values)
-      values.forEach((v, j) => (widths[j] = Math.max(widths[j], Math.min(widthOf(v), 80))))
       row.eachCell({ includeEmpty: true }, (c) => {
         c.font = { name: '맑은 고딕', size: 10 }
         c.alignment = { vertical: 'top', wrapText: true }
@@ -398,19 +438,9 @@ export async function tablesToXlsx(tables: MdTable[]): Promise<Buffer> {
         if (ri % 2 === 1) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } }
       })
     })
-    // 열 너비: 내용에 맞추되 너무 넓으면 줄을 바꿔 보이게
-    ws.columns.forEach((c, j) => (c.width = Math.max(8, Math.min(60, (widths[j] ?? 8) + 2))))
-    // 줄 높이: 긴 글은 몇 줄로 보일지 어림해서
-    ws.eachRow((row, rn) => {
-      if (rn === 1) return
-      let lines = 1
-      row.eachCell({ includeEmpty: true }, (c, cn) => {
-        const w = Math.max(8, Math.min(60, (widths[cn - 1] ?? 8) + 2))
-        const text = String(c.value ?? '')
-        lines = Math.max(lines, ...text.split('\n').map((l) => Math.ceil(widthOf(l) / w) || 1))
-      })
-      row.height = Math.min(409, Math.max(18, lines * 15))
-    })
+    const cols = columnWidths(header, body)
+    ws.columns.forEach((c, j) => (c.width = cols[j] ?? 8))
+    body.forEach((values, ri) => (ws.getRow(ri + 2).height = Math.min(ROW_MAX, Math.max(18, linesOf(values, cols) * LINE))))
     ws.views = [{ state: 'frozen', ySplit: 1 }]
     if (t.rows.length) ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: width } }
   })

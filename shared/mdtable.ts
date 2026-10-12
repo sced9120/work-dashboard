@@ -2,7 +2,10 @@
  * AI 답에서 마크다운 표를 뽑는다 — OCR 결과를 엑셀로 옮길 때 쓴다.
  * Open WebUI 'Export to Excel'(v0.4.0) 의 규칙을 그대로 따른다:
  * 칸 안의 \| 는 글자 | 로, `코드` 안의 | 는 칸 나눔으로 보지 않고, ``` 울타리 안은 건너뛴다.
+ * 다만 수식($…$ · \(…\) · \[…\]) 안의 \\ 는 행렬의 줄 나눔이라 그대로 둔다.
  */
+
+import { mathText } from './mathtext'
 
 export interface MdTable {
   /** 표 바로 위의 제목(# …). 없으면 빈칸 — 시트 이름에 쓴다 */
@@ -16,12 +19,36 @@ export function splitRow(line: string): string[] {
   const text = line.trim()
   const cells: string[] = []
   let cur = ''
+  // 수식 안인지: $…$ · \(…\) · \[…\] 이거나 $ 없이 쓴 \begin{…}…\end{…}
+  let math = false
+  let env = 0
   let i = 0
   while (i < text.length) {
     const ch = text[i]
-    if (ch === '\\' && i + 1 < text.length && (text[i + 1] === '|' || text[i + 1] === '\\')) {
-      cur += text[i + 1]
+    const nx = text[i + 1]
+    if (ch === '\\' && (nx === '(' || nx === '[' || nx === ')' || nx === ']' || nx === '$')) {
+      if (nx !== '$') math = nx === '(' || nx === '['
+      cur += ch + nx
       i += 2
+      continue
+    }
+    if (text.startsWith('\\begin{', i)) env++
+    else if (text.startsWith('\\end{', i)) env = Math.max(0, env - 1)
+    if (ch === '\\' && (math || env) && nx === '\\') {
+      cur += '\\\\'
+      i += 2
+      continue
+    }
+    if (ch === '\\' && i + 1 < text.length && (nx === '|' || nx === '\\')) {
+      cur += nx
+      i += 2
+      continue
+    }
+    if (ch === '$') {
+      const run = nx === '$' ? '$$' : '$'
+      math = !math
+      cur += run
+      i += run.length
       continue
     }
     if (ch === '`') {
@@ -38,6 +65,9 @@ export function splitRow(line: string): string[] {
     if (ch === '|') {
       cells.push(cur.trim())
       cur = ''
+      // 짝이 안 맞는 $ 가 옆 칸까지 번지지 않게
+      math = false
+      env = 0
     } else {
       cur += ch
     }
@@ -52,8 +82,29 @@ export function splitRow(line: string): string[] {
 
 const SEP_CELL = /^:?-{3,}:?$/
 
-/** 답 안의 표를 모두 찾는다 */
+/** 표를 감쌀 때 쓰는 울타리(```markdown · ``` …) — 이것 말고(```python 같은) 울타리 안은 코드라 건너뛴다 */
+const TABLE_FENCE = /^\s{0,3}(`{3,}|~{3,})\s*(markdown|md|gfm|text|table)?\s*$/i
+
+/**
+ * 답 안의 표를 모두 찾는다. 울타리 밖에 표가 없고 표를 ```markdown 으로 감싸 보냈으면(지침과 달리 가끔 그런다)
+ * 그 울타리를 벗기고 다시 찾는다.
+ */
 export function extractTables(md: string): MdTable[] {
+  const found = findTables(md)
+  if (found.length || !/^\s{0,3}(`{3,}|~{3,})/m.test(md)) return found
+  return findTables(unfence(md))
+}
+
+/** 표를 감싼 울타리 줄만 뺀다 */
+function unfence(md: string): string {
+  return md
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .filter((l) => !TABLE_FENCE.test(l))
+    .join('\n')
+}
+
+function findTables(md: string): MdTable[] {
   const lines = md.replace(/\r\n?/g, '\n').split('\n')
   const tables: MdTable[] = []
   let fence: { ch: string; len: number } | null = null
@@ -97,7 +148,7 @@ export function proseOf(md: string): string {
   return md
     .replace(/\r\n?/g, '\n')
     .split('\n')
-    .filter((l) => !l.includes('|') || !l.trim().startsWith('|'))
+    .filter((l) => (!l.includes('|') || !l.trim().startsWith('|')) && !TABLE_FENCE.test(l))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
@@ -152,13 +203,14 @@ export function answersToTables(answers: { text: string; truncated: boolean }[])
 
 /** 엑셀 · 표 계산기에 붙여 넣을 수 있게 탭으로 */
 export function toTsv(t: MdTable): string {
-  const clean = (s: string): string => s.replace(/[\t\r\n]+/g, ' ')
+  const clean = (s: string): string => plainCell(s).replace(/[\t\r\n]+/g, ' ')
   return [t.header, ...t.rows].map((r) => r.map(clean).join('\t')).join('\n')
 }
 
-/** **굵게** · *기울임* · `코드` 표시를 뗀 칸 글 */
+/** **굵게** · *기울임* · `코드` 표시를 떼고 수식은 읽기 쉬운 글자로 바꾼 칸 글. 지침이 막아도 가끔 오는 <br> 은 지침대로 ' / ' */
 export function plainCell(s: string): string {
-  return s
+  return mathText(s)
+    .replace(/\s*<br\s*\/?>\s*/gi, ' / ')
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '$1')
     .replace(/`(.+?)`/g, '$1')

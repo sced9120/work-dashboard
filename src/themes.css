@@ -3036,6 +3036,8 @@ select:focus {
 .ocr-table tbody tr:nth-child(even) td {
   background: var(--surface-2);
 }
-.ocr-table td.ocr-doubt {
+/* 줄무늬(짝수 행) 배경보다 앞서게 */
+.ocr-table td.ocr-doubt,
+.ocr-table tbody tr:nth-child(even) td.ocr-doubt {
   background: color-mix(in srgb, var(--warn) 18%, transparent);
 }
