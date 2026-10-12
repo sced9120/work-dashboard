@@ -45,6 +45,8 @@ export interface Catalog {
   updated: string
   tools: CatalogTool[]
   themes: CatalogTheme[]
+  /** 스캔 문서 → 엑셀(OCR) 지침 · 기본 모델을 바꿔 쓸 때 (비면 프로그램에 든 것) */
+  ocr: { prompt: string; model: string }
   /**
    * 의견 · 오류 보내기 설문지 주소 (https). 비면 의견 보내기 단추를 숨긴다.
    * 주소 안의 {version} · {os} 는 열 때 프로그램 버전 · 윈도우 버전으로 바꾼다(구글 설문지 '미리 채워진 링크').
@@ -63,7 +65,7 @@ export interface CatalogResult {
   error?: string
 }
 
-export const EMPTY_CATALOG: Catalog = { schema: 1, updated: '', tools: [], themes: [], feedback: '' }
+export const EMPTY_CATALOG: Catalog = { schema: 1, updated: '', tools: [], themes: [], ocr: { prompt: '', model: '' }, feedback: '' }
 
 /** 받은 테마가 바꿀 수 있는 토큰 (src/themes.css 의 테마별 토큰과 같다. 메뉴 너비처럼 배치가 깨지는 것은 뺐다) */
 export const THEME_VARS: readonly string[] = [
@@ -128,7 +130,7 @@ function varsOf(v: unknown, where: string, dropped: string[]): Record<string, st
 export function sanitizeCatalog(raw: unknown): { catalog: Catalog; dropped: string[] } {
   const dropped: string[] = []
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { catalog: { ...EMPTY_CATALOG, tools: [], themes: [] }, dropped: ['맨 바깥이 { } 묶음이 아닙니다'] }
+    return { catalog: { ...EMPTY_CATALOG, tools: [], themes: [], ocr: { prompt: '', model: '' } }, dropped: ['맨 바깥이 { } 묶음이 아닙니다'] }
   }
   const r = raw as Record<string, unknown>
   const schema = typeof r.schema === 'number' ? r.schema : 1
@@ -189,7 +191,14 @@ export function sanitizeCatalog(raw: unknown): { catalog: Catalog; dropped: stri
   const feedback = fbRaw ? httpsUrl(fbRaw) : ''
   if (fbRaw && !feedback) dropped.push('feedback(의견 보내기) 주소는 https:// 로 시작해야 합니다')
 
-  return { catalog: { schema: 1, updated: str(r.updated, 20), tools, themes, feedback }, dropped }
+  // 스캔 문서 → 엑셀(OCR): 지침 글(줄바꿈 그대로) · 기본 모델(gemini-…)
+  const ocrRaw = (r.ocr && typeof r.ocr === 'object' && !Array.isArray(r.ocr) ? r.ocr : {}) as Record<string, unknown>
+  const ocrPrompt = typeof ocrRaw.prompt === 'string' ? ocrRaw.prompt.trim().slice(0, 40000) : ''
+  const modelRaw = typeof ocrRaw.model === 'string' ? ocrRaw.model.trim() : ''
+  const ocrModel = /^gemini-[a-z0-9][a-z0-9.-]{0,60}$/.test(modelRaw) ? modelRaw : ''
+  if (modelRaw && !ocrModel) dropped.push('ocr.model 은 gemini- 로 시작하는 모델 이름이어야 합니다')
+
+  return { catalog: { schema: 1, updated: str(r.updated, 20), tools, themes, ocr: { prompt: ocrPrompt, model: ocrModel }, feedback }, dropped }
 }
 
 /** 의견 보내기 주소에 버전을 채운다. {version} · {os} (주소 안에서 %7B…%7D 로 바뀌어 있어도) */

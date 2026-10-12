@@ -19,7 +19,8 @@ import {
   analyzeDocument,
   answerFromSources,
   askForTimetable,
-  chatAnswer,
+  CHAT_TIMEOUT,
+  chatStream,
   composeFromForm,
   draftSlides,
   extractDocForm,
@@ -32,6 +33,12 @@ import { buildFromFrame, readFrame } from './hwpgen'
 import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
 import { clearGcalCache, exportIcs, gcalEvents, gcalTest } from './gcal'
 import { getCatalog } from './catalog'
+import { addPaths, cancelOcr, clearOcr, continueOcr, pickFiles, runOcr, saveXlsx } from './ocr'
+import { deleteChat, getChat, listChats, listPresets, renameChat, saveChat, savePresets } from './chats'
+import type { ChatAttachment, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
+import { CHAT_IMAGE_TYPES, CHAT_MAX_FILE } from '../../shared/chat'
+import type { OcrRequest } from '../../shared/ocr'
+import type { MdTable } from '../../shared/mdtable'
 import { classTimetable, clearNeisCache, mealsOn, nextMealDay, scheduleCached, schoolInfoForDocs, searchSchools, testNeis } from './neis'
 import type { TtRow } from '../../shared/timetable'
 import { STD_EXAMPLE, aiReadTimetable, importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
@@ -63,8 +70,6 @@ import fs from 'node:fs'
 import type {
   AliasPair,
   CalEventInput,
-  ChatFile,
-  ChatTurn,
   CleanupPlan,
   DocDraftInput,
   DeadlineInput,
@@ -289,6 +294,16 @@ function registerIpc(): void {
 
   /* ---------- 도구 모음 · 받은 테마 (저장소의 remote/catalog.json) ---------- */
   ipcMain.handle('catalog:get', (_e, force?: boolean) => getCatalog(force === true))
+
+  /* ---------- 스캔 문서 → 엑셀 (OCR, 사용자의 Gemini 키) ---------- */
+  ipcMain.handle('ocr:pick', () => pickFiles(mainWindow))
+  ipcMain.handle('ocr:add', (_e, paths: string[]) => addPaths(paths))
+  ipcMain.handle('ocr:run', (_e, req: OcrRequest) => runOcr(req, (p) => send('ocr:progress', { tab: req?.tab, ...p })))
+  ipcMain.handle('ocr:continue', (_e, tab: string) => continueOcr(String(tab), (p) => send('ocr:progress', { tab, ...p })))
+  ipcMain.handle('ocr:cancel', (_e, tab: string) => cancelOcr(String(tab)))
+  // 탭을 닫을 때 — Gemini 에 올려 둔 파일도 지운다 (화면을 떠나는 것만으로는 지우지 않는다)
+  ipcMain.handle('ocr:clear', (_e, tab: string) => clearOcr(String(tab)))
+  ipcMain.handle('ocr:save', (_e, tables: MdTable[], title: string) => saveXlsx(mainWindow, tables, String(title ?? '')))
 
   /* ---------- 알림 ---------- */
   ipcMain.handle('notify:checkNow', () => checkDeadlinesNow())
@@ -743,56 +758,138 @@ function registerIpc(): void {
       answerFromSources(loadLocalSettings(), args.jobTitle, args.query, args.sources, args.model)
   )
   ipcMain.handle('ai:test', () => testConnection(loadLocalSettings()))
-  ipcMain.handle(
-    'ai:chat',
-    async (_e, args: {
-      jobTitle: string
-      history: ChatTurn[]
-      files?: ChatFile[]
-      /** 이 대화에 올린 한글 파일 이름. 양식으로 쓸 수 있다고 도우미에게 알려 준다. */
-      formFiles?: string[]
-      model?: ModelChoice
-    }) => {
-      // 가장 최근 질문을 근거로 관련 자료를 골라 함께 넘긴다.
-      const lastUser = [...args.history].reverse().find((t) => t.role === 'user')
-      const found = lastUser ? db.retrieveForChat(lastUser.content) : []
-
-      // 방금 올린 파일이 지금 이야기의 알맹이다. 맨 앞에 넉넉히 싣는다.
-      const attached = (args.files ?? [])
-        .filter((f) => f.text.trim())
-        .map((f) => ({ label: `올린 파일: ${f.name}`, text: f.text, room: 12000 }))
-
-      // 교육청 학교업무 도움자료 가운데 질문에 맞는 자료 폴더. 파일 이름만 있어서 짧게 싣는다.
-      const helps = lastUser ? helpForChat(lastUser.content) : []
-
-      const today = new Date()
-      const p = (n: number): string => String(n).padStart(2, '0')
-      const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`
-
-      // 도우미가 "이 양식에 맞춰" 부탁을 받을 수 있게 쓸 수 있는 양식 이름을 알려 준다
-      const forms = [
-        ...db.listHwpForms().map((f) => f.name),
-        ...(args.formFiles ?? []).map((n) => `${n} (이 대화에 올린 파일)`)
-      ]
-
-      // 이 학교의 급식 · 학사일정 · 내 시간표 — 질문에 맞을 때만
-      const school = lastUser ? await schoolContext(lastUser.content, todayStr).catch(() => []) : []
-
-      const res = await chatAnswer(
+  /* ---------- 업무 도우미 · 일반 대화 ---------- */
+  /** 받는 중인 답 — 멈추기에 쓴다 */
+  const chatRuns = new Map<string, AbortController>()
+  ipcMain.handle('ai:chatStream', async (_e, req: ChatStreamRequest): Promise<ChatStreamReply> => {
+    const reqId = typeof req?.reqId === 'string' ? req.reqId.slice(0, 80) : ''
+    if (!reqId || !Array.isArray(req.history)) return { ok: false, answer: '', sources: [], error: '보낼 질문이 없습니다.' }
+    const ctrl = new AbortController()
+    chatRuns.set(reqId, ctrl)
+    const timer = setTimeout(() => ctrl.abort(), CHAT_TIMEOUT)
+    try {
+      const today = ymd(new Date())
+      // 대화에 올린 파일 가운데 사람이 고르거나 끌어 놓은 것만 다시 읽는다
+      const history = req.history.map((t) => ({
+        ...t,
+        attachments: (t.attachments ?? []).map((a) => (a.path && !pickedPaths.has(path.resolve(a.path)) ? { ...a, path: '' } : a))
+      }))
+      const lastUser = [...history].reverse().find((t) => t.role === 'user')
+      const q = lastUser?.content ?? ''
+      let sources: { label: string; text: string; room?: number }[] = []
+      let helps: ReturnType<typeof helpForChat> = []
+      let forms: string[] = []
+      if (req.mode !== 'free') {
+        // 가장 최근 질문을 근거로 관련 자료를 골라 함께 넘긴다
+        const found = q ? db.retrieveForChat(q) : []
+        // 교육청 학교업무 도움자료 가운데 질문에 맞는 자료 폴더. 파일 이름만 있어서 짧게 싣는다.
+        helps = q ? helpForChat(q) : []
+        // 이 학교의 급식 · 학사일정 · 내 시간표 — 질문에 맞을 때만
+        const school = q ? await schoolContext(q, today).catch(() => []) : []
+        sources = [...school, ...found, ...helps.map((h) => ({ label: h.label, text: h.text, room: 2500 }))]
+        // 도우미가 "이 양식에 맞춰" 부탁을 받을 수 있게 쓸 수 있는 양식 이름을 알려 준다
+        forms = [...db.listHwpForms().map((f) => f.name), ...(req.formFiles ?? []).map((n) => `${n} (이 대화에 올린 파일)`)]
+      }
+      let lastSent = 0
+      const res = await chatStream(
         loadLocalSettings(),
-        args.jobTitle,
-        args.history,
-        [...attached, ...school, ...found, ...helps.map((h) => ({ label: h.label, text: h.text, room: 2500 }))],
-        todayStr,
-        forms,
-        args.model,
-        myHelpLine()
+        { ...req, history },
+        { sources, today, forms, mine: req.mode === 'free' ? '' : myHelpLine() },
+        (text) => {
+          const now = Date.now()
+          if (now - lastSent < 80) return
+          lastSent = now
+          send('ai:chatDelta', { reqId, text })
+        },
+        ctrl.signal
       )
       // 실제로 실린 도움자료만 버튼으로 내준다
       const links = helps.filter((h) => res.sources.includes(h.label)).map((h) => ({ title: h.title, url: h.url }))
       return links.length ? { ...res, links } : res
+    } finally {
+      clearTimeout(timer)
+      chatRuns.delete(reqId)
     }
-  )
+  })
+  ipcMain.handle('ai:chatStop', (_e, reqId: string) => {
+    chatRuns.get(String(reqId))?.abort()
+  })
+
+  /** 대화에 올릴 파일 고르기 — 문서와 사진 */
+  ipcMain.handle('chat:pick', async () => {
+    if (!mainWindow) return []
+    const res = await dialog.showOpenDialog(mainWindow, {
+      title: '대화에 올릴 파일 고르기',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: '문서 · 사진', extensions: [...SUPPORTED_EXTENSIONS, ...Object.keys(CHAT_IMAGE_TYPES)] },
+        { name: '모든 파일', extensions: ['*'] }
+      ]
+    })
+    return res.canceled ? [] : res.filePaths
+  })
+
+  /**
+   * 고르거나 끌어 놓은 파일을 대화에 올릴 모양으로. 글자를 뽑을 수 있으면 글로, 사진 · 글자 없는 PDF(스캔본)는 파일 그대로.
+   * 사람이 고르거나 끌어 놓은 경로라 한글 양식 · 다시 보내기에 쓸 수 있게 기억한다.
+   */
+  ipcMain.handle('chat:attach', async (_e, paths: string[]) => {
+    const attachments: ChatAttachment[] = []
+    const errors: string[] = []
+    for (const raw of (Array.isArray(paths) ? paths : []).slice(0, 20)) {
+      if (typeof raw !== 'string' || !raw) continue
+      const full = path.resolve(raw)
+      const name = path.basename(full)
+      let stat: fs.Stats
+      try {
+        stat = fs.statSync(full)
+      } catch {
+        errors.push(`${name}: 파일을 찾을 수 없습니다.`)
+        continue
+      }
+      if (!stat.isFile()) {
+        errors.push(`${name}: 폴더는 올릴 수 없습니다. 파일을 골라 주세요.`)
+        continue
+      }
+      const ext = path.extname(full).slice(1).toLowerCase()
+      const image = CHAT_IMAGE_TYPES[ext]
+      if (image) {
+        if (stat.size > CHAT_MAX_FILE) errors.push(`${name}: 사진이 너무 큽니다(15MB 까지).`)
+        else {
+          pickedPaths.add(full)
+          attachments.push({ kind: 'image', name, path: full, mime: image, size: stat.size })
+        }
+        continue
+      }
+      if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+        errors.push(`${name}: 올릴 수 없는 형식입니다 (.${ext}). PDF · 한글 · 엑셀 · 워드 · 텍스트 · 사진을 올릴 수 있습니다.`)
+        continue
+      }
+      const doc = await extractFile(full)
+      if (!doc.error && doc.text.trim()) {
+        pickedPaths.add(full)
+        attachments.push({ kind: 'text', name, text: doc.text, path: full })
+      } else if (ext === 'pdf' && stat.size <= CHAT_MAX_FILE) {
+        // 글자가 없는 스캔본 — AI 가 그림으로 읽도록 파일 그대로
+        pickedPaths.add(full)
+        attachments.push({ kind: 'pdf', name, path: full, mime: 'application/pdf', size: stat.size })
+      } else errors.push(`${name}: ${doc.error || '글자를 읽지 못했습니다.'}`)
+    }
+    return { attachments, errors }
+  })
+
+  ipcMain.handle('chats:list', () => listChats())
+  ipcMain.handle('chats:get', (_e, id: string) => {
+    const r = getChat(String(id))
+    // 다시 연 대화의 파일도 이어서 보낼 수 있게 (그 대화에서 사람이 올린 것)
+    for (const m of r?.messages ?? []) for (const a of (m.attachments as ChatAttachment[] | undefined) ?? []) if (a.path) pickedPaths.add(path.resolve(a.path))
+    return r
+  })
+  ipcMain.handle('chats:save', (_e, rec: unknown) => saveChat(rec))
+  ipcMain.handle('chats:rename', (_e, id: string, title: string) => renameChat(String(id), String(title ?? '')))
+  ipcMain.handle('chats:delete', (_e, id: string) => deleteChat(String(id)))
+  ipcMain.handle('chats:presets', () => listPresets())
+  ipcMain.handle('chats:savePresets', (_e, list: unknown) => savePresets(list))
 
   /* ---------- 나이스 교육정보 개방 포털 ---------- */
   const dayOk = (v: unknown): string => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '')
@@ -1003,6 +1100,8 @@ app.whenReady().then(async () => {
 app.on('before-quit', () => {
   quitting = true
   stopDeadlineWatch()
+  // OCR 로 Gemini 에 올려 둔 큰 파일이 있으면 지운다 (기다리지는 않는다 — 남아도 이틀 뒤 저절로 지워진다)
+  void clearOcr()
 })
 
 app.on('window-all-closed', () => {

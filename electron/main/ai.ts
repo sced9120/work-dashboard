@@ -3,7 +3,6 @@ import type {
   AiFeature,
   AliasPair,
   AnalyzeResult,
-  ChatReply,
   ChatTurn,
   DocDraftResult,
   DocKind,
@@ -22,6 +21,11 @@ import { frameOutline, readFrame } from './hwpgen'
 import type { Deck } from '../../shared/slides'
 import { normalizeDeck } from '../../shared/slides'
 import { httpFetch } from './http'
+import { isModernGemini } from '../../shared/gemini'
+import { readSse } from './sse'
+import type { ChatSendTurn, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
+import { CHAT_IMAGE_TYPES, CHAT_MAX_BINARY, CHAT_MAX_FILE, CHAT_MAX_TEXT } from '../../shared/chat'
+import fs from 'node:fs'
 
 /** 한 번에 모델에 보내는 글자 수. 긴 매뉴얼은 여러 번 나눠 보낸다. */
 const CHUNK_SIZE = 28000
@@ -393,7 +397,8 @@ async function geminiChat(
       })),
       generationConfig: {
         ...(json ? { responseMimeType: 'application/json' } : {}),
-        temperature: 0.2
+        // Gemini 3.6 Flash 이후 · 3.5 Flash-Lite 는 temperature 를 받지 않는다(Google 이 밝힌 바뀐 점)
+        ...(isModernGemini(model) ? {} : { temperature: 0.2 })
       }
     })
   })
@@ -1074,36 +1079,91 @@ ${input.material.trim().slice(0, 24000) || '(따로 준 자료가 없습니다. 
   }
 }
 
-/* ---------- 업무 도우미 (보관 문서 기반 챗봇) ---------- */
+/* ---------- 업무 도우미 · 일반 대화 (받는 대로 보여 준다) ---------- */
 
-/** 대화에 함께 실어 보내는 근거 글의 총량 상한 */
+/** 업무 도우미가 함께 실어 보내는 근거 글의 총량 상한 */
 const CHAT_BUDGET = 20000
-/** 도우미가 기억하는 최근 대화 수. 너무 길면 느리고 비싸다. */
-const CHAT_HISTORY = 12
+/** 기억하는 최근 마디 수. 너무 길면 느리고 비싸다. */
+const CHAT_HISTORY = 16
+/** 한 번 답을 기다리는 최대 시간 */
+export const CHAT_TIMEOUT = 10 * 60 * 1000
+
+/** 파일 그대로 보내는 사진 · PDF */
+export interface BinPart {
+  mime: string
+  data: string
+}
+
+export interface RichTurn {
+  role: 'user' | 'assistant'
+  text: string
+  files: BinPart[]
+}
+
+const BIN_MIME = new Set(['application/pdf', ...Object.values(CHAT_IMAGE_TYPES)])
 
 /**
- * 보관해 둔 공문·업무·일지를 근거로, 담당자의 질문에 대화식으로 답한다.
- * 근거(sources)는 메인 쪽에서 질문과 관련 있는 것만 골라 넘겨준다.
+ * 화면이 보낸 대화를 모델에 보낼 모양으로. 올린 파일은 그 마디에 함께 싣는다 — 다음 질문에서도 AI 가 파일을 볼 수 있게.
+ * 글로 뽑은 파일은 글로, 사진 · 스캔 PDF 는 이 PC 의 파일을 다시 읽어 그대로. 파일 그대로 보내는 것은 최근 것부터 한도까지.
  */
-export async function chatAnswer(
-  settings: LocalSettings,
-  jobTitle: string,
-  history: ChatTurn[],
-  sources: SourceItem[],
-  today: string,
-  forms: string[],
-  override?: ModelChoice,
-  /** 처음 설정·도움자료에서 "내 업무"로 고른 것의 이름 */
-  mine = ''
-): Promise<ChatReply> {
-  const turns = history.slice(-CHAT_HISTORY).filter((t) => t.content.trim())
-  // Claude·Gemini 는 첫 메시지가 반드시 user 여야 한다. 잘려서 assistant 로 시작하면 앞을 버린다.
-  while (turns.length && turns[0].role !== 'user') turns.shift()
-  if (!turns.length || turns[turns.length - 1].role !== 'user') {
-    return { ok: false, answer: '', sources: [], error: '보낼 질문이 없습니다.' }
+export function richTurns(history: ChatSendTurn[], provider: Provider): RichTurn[] {
+  const list = (Array.isArray(history) ? history : [])
+    .filter((t) => t && (t.role === 'user' || t.role === 'assistant'))
+    .slice(-CHAT_HISTORY)
+  // Claude · Gemini 는 첫 마디가 반드시 user 여야 한다. 잘려서 assistant 로 시작하면 앞을 버린다.
+  while (list.length && list[0].role !== 'user') list.shift()
+  let room = CHAT_MAX_BINARY
+  const out: RichTurn[] = []
+  for (let i = list.length - 1; i >= 0; i--) {
+    const t = list[i]
+    const notes: string[] = []
+    const files: BinPart[] = []
+    for (const a of Array.isArray(t.attachments) ? t.attachments : []) {
+      if (a.kind === 'text') {
+        const body = String(a.text ?? '').slice(0, CHAT_MAX_TEXT)
+        notes.push(`[올린 파일: ${a.name}]\n${body}${String(a.text ?? '').length > CHAT_MAX_TEXT ? '\n(… 길어서 여기까지만 보냅니다)' : ''}`)
+        continue
+      }
+      const mime = String(a.mime ?? '')
+      const p = String(a.path ?? '')
+      let size = 0
+      try {
+        size = p && fs.statSync(p).isFile() ? fs.statSync(p).size : 0
+      } catch {
+        size = 0
+      }
+      if (!BIN_MIME.has(mime) || !size) {
+        notes.push(`[올린 파일: ${a.name} — 이 PC 에서 파일을 찾을 수 없어 빼고 보냅니다]`)
+      } else if (/heic|heif/.test(mime) && provider !== 'gemini') {
+        notes.push(`[올린 사진: ${a.name} — 이 AI 는 HEIC 사진을 읽지 못해 빼고 보냅니다. JPG · PNG 로 바꿔 올려 주세요]`)
+      } else if (size > CHAT_MAX_FILE || size > room) {
+        notes.push(`[올린 파일: ${a.name} — 한 번에 보내는 크기 한도를 넘어 이번에는 빼고 보냅니다]`)
+      } else {
+        room -= size
+        files.push({ mime, data: fs.readFileSync(p).toString('base64') })
+        notes.push(`[올린 ${mime === 'application/pdf' ? 'PDF' : '사진'}: ${a.name} — 파일을 함께 보냅니다]`)
+      }
+    }
+    const content = String(t.content ?? '')
+    const text = [...notes, content].filter((x) => x.trim()).join('\n\n')
+    if (!text.trim() && !files.length) continue
+    out.unshift({ role: t.role, text, files })
   }
+  // 같은 쪽 마디가 잇달아 오면 하나로 (Claude 는 번갈아 와야 한다)
+  const merged: RichTurn[] = []
+  for (const t of out) {
+    const last = merged[merged.length - 1]
+    if (last && last.role === t.role) {
+      last.text = [last.text, t.text].filter(Boolean).join('\n\n')
+      last.files.push(...t.files)
+    } else merged.push({ ...t, files: [...t.files] })
+  }
+  while (merged.length && merged[0].role !== 'user') merged.shift()
+  return merged
+}
 
-  // 근거를 예산 안에서 담고, 실제로 담긴 것만 출처로 남긴다.
+/** 업무 도우미 지침 — 근거를 예산 안에서 담고, 실제로 담긴 것만 출처로 남긴다 */
+export function workSystem(jobTitle: string, mine: string, sources: SourceItem[], today: string, forms: string[]): { system: string; used: string[] } {
   let used = 0
   const blocks: string[] = []
   const usedLabels: string[] = []
@@ -1126,6 +1186,7 @@ export async function chatAnswer(
 "도움자료:" 로 시작하는 것은 교육청이 업무마다 엮어 둔 학교업무 도움자료 폴더의 파일 목록입니다.
 "나이스" 로 시작하는 것은 나이스(교육정보 개방 포털)에서 받은 이 학교의 급식 · 학사일정이고, "내 시간표" · "우리 반 시간표" 는
 담당자가 불러온 학교 시간표에서 뽑은 것입니다. 급식 · 일정 · 수업 시간을 물으면 이것을 그대로 근거로 답하세요.
+담당자가 대화에 올린 파일은 그 마디 안에 [올린 파일: 이름] 으로 들어 있고, 사진 · 스캔 PDF 는 파일 그대로 함께 보냅니다.
 
 답변 규칙:
 - 참고 자료에 근거가 있으면 그 내용을 우선으로 삼고, 문장 끝에 [1] [2] 처럼 근거 번호를 답니다.
@@ -1141,10 +1202,243 @@ ${actionGuide(today)}
 ${docGuide(forms)}
 
 ${refs}`
+  return { system, used: usedLabels }
+}
 
+/** 일반 대화 지침 — 보관 자료는 싣지 않고, 선생님이 준 지침을 앞에 둔다 */
+export function freeSystem(instruction: string, today: string): string {
+  const rule = instruction.trim()
+  return [
+    `당신은 대한민국 학교 선생님을 돕는 AI 입니다. 오늘은 ${today} 입니다.`,
+    rule ? `--- 선생님이 정한 지침 (이 대화 내내 따릅니다. 아래 기본 규칙과 부딪히면 이 지침을 따릅니다) ---\n${rule}\n--- 지침 끝 ---` : '',
+    [
+      '기본 규칙:',
+      '- 한국어로 답합니다.',
+      '- 선생님이 올린 파일은 그 마디 안에 [올린 파일: 이름] 으로 들어 있고, 사진 · 스캔 PDF 는 파일 그대로 함께 보냅니다. 그 내용을 근거로 삼고, 파일에 없는 내용을 지어내지 않습니다.',
+      '- 학생 실명 · 연락처 같은 개인정보를 새로 지어내지 않습니다.',
+      '- 그림 · 사진을 만들어 달라는 부탁에는 그림은 만들 수 없다고 말하고, 글로 도울 방법을 제안합니다.',
+      '- 표 · 목록이 읽기 좋으면 Markdown 으로 씁니다.'
+    ].join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+export interface StreamResult {
+  text: string
+  finish: string
+  stopped: boolean
+}
+
+type OnText = (full: string) => void
+
+async function streamOpenai(key: string, model: string, system: string, turns: RichTurn[], temperature: number | null, onText: OnText, signal: AbortSignal): Promise<string> {
+  const messages: unknown[] = []
+  if (system) messages.push({ role: 'system', content: system })
+  for (const t of turns) {
+    if (t.role === 'user' && t.files.length) {
+      messages.push({
+        role: 'user',
+        content: [
+          { type: 'text', text: t.text || '(파일을 보냅니다)' },
+          ...t.files.map((f) =>
+            f.mime.startsWith('image/')
+              ? { type: 'image_url', image_url: { url: `data:${f.mime};base64,${f.data}` } }
+              : // 파일 이름에 학생 이름이 들어 있을 수 있어 보내지 않는다
+                { type: 'file', file: { filename: 'document.pdf', file_data: `data:${f.mime};base64,${f.data}` } }
+          )
+        ]
+      })
+    } else messages.push({ role: t.role, content: t.text })
+  }
+  const body = (withTemperature: boolean): string =>
+    JSON.stringify({ model, messages, stream: true, ...(withTemperature ? { temperature } : {}) })
+  const url = 'https://api.openai.com/v1/chat/completions'
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }
+  let useTemperature = temperature !== null && openaiSupportsTemperature(model)
+  let res = await httpFetch(url, { method: 'POST', headers, body: body(useTemperature), signal })
+  if (!res.ok && useTemperature && res.status === 400) {
+    const txt = await res.text().catch(() => '')
+    if (/temperature/i.test(txt) && /unsupported|does not support|not.*supported/i.test(txt)) {
+      openaiNoTemperature.add(model)
+      useTemperature = false
+      res = await httpFetch(url, { method: 'POST', headers, body: body(false), signal })
+    } else throw new Error(await describeHttpError(new Response(txt, { status: res.status }), 'OpenAI'))
+  }
+  if (!res.ok) throw new Error(await describeHttpError(res, 'OpenAI'))
+  let text = ''
+  let finish = ''
+  await readSse(res, (data) => {
+    if (data === '[DONE]') return
+    let d: { choices?: { delta?: { content?: string }; finish_reason?: string | null }[]; error?: { message?: string } }
+    try {
+      d = JSON.parse(data)
+    } catch {
+      return
+    }
+    if (d.error) throw new Error(`OpenAI 오류: ${d.error.message ?? ''}`)
+    const c = d.choices?.[0]
+    if (c?.delta?.content) {
+      text += c.delta.content
+      onText(text)
+    }
+    if (c?.finish_reason) finish = c.finish_reason
+  })
+  return finish
+}
+
+async function streamGemini(key: string, model: string, system: string, turns: RichTurn[], temperature: number | null, onText: OnText, signal: AbortSignal): Promise<string> {
+  const res = await httpFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+    body: JSON.stringify({
+      ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+      contents: turns.map((t) => ({
+        role: t.role === 'assistant' ? 'model' : 'user',
+        // 그림 · PDF 를 먼저, 글을 뒤에 (Google 이 권하는 차례)
+        parts: [...t.files.map((f) => ({ inlineData: { mimeType: f.mime, data: f.data } })), ...(t.text ? [{ text: t.text }] : [])]
+      })),
+      generationConfig: {
+        // Gemini 3.6 Flash 이후 · 3.5 Flash-Lite 는 temperature 를 받지 않는다
+        ...(temperature !== null && !isModernGemini(model) ? { temperature } : {})
+      }
+    })
+  })
+  if (!res.ok) throw new Error(await describeHttpError(res, 'Gemini'))
+  let text = ''
+  let finish = ''
+  let blocked = ''
+  await readSse(res, (data) => {
+    let d: {
+      candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[]
+      promptFeedback?: { blockReason?: string }
+      error?: { message?: string }
+    }
+    try {
+      d = JSON.parse(data)
+    } catch {
+      return
+    }
+    if (d.error) throw new Error(`Gemini 오류: ${d.error.message ?? ''}`)
+    const c = d.candidates?.[0]
+    let grew = false
+    for (const p of c?.content?.parts ?? []) {
+      if (!p.thought && p.text) {
+        text += p.text
+        grew = true
+      }
+    }
+    if (grew) onText(text)
+    if (c?.finishReason) finish = c.finishReason
+    if (d.promptFeedback?.blockReason) blocked = d.promptFeedback.blockReason
+  })
+  if (blocked) throw new Error(`Gemini 가 이 요청에 답하기를 거절했습니다 (${blocked}).`)
+  return finish
+}
+
+async function streamClaude(key: string, model: string, system: string, turns: RichTurn[], temperature: number | null, onText: OnText, signal: AbortSignal): Promise<string> {
+  const res = await httpFetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    signal,
+    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model,
+      max_tokens: MAX_OUTPUT_TOKENS,
+      stream: true,
+      ...(system ? { system } : {}),
+      ...(temperature !== null ? { temperature } : {}),
+      messages: turns.map((t) => ({
+        role: t.role,
+        content: t.files.length
+          ? [
+              ...t.files.map((f) =>
+                f.mime === 'application/pdf'
+                  ? { type: 'document', source: { type: 'base64', media_type: f.mime, data: f.data } }
+                  : { type: 'image', source: { type: 'base64', media_type: f.mime, data: f.data } }
+              ),
+              { type: 'text', text: t.text || '(파일을 보냅니다)' }
+            ]
+          : t.text
+      }))
+    })
+  })
+  if (!res.ok) throw new Error(await describeHttpError(res, 'Claude'))
+  let text = ''
+  let finish = ''
+  await readSse(res, (data) => {
+    let d: { type?: string; delta?: { type?: string; text?: string; stop_reason?: string }; error?: { message?: string } }
+    try {
+      d = JSON.parse(data)
+    } catch {
+      return
+    }
+    if (d.type === 'error') throw new Error(`Claude 오류: ${d.error?.message ?? ''}`)
+    if (d.type === 'content_block_delta' && d.delta?.type === 'text_delta' && d.delta.text) {
+      text += d.delta.text
+      onText(text)
+    }
+    if (d.type === 'message_delta' && d.delta?.stop_reason) finish = d.delta.stop_reason
+  })
+  return finish
+}
+
+/**
+ * 고른 서비스로 대화를 보내고 받는 대로 넘긴다. 멈추기(signal)로 끊으면 받은 데까지 돌려준다.
+ * temperature 가 null 이면 보내지 않는다(서비스 기본값).
+ */
+export async function streamChat(
+  settings: LocalSettings,
+  feature: AiFeature,
+  override: ModelChoice | undefined | null,
+  system: string,
+  turns: RichTurn[],
+  temperature: number | null,
+  onText: OnText,
+  signal: AbortSignal
+): Promise<StreamResult> {
+  const choice = resolveChoice(settings, feature, override)
+  const key = keyFor(settings, choice.provider)
+  if (!key) throw new Error(`${PROVIDER_LABEL[choice.provider]} API 키가 설정되지 않았습니다.`)
+  let last = ''
+  const seen: OnText = (full) => {
+    last = full
+    onText(full)
+  }
+  const run = choice.provider === 'openai' ? streamOpenai : choice.provider === 'claude' ? streamClaude : streamGemini
   try {
-    const raw = await chatModel(settings, 'chat', override, system, turns, false)
-    return { ok: true, answer: raw.trim(), sources: usedLabels }
+    const finish = await run(key, choice.model, system, turns, temperature, seen, signal)
+    return { text: last, finish, stopped: false }
+  } catch (e) {
+    if (signal.aborted) return { text: last, finish: 'stopped', stopped: true }
+    throw e
+  }
+}
+
+/** 업무 도우미 · 일반 대화 한 번 — 받는 대로 onText 로, 다 받으면 답을 */
+export async function chatStream(
+  settings: LocalSettings,
+  req: ChatStreamRequest,
+  extra: { sources: SourceItem[]; today: string; forms: string[]; mine: string },
+  onText: OnText,
+  signal: AbortSignal
+): Promise<ChatStreamReply> {
+  const choice = resolveChoice(settings, 'chat', req.model ?? null)
+  const turns = richTurns(req.history, choice.provider)
+  if (!turns.length || turns[turns.length - 1].role !== 'user') return { ok: false, answer: '', sources: [], error: '보낼 질문이 없습니다.' }
+  const free = req.mode === 'free'
+  const work = free ? null : workSystem(String(req.jobTitle ?? ''), extra.mine, extra.sources, extra.today, extra.forms)
+  const system = free ? freeSystem(String(req.instruction ?? ''), extra.today) : work!.system
+  try {
+    const r = await streamChat(settings, 'chat', choice, system, turns, free ? null : 0.2, onText, signal)
+    if (!r.text.trim() && !r.stopped) return { ok: false, answer: '', sources: [], error: 'AI 가 빈 답을 보냈습니다. 다시 해 보거나 다른 모델을 골라 주세요.' }
+    const cut = !r.stopped && /^(max_tokens|length|MAX_TOKENS)$/.test(r.finish)
+    return {
+      ok: true,
+      answer: r.text.trim() + (cut ? '\n\n(… 답이 길어 여기서 끊겼습니다. "이어서 써 줘" 라고 하면 이어 씁니다)' : ''),
+      sources: work?.used ?? [],
+      ...(r.stopped ? { stopped: true } : {})
+    }
   } catch (e) {
     return { ok: false, answer: '', sources: [], error: e instanceof Error ? e.message : String(e) }
   }

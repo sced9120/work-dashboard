@@ -15,6 +15,7 @@
  *  10. 자유 메모장
  *  11. 시간표 → 동교과 선생님
  *  12. 미드나잇 · 라벤더 테마
+ *  13. 스캔 문서 → 엑셀 (OCR)
  * 내 시간표 그림(.ttb)과 발표자료 미리보기(.slide-thumb)는 출력물 모양이라 어느 테마에서도 원래 색이다.
  */
 
@@ -2917,4 +2918,627 @@ select:focus {
 }
 .theme-prev[data-prev='lavender'] i {
   border-radius: 10px;
+}
+
+/* ================= 13. 스캔 문서 → 엑셀 (OCR) ================= */
+
+.ocr-nokey {
+  margin-bottom: 14px;
+}
+.ocr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--home-gap);
+  align-items: start;
+}
+.ocr-grid > .card {
+  margin: 0;
+}
+.ocr-send,
+.ocr-result {
+  margin-top: var(--home-gap);
+}
+.ocr-files {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ocr-files li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13px;
+}
+.ocr-file-kind {
+  flex: none;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ocr-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ocr-files small {
+  color: var(--muted);
+}
+.ocr-prompt,
+.ocr-raw {
+  max-height: 320px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ocr-agree {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ocr-table-wrap + .ocr-table-wrap {
+  margin-top: 14px;
+}
+.ocr-table-title {
+  margin-bottom: 6px;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.ocr-scroll {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.ocr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.ocr-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 7px 10px;
+  background: var(--raise);
+  color: var(--on-raise);
+  text-align: left;
+  white-space: nowrap;
+}
+.ocr-table td {
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  vertical-align: top;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  min-width: 60px;
+}
+.ocr-table tbody tr:nth-child(even) td {
+  background: var(--surface-2);
+}
+/* 줄무늬(짝수 행) 배경보다 앞서게 */
+.ocr-table td.ocr-doubt,
+.ocr-table tbody tr:nth-child(even) td.ocr-doubt {
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
+/* ---------- 업무 도우미: 대화 목록 · 모드 · 지침 · 끌어 놓기 (v3.3) ---------- */
+
+.chat-page {
+  position: relative;
+}
+.chat-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+}
+.chat-side {
+  width: 236px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  min-height: 0;
+}
+.chat-new {
+  width: 100%;
+  justify-content: center;
+}
+.chat-search {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+.chat-side-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.chat-side-group {
+  margin: 10px 4px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.chat-side-item {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+.chat-side-item:hover,
+.chat-side-item.active {
+  background: var(--accent-soft);
+}
+.chat-side-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-size: 12.5px;
+}
+.chat-side-item.active .chat-side-open {
+  font-weight: 700;
+}
+.chat-side-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.chat-side-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-side-busy {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: chat-blink 1.2s infinite ease-in-out;
+}
+.chat-side-act {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 3px;
+  font-size: 11px;
+  opacity: 0;
+}
+.chat-side-item:hover .chat-side-act,
+.chat-side-item.active .chat-side-act,
+.chat-side-act:focus-visible {
+  opacity: 0.75;
+}
+.chat-side-act:hover {
+  opacity: 1;
+}
+.chat-rename {
+  width: 100%;
+  margin: 3px;
+  padding: 4px 8px;
+  font-size: 12.5px;
+}
+.chat-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-main .chat-thread {
+  min-height: 180px;
+}
+.chat-main .model-picker {
+  margin: 0;
+}
+.chat-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chat-modes {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.chat-mode {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.chat-mode.active {
+  background: var(--accent);
+  color: #fff;
+}
+.chat-mode:disabled {
+  cursor: default;
+}
+.chat-bar-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: right;
+}
+.chat-inst {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.chat-inst-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.chat-inst-label {
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+.chat-inst-sum {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.chat-inst-body {
+  padding: 0 12px 10px;
+}
+.chat-inst-text {
+  width: 100%;
+  min-height: 76px;
+  max-height: 260px;
+  resize: vertical;
+  line-height: 1.55;
+}
+.chat-md {
+  word-break: break-word;
+}
+.chat-stopped {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.chat-acts {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+.chat-act {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.chat-act:hover:not(:disabled) {
+  border-color: var(--border);
+  color: var(--text);
+}
+.chat-act:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Markdown 답 */
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md p {
+  margin: 0 0 8px;
+}
+.md ul,
+.md ol {
+  margin: 0 0 8px;
+  padding-left: 22px;
+}
+.md li {
+  margin: 2px 0;
+}
+.md li > ul,
+.md li > ol,
+.md ul ul,
+.md ol ol,
+.md ul ol,
+.md ol ul {
+  margin: 2px 0;
+}
+.md .md-h {
+  margin: 12px 0 6px;
+  line-height: 1.4;
+}
+.md h3.md-h {
+  font-size: 15px;
+}
+.md h4.md-h {
+  font-size: 14px;
+}
+.md h5.md-h,
+.md h6.md-h {
+  font-size: 13px;
+}
+.md code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-family: Consolas, 'D2Coding', monospace;
+  font-size: 0.92em;
+}
+.md .md-code {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  white-space: pre;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.md .md-code code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.md .md-quote {
+  margin: 0 0 8px;
+  padding: 2px 12px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--muted);
+}
+.md hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 10px 0;
+}
+.md a {
+  color: var(--accent);
+}
+.md .md-check {
+  color: var(--muted);
+}
+.md-table-wrap {
+  margin: 0 0 8px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.md-table {
+  border-collapse: collapse;
+  font-size: 12.5px;
+  min-width: 100%;
+}
+.md-table th,
+.md-table td {
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.md-table th {
+  border-top: 0;
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+
+/* 끌어 놓기 */
+.drop-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  pointer-events: none;
+}
+.drop-cover-box {
+  padding: 14px 22px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .chat-side {
+    width: 190px;
+  }
+}
+
+/* ---------- 스캔 문서 → 엑셀: 탭 · 끌어 놓기 (v3.3) ---------- */
+
+.ocr-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin: 4px 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+.ocr-tab {
+  display: flex;
+  align-items: center;
+  max-width: 240px;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 9px 9px 0 0;
+  background: var(--surface-2);
+  margin-bottom: -1px;
+}
+.ocr-tab.active {
+  background: var(--surface);
+  border-bottom: 1px solid var(--surface);
+}
+.ocr-tab-open {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 4px 7px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.ocr-tab.active .ocr-tab-open {
+  color: var(--text);
+}
+.ocr-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ocr-tab-x {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 9px 4px 4px;
+  font-size: 11px;
+}
+.ocr-tab-x:hover {
+  color: var(--danger);
+}
+.ocr-tab-busy,
+.nav-busy {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  border-right-color: transparent;
+  animation: ocr-spin 0.9s linear infinite;
+}
+.nav-busy {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 9px;
+  height: 9px;
+  background: var(--side-bg, var(--surface));
+}
+.side-ai-ico {
+  position: relative;
+}
+@keyframes ocr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ocr-tab-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.ocr-tab-dot.ok {
+  background: var(--ok, #16a34a);
+}
+.ocr-tab-dot.warn {
+  background: var(--warn);
+}
+.ocr-tab-dot.err {
+  background: var(--danger);
+}
+.ocr-tab-new {
+  margin: 0 0 4px 4px;
+  padding: 5px 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.ocr-tab-new:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.ocr-tab-new:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ocr-tab-count {
+  margin: 0 0 8px auto;
+}
+.ocr-tabview {
+  position: relative;
+}
+.ocr-drop-hint {
+  margin-top: 10px;
+  padding: 14px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: center;
 }

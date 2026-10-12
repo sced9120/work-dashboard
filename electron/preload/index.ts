@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   AliasPair,
   AnalyzeResult,
@@ -9,9 +9,6 @@ import type {
   DocDraftInput,
   DocDraftResult,
   FormSketch,
-  ChatReply,
-  ChatFile,
-  ChatTurn,
   Deadline,
   DeadlineInput,
   Doc,
@@ -42,6 +39,9 @@ import type { HelpCatalog, HelpHit, HelpMatch } from '../../shared/helpdocs'
 import type { NeisDay, NeisLesson, NeisMealDay, NeisResult, NeisSchool } from '../../shared/neis'
 import type { IcsEvent } from '../../shared/ics'
 import type { CatalogResult } from '../../shared/catalog'
+import type { ChatAttachment, ChatDelta, ChatMeta, ChatPreset, ChatRecord, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
+import type { OcrAnswer, OcrFile, OcrProgress, OcrRequest } from '../../shared/ocr'
+import type { MdTable } from '../../shared/mdtable'
 import type { SchoolTimetable, TtRow } from '../../shared/timetable'
 import type {
   ComposeResult,
@@ -107,6 +107,23 @@ const api = {
   /** 도구 모음 · 받은 테마. force 면 새로 받는다 */
   catalog: {
     get: (force?: boolean): Promise<CatalogResult> => ipcRenderer.invoke('catalog:get', force === true)
+  },
+  /** 스캔 문서 → 엑셀 (OCR) — 사용자의 Gemini 키로 */
+  ocr: {
+    pick: (): Promise<OcrFile[]> => ipcRenderer.invoke('ocr:pick'),
+    /** 끌어 놓은 파일 — PDF · 사진만 받고 나머지는 이름을 돌려준다 */
+    add: (paths: string[]): Promise<{ files: OcrFile[]; skipped: string[] }> => ipcRenderer.invoke('ocr:add', paths),
+    run: (req: OcrRequest): Promise<OcrAnswer> => ipcRenderer.invoke('ocr:run', req),
+    continue: (tab: string): Promise<OcrAnswer> => ipcRenderer.invoke('ocr:continue', tab),
+    cancel: (tab: string): Promise<void> => ipcRenderer.invoke('ocr:cancel', tab),
+    /** 탭을 닫을 때 — Gemini 에 올려 둔 파일을 지운다 */
+    clear: (tab: string): Promise<void> => ipcRenderer.invoke('ocr:clear', tab),
+    save: (tables: MdTable[], title: string): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('ocr:save', tables, title),
+    onProgress: (cb: (p: OcrProgress & { tab: string }) => void): (() => void) => {
+      const handler = (_e: unknown, p: OcrProgress & { tab: string }): void => cb(p)
+      ipcRenderer.on('ocr:progress', handler)
+      return () => ipcRenderer.removeListener('ocr:progress', handler)
+    }
   },
   journal: {
     list: (): Promise<JournalEntry[]> => ipcRenderer.invoke('journal:list'),
@@ -184,7 +201,27 @@ const api = {
   files: {
     pick: (): Promise<PickedFile[]> => ipcRenderer.invoke('files:pick'),
     extract: (filePath: string): Promise<ExtractedDoc> =>
-      ipcRenderer.invoke('files:extract', filePath)
+      ipcRenderer.invoke('files:extract', filePath),
+    /** 끌어 놓은 파일의 경로 (일렉트론 32 부터 File.path 가 없어졌다) */
+    pathOf: (file: File): string => {
+      try {
+        return webUtils.getPathForFile(file)
+      } catch {
+        return ''
+      }
+    }
+  },
+  /** 업무 도우미 대화 보관 · 파일 올리기 · 지침 모음 */
+  chats: {
+    list: (): Promise<ChatMeta[]> => ipcRenderer.invoke('chats:list'),
+    get: (id: string): Promise<ChatRecord<Record<string, unknown>> | null> => ipcRenderer.invoke('chats:get', id),
+    save: (rec: ChatRecord<unknown>): Promise<{ ok: boolean; meta?: ChatMeta; error?: string }> => ipcRenderer.invoke('chats:save', rec),
+    rename: (id: string, title: string): Promise<ChatMeta | null> => ipcRenderer.invoke('chats:rename', id, title),
+    remove: (id: string): Promise<boolean> => ipcRenderer.invoke('chats:delete', id),
+    presets: (): Promise<ChatPreset[]> => ipcRenderer.invoke('chats:presets'),
+    savePresets: (list: ChatPreset[]): Promise<ChatPreset[]> => ipcRenderer.invoke('chats:savePresets', list),
+    pick: (): Promise<string[]> => ipcRenderer.invoke('chat:pick'),
+    attach: (paths: string[]): Promise<{ attachments: ChatAttachment[]; errors: string[] }> => ipcRenderer.invoke('chat:attach', paths)
   },
   ai: {
     analyze: (args: {
@@ -200,13 +237,14 @@ const api = {
       sources: { label: string; text: string }[]
       model?: ModelChoice
     }): Promise<SearchAnswer> => ipcRenderer.invoke('ai:answer', args),
-    chat: (args: {
-      jobTitle: string
-      history: ChatTurn[]
-      files?: ChatFile[]
-      formFiles?: string[]
-      model?: ModelChoice
-    }): Promise<ChatReply> => ipcRenderer.invoke('ai:chat', args),
+    /** 업무 도우미 · 일반 대화 — 받는 중인 글은 onChatDelta 로 */
+    chatStream: (req: ChatStreamRequest): Promise<ChatStreamReply> => ipcRenderer.invoke('ai:chatStream', req),
+    chatStop: (reqId: string): Promise<void> => ipcRenderer.invoke('ai:chatStop', reqId),
+    onChatDelta: (cb: (d: ChatDelta) => void): (() => void) => {
+      const handler = (_e: unknown, d: ChatDelta): void => cb(d)
+      ipcRenderer.on('ai:chatDelta', handler)
+      return () => ipcRenderer.removeListener('ai:chatDelta', handler)
+    },
     test: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('ai:test'),
     onProgress: (cb: (msg: string) => void): (() => void) => {
       const handler = (_e: unknown, msg: string): void => cb(msg)

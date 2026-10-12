@@ -147,11 +147,13 @@ export const TOURS: Record<PageId, Tour> = {
     page: '도우미',
     intro: '묻고, 넣어 달라고 하고, 문서를 만들어 달라고 하기',
     steps: [
-      { sel: H1, title: '업무 도우미', body: '맡은 업무에 대해 묻고, 일정 · 업무를 넣어 달라고 하거나 학교 양식으로 문서를 만들어 달라고 할 수 있습니다.' },
+      { sel: H1, title: '업무 도우미', body: '맡은 업무에 대해 묻고, 일정 · 업무를 넣어 달라고 하거나 학교 양식으로 문서를 만들어 달라고 할 수 있습니다. 지침을 주고 그냥 대화할 수도 있습니다.' },
+      { sel: '.main .chat-side', title: '대화 목록', body: '보낸 대화는 여기에 남습니다. [＋ 새 채팅] 으로 새로 시작하고, 마우스를 올리면 ✏️ 이름 바꾸기 · 🗑 지우기가 나옵니다. 대화는 이 PC 에만 두고 인수인계 파일에는 넣지 않습니다.', optional: true },
+      { sel: '.main .chat-modes', title: '두 가지 모드', body: '📚 업무 도우미는 보관한 공문 · 업무 · 일지 · 시간표를 근거로 답합니다. 💬 일반 대화는 보관 자료 없이, 위에 적은 지침(예: 세특 쓰기)을 따라 대화합니다.', optional: true },
       { sel: '.main label', text: '이 대화에 쓸 모델', up: 'div', title: '모델 고르기', body: '이 대화에 쓸 AI를 고릅니다. 비워 두면 설정의 기본값을 씁니다.', optional: true },
       { sel: '.main button', text: '놓치면 안 되는 기한', title: '예시 질문', body: '눌러서 바로 물어볼 수 있는 예시입니다. 내 업무에 맞게 고쳐 쓰세요.', optional: true },
-      { sel: '.main button', text: '📎 파일', exact: true, title: '파일 올리기', body: '공문 · 한글 파일을 올리고 “이걸로 일정 넣어 줘”처럼 부탁할 수 있습니다.', optional: true },
-      { sel: '.main textarea', title: '묻기', body: 'Enter로 보내고 Shift+Enter로 줄을 바꿉니다. 일정 · 업무를 넣을 때는 넣기 전에 먼저 보여 주고 묻습니다.' }
+      { sel: '.main button', text: '📎 파일', exact: true, title: '파일 올리기', body: '공문 · 한글 · 사진 · 스캔 PDF 를 올립니다. 창 위로 끌어 놓아도 됩니다. 사진 · 스캔본은 AI 가 그림으로 읽습니다.', optional: true },
+      { sel: '.main textarea.chat-input', title: '묻기', body: 'Enter로 보내고 Shift+Enter로 줄을 바꿉니다. 답은 받는 대로 보이고, [⏹ 멈추기] 로 멈출 수 있습니다. 다른 화면으로 가도 받던 답은 이 대화에 남습니다.' }
     ]
   },
   가이드: {
@@ -224,6 +226,18 @@ export const TOURS: Record<PageId, Tour> = {
       { ...card('초기화'), title: '초기화는 조심', body: '모든 자료를 지웁니다. 되돌릴 수 없으니 꼭 내보내기를 먼저 하세요.', optional: true }
     ]
   },
+  OCR: {
+    page: 'OCR',
+    intro: '스캔한 PDF · 사진을 글자 그대로 표로 읽어 엑셀로 (내 Gemini 키)',
+    steps: [
+      { sel: H1, title: '스캔 문서 → 엑셀', body: '스캔한 PDF · 사진을 Gemini 가 글자 그대로 읽어 표로 만들고 엑셀로 저장합니다. 요약하지 않고, 취소선으로 지운 글은 뺍니다. 설정에 넣은 내 Gemini 키를 씁니다.' },
+      { sel: '.main .ocr-tabs', title: '탭', body: '탭마다 따로 읽습니다(5개까지). 다른 화면으로 가도 읽던 것은 계속 읽고, 다 읽으면 알려 드립니다.', optional: true },
+      { sel: '.main button', text: '파일 고르기', title: '파일 고르기', body: 'PDF · 사진을 여러 개 고를 수 있고, 끌어 놓아도 됩니다. 이름 차례로 한 표에 모아 읽습니다.' },
+      { sel: '.main textarea', title: '추가 요청', body: '“학번 순으로”, “영어 본문만”처럼 더 바라는 것을 적습니다. 비워 두면 문서 전체를 원문 그대로 표로 옮깁니다.' },
+      { sel: '.main .ocr-send .note', title: '보내는 것 확인', body: '파일 원본(학생 이름 · 학번 포함)이 그대로 Google 로 갑니다. 학생 자료는 결제를 켠 키를 쓰고, 학교 지침을 먼저 확인하세요. 확인란을 켜야 시작할 수 있습니다.' },
+      { sel: '.main button', text: '읽어서 표로 만들기', title: '읽기', body: '쪽수가 많으면 몇 분 걸립니다. 받은 표는 화면에서 보고 [엑셀로 저장] 하거나 [표 복사] 로 붙여 넣습니다. 답이 길어 끊기면 [이어서 받기] 가 뜹니다.' }
+    ]
+  },
   도구: {
     page: '도구',
     intro: '만든이가 올려 두는 선생님용 도구 (세특 도우미 등)',
@@ -251,7 +265,7 @@ export const TOURS: Record<PageId, Tour> = {
 }
 
 /** 처음부터 차례로 배울 때의 순서 */
-export const TOUR_ORDER: PageId[] = ['홈', '달력', '시간표', '기한', '일지', '메모장', '로드맵', '워크플로우', '검색', '도우미', '가이드', '도움자료', '학습', '위원회', '발표', '도구', '데이터', '설정']
+export const TOUR_ORDER: PageId[] = ['홈', '달력', '시간표', '기한', '일지', '메모장', '로드맵', '워크플로우', '검색', '도우미', '가이드', '도움자료', '학습', '위원회', '발표', 'OCR', '도구', '데이터', '설정']
 
 /** 왼쪽 메뉴에서 그 화면 단추 (도우미는 맨 위 ✦, 설정은 맨 아래 내 이름 칸) */
 function navSel(page: PageId): string {
