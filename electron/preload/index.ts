@@ -42,6 +42,8 @@ import type { HelpCatalog, HelpHit, HelpMatch } from '../../shared/helpdocs'
 import type { NeisDay, NeisLesson, NeisMealDay, NeisResult, NeisSchool } from '../../shared/neis'
 import type { IcsEvent } from '../../shared/ics'
 import type { CatalogResult } from '../../shared/catalog'
+import type { OcrAnswer, OcrFile, OcrProgress, OcrRequest } from '../../shared/ocr'
+import type { MdTable } from '../../shared/mdtable'
 import type { SchoolTimetable, TtRow } from '../../shared/timetable'
 import type {
   ComposeResult,
@@ -107,6 +109,21 @@ const api = {
   /** 도구 모음 · 받은 테마. force 면 새로 받는다 */
   catalog: {
     get: (force?: boolean): Promise<CatalogResult> => ipcRenderer.invoke('catalog:get', force === true)
+  },
+  /** 스캔 문서 → 엑셀 (OCR) — 사용자의 Gemini 키로 */
+  ocr: {
+    pick: (): Promise<OcrFile[]> => ipcRenderer.invoke('ocr:pick'),
+    run: (req: OcrRequest): Promise<OcrAnswer> => ipcRenderer.invoke('ocr:run', req),
+    continue: (): Promise<OcrAnswer> => ipcRenderer.invoke('ocr:continue'),
+    cancel: (): Promise<void> => ipcRenderer.invoke('ocr:cancel'),
+    /** 화면을 떠날 때 — Gemini 에 올려 둔 파일을 지운다 */
+    clear: (): Promise<void> => ipcRenderer.invoke('ocr:clear'),
+    save: (tables: MdTable[], title: string): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('ocr:save', tables, title),
+    onProgress: (cb: (p: OcrProgress) => void): (() => void) => {
+      const handler = (_e: unknown, p: OcrProgress): void => cb(p)
+      ipcRenderer.on('ocr:progress', handler)
+      return () => ipcRenderer.removeListener('ocr:progress', handler)
+    }
   },
   journal: {
     list: (): Promise<JournalEntry[]> => ipcRenderer.invoke('journal:list'),

@@ -15,6 +15,7 @@
  *  10. 자유 메모장
  *  11. 시간표 → 동교과 선생님
  *  12. 미드나잇 · 라벤더 테마
+ *  13. 스캔 문서 → 엑셀 (OCR)
  * 내 시간표 그림(.ttb)과 발표자료 미리보기(.slide-thumb)는 출력물 모양이라 어느 테마에서도 원래 색이다.
  */
 
@@ -2917,4 +2918,124 @@ select:focus {
 }
 .theme-prev[data-prev='lavender'] i {
   border-radius: 10px;
+}
+
+/* ================= 13. 스캔 문서 → 엑셀 (OCR) ================= */
+
+.ocr-nokey {
+  margin-bottom: 14px;
+}
+.ocr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--home-gap);
+  align-items: start;
+}
+.ocr-grid > .card {
+  margin: 0;
+}
+.ocr-send,
+.ocr-result {
+  margin-top: var(--home-gap);
+}
+.ocr-files {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ocr-files li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13px;
+}
+.ocr-file-kind {
+  flex: none;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ocr-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ocr-files small {
+  color: var(--muted);
+}
+.ocr-prompt,
+.ocr-raw {
+  max-height: 320px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ocr-agree {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ocr-table-wrap + .ocr-table-wrap {
+  margin-top: 14px;
+}
+.ocr-table-title {
+  margin-bottom: 6px;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.ocr-scroll {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.ocr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.ocr-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 7px 10px;
+  background: var(--raise);
+  color: var(--on-raise);
+  text-align: left;
+  white-space: nowrap;
+}
+.ocr-table td {
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  vertical-align: top;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  min-width: 60px;
+}
+.ocr-table tbody tr:nth-child(even) td {
+  background: var(--surface-2);
+}
+.ocr-table td.ocr-doubt {
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
 }

@@ -22,6 +22,7 @@ import { frameOutline, readFrame } from './hwpgen'
 import type { Deck } from '../../shared/slides'
 import { normalizeDeck } from '../../shared/slides'
 import { httpFetch } from './http'
+import { isModernGemini } from '../../shared/gemini'
 
 /** 한 번에 모델에 보내는 글자 수. 긴 매뉴얼은 여러 번 나눠 보낸다. */
 const CHUNK_SIZE = 28000
@@ -393,7 +394,8 @@ async function geminiChat(
       })),
       generationConfig: {
         ...(json ? { responseMimeType: 'application/json' } : {}),
-        temperature: 0.2
+        // Gemini 3.6 Flash 이후 · 3.5 Flash-Lite 는 temperature 를 받지 않는다(Google 이 밝힌 바뀐 점)
+        ...(isModernGemini(model) ? {} : { temperature: 0.2 })
       }
     })
   })

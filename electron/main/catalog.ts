@@ -39,6 +39,11 @@ function readStored(): Stored | null {
   }
 }
 
+/** 받으러 가지 않고 지금 가진 목록 — 이 PC 에 둔 것, 없으면 설치파일에 든 것 (OCR 지침처럼 곧바로 써야 할 때) */
+export function peekCatalog(): Catalog {
+  return readStored()?.catalog ?? sanitizeCatalog(builtin).catalog
+}
+
 async function fetchOne(url: string): Promise<Catalog> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 12000)

@@ -23,6 +23,7 @@ import Data from './pages/Data'
 import Settings from './pages/Settings'
 import Tools from './pages/Tools'
 import Memos from './pages/Memos'
+import Ocr from './pages/Ocr'
 import Icon from './components/Icon'
 import TourHost from './components/Tour'
 import { AI_ITEM, DATA_ITEM, isShown, requestMenuEdit, sidebarNav, useNavPrefs } from './lib/nav'
@@ -50,6 +51,7 @@ export type PageId =
   | '설정'
   | '도구'
   | '메모장'
+  | 'OCR'
 
 function Shell(): JSX.Element {
   const ui = useUiPrefs()
@@ -437,6 +439,7 @@ function Shell(): JSX.Element {
         {page === '설정' && <Settings onProfileChanged={reloadProfile} />}
         {page === '도구' && <Tools />}
         {page === '메모장' && <Memos />}
+        {page === 'OCR' && <Ocr onGo={setPage} />}
       </main>
     </div>
   )

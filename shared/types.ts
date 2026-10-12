@@ -524,7 +524,7 @@ export interface PickedFile {
 }
 
 export const OPENAI_MODELS = ['gpt-5.6-terra', 'gpt-5.6-luna'] as const
-export const GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite'] as const
+export const GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'] as const
 export const CLAUDE_MODELS = ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5'] as const
 
 /** 프로그램이 기본으로 아는 모델 목록. 여기 있는 것은 지울 수 없다. */

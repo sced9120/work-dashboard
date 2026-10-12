@@ -356,6 +356,7 @@ electron/
     context.ts    업무 도우미에 이 학교의 급식 · 학사일정 · 내 시간표를 질문에 맞을 때만 싣기
     gcal.ts       구글 캘린더 — 비공개 iCal 주소로 받아 보기, .ics 로 보내기 (규칙은 shared/ics.ts)
     catalog.ts    도구 모음 · 받은 테마 목록을 저장소의 remote/catalog.json 에서 받기 (3시간마다, 못 받으면 마지막 것)
+    ocr.ts        스캔 문서 → 엑셀: 사용자의 Gemini 키로 PDF · 사진 원본을 보내 원문 그대로 표로 받고 xlsx 로 저장
     slides.ts     발표자료(.pptx) 만들기 — 기본 디자인 / 참고 PPT 의 마스터 그대로 쓰기
     extract/
       index.ts    PDF · 엑셀 · 워드 · 텍스트에서 글자 뽑기
@@ -371,6 +372,9 @@ shared/timetable.ts 시간표 읽기 · 내 시간표 · 맞교체 · 보강 찾
 shared/ics.ts     iCal(.ics) 읽기(반복 · 빠진 날 · 시간대) · 쓰기
 shared/catalog.ts 도구 모음 · 받은 테마 규칙 — https 주소만, 테마는 정해 둔 색 토큰만
 shared/ttpeers.ts 동교과 선생님 찾기 — 과목 이름 → 교과군, 주로 가르치는 과목끼리
+shared/ocrPrompt.ts OCR 지침 (만든이의 Open WebUI 'OCR 데이터 스캔 에이전트' 프롬프트 + OCR 규칙)
+shared/mdtable.ts 답에서 마크다운 표 뽑기 · 이어 붙이기 (Open WebUI 'Export to Excel' 규칙)
+shared/gemini.ts  Gemini 모델 구분 — 3.6 이후는 temperature 를 보내지 않는다
 remote/catalog.json  업데이트 없이 내려 주는 도구 · 테마 목록 (고치는 법은 remote/README.md)
 scripts/check-catalog.mjs  위 목록 검사 (main 에 올리면 '타입 검사' 일이 돌린다)
 scripts/make-icon.mjs  아이콘 생성 (외부 도구 없이 픽셀을 직접 그림)

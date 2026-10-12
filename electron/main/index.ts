@@ -32,6 +32,9 @@ import { buildFromFrame, readFrame } from './hwpgen'
 import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
 import { clearGcalCache, exportIcs, gcalEvents, gcalTest } from './gcal'
 import { getCatalog } from './catalog'
+import { cancelOcr, clearOcr, continueOcr, pickFiles, runOcr, saveXlsx } from './ocr'
+import type { OcrRequest } from '../../shared/ocr'
+import type { MdTable } from '../../shared/mdtable'
 import { classTimetable, clearNeisCache, mealsOn, nextMealDay, scheduleCached, schoolInfoForDocs, searchSchools, testNeis } from './neis'
 import type { TtRow } from '../../shared/timetable'
 import { STD_EXAMPLE, aiReadTimetable, importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
@@ -289,6 +292,14 @@ function registerIpc(): void {
 
   /* ---------- 도구 모음 · 받은 테마 (저장소의 remote/catalog.json) ---------- */
   ipcMain.handle('catalog:get', (_e, force?: boolean) => getCatalog(force === true))
+
+  /* ---------- 스캔 문서 → 엑셀 (OCR, 사용자의 Gemini 키) ---------- */
+  ipcMain.handle('ocr:pick', () => pickFiles(mainWindow))
+  ipcMain.handle('ocr:run', (_e, req: OcrRequest) => runOcr(req, (p) => send('ocr:progress', p)))
+  ipcMain.handle('ocr:continue', () => continueOcr((p) => send('ocr:progress', p)))
+  ipcMain.handle('ocr:cancel', () => cancelOcr())
+  ipcMain.handle('ocr:clear', () => clearOcr())
+  ipcMain.handle('ocr:save', (_e, tables: MdTable[], title: string) => saveXlsx(mainWindow, tables, String(title ?? '')))
 
   /* ---------- 알림 ---------- */
   ipcMain.handle('notify:checkNow', () => checkDeadlinesNow())
@@ -1003,6 +1014,8 @@ app.whenReady().then(async () => {
 app.on('before-quit', () => {
   quitting = true
   stopDeadlineWatch()
+  // OCR 로 Gemini 에 올려 둔 큰 파일이 있으면 지운다 (기다리지는 않는다 — 남아도 이틀 뒤 저절로 지워진다)
+  void clearOcr()
 })
 
 app.on('window-all-closed', () => {
