@@ -2,7 +2,7 @@
 const path = require('path')
 const fs = require('fs')
 const ExcelJS = require(path.join(__dirname, '../node_modules/exceljs'))
-const { handlers, next, USER_DATA } = global.__it
+const { handlers, next, USER_DATA, calls } = global.__it
 
 let fails = 0
 const ok = (c, m) => { console.log(c ? '  ✓' : '  ✗', m); if (!c) fails++ }
@@ -28,7 +28,7 @@ const textEvents = (text, finish, extra = {}) => {
 }
 global.fetch = async (url, opts = {}) => {
   const u = String(url)
-  const entry = { url: u, method: opts.method || 'GET', headers: opts.headers || {}, body: opts.body }
+  const entry = { url: u, method: opts.method || 'GET', headers: opts.headers || {}, body: opts.body, signal: opts.signal }
   log.push(entry)
   const step = script.shift()
   if (!step) throw new Error('예상 못 한 요청 ' + u)
@@ -67,7 +67,7 @@ global.fetch = async (url, opts = {}) => {
   ].join('\n')
   const progress = []
   script = [(e) => sse(textEvents(md1, 'MAX_TOKENS'), true)]
-  const runP = call('ocr:run', { ids: files.map((f) => f.id), note: '학번 순으로', model: 'gemini-3.8-flash' })
+  const runP = call('ocr:run', { tab: 't1', ids: files.map((f) => f.id), note: '학번 순으로', model: 'gemini-3.8-flash' })
   const a1 = await runP
   const req1 = JSON.parse(log[log.length - 1].body)
   const parts = req1.contents[0].parts
@@ -80,7 +80,7 @@ global.fetch = async (url, opts = {}) => {
   console.log('\n3. 이어서 받기')
   const md2 = ['| 페이지 | 학번 | 이름 | 제목 | 상세 내용 |', '| --- | --- | --- | --- | --- |', '| 3 | 30108 | 학생다 | Dream | I want to be a teacher. |', '| 4 | 30109 | 학생라 | Sports | (본문 없음) |'].join('\n')
   script = [(e) => sse(textEvents(md2, 'STOP'), false)]
-  const a2 = await call('ocr:continue')
+  const a2 = await call('ocr:continue', 't1')
   const req2 = JSON.parse(log[log.length - 1].body)
   ok(req2.contents.length === 3 && req2.contents[1].role === 'model' && !req2.contents[1].parts[0].text.includes('| 3 | 30108') && req2.contents[2].parts[0].text.includes('| 2 | 30107 |'), '앞 답(덜 나온 행은 빼고) + 마지막 행을 알려 주고 이어 달라고')
   ok(req2.contents[0].parts[0].inlineData, '처음 파일도 다시 함께 (Gemini 는 앞 대화를 기억하지 않는다)')
@@ -131,15 +131,17 @@ global.fetch = async (url, opts = {}) => {
     (e) => new Response(JSON.stringify({ name: 'files/abc', uri: `${API}/v1beta/files/abc`, state: 'ACTIVE' }), { status: 200 }),
     (e) => sse(textEvents('| 가 | 나 |\n|---|---|\n| 1 | 2 |', 'STOP'), false)
   ]
-  const a3 = await call('ocr:run', { ids: [bf.id], note: '', model: 'gemini-3.8-flash' })
+  const a3 = await call('ocr:run', { tab: 't2', ids: [bf.id], note: '', model: 'gemini-3.8-flash' })
   const reqs = log.slice(before)
   ok(reqs[0].url === `${API}/upload/v1beta/files` && JSON.parse(reqs[0].body).file.display_name === 'document' && reqs[0].headers['X-Goog-Upload-Header-Content-Length'] === String(15 * 1024 * 1024), '올리기 시작 (파일 이름 대신 document)')
   ok(reqs[1].url === 'https://upload.example/s1' && reqs[1].headers['X-Goog-Upload-Command'] === 'upload, finalize' && reqs[2].url === `${API}/v1beta/files/abc`, '올리고 · 받아 들일 때까지 기다림')
   const req3 = JSON.parse(reqs[3].body)
   ok(a3.ok && req3.contents[0].parts[0].fileData.fileUri === `${API}/v1beta/files/abc` && req3.contents[0].parts[1].text === '출력해주세요', '올린 파일을 가리켜 읽기')
   script = [(e) => new Response('{}', { status: 200 })]
-  await call('ocr:clear')
-  ok(log[log.length - 1].method === 'DELETE' && log[log.length - 1].url === `${API}/v1beta/files/abc`, '화면을 떠나면 올린 파일을 지움')
+  await call('ocr:clear', 't1')
+  ok(log[log.length - 1].url !== `${API}/v1beta/files/abc`, '다른 탭을 닫아도 이 탭이 올린 파일은 그대로')
+  await call('ocr:clear', 't2')
+  ok(log[log.length - 1].method === 'DELETE' && log[log.length - 1].url === `${API}/v1beta/files/abc`, '탭을 닫으면 그 탭이 올린 파일을 지움')
 
   console.log('\n6. 모델이 설정을 모를 때 · 오류 안내')
   next.open.push([small])
@@ -148,21 +150,71 @@ global.fetch = async (url, opts = {}) => {
     (e) => new Response('{"error":{"message":"thinking_level is not supported for this model"}}', { status: 400 }),
     (e) => sse(textEvents('| a | b |\n|---|---|\n| 1 | 2 |', 'STOP'), false)
   ]
-  const a4 = await call('ocr:run', { ids: [sf.id], note: '', model: 'gemini-2.5-flash' })
+  const a4 = await call('ocr:run', { tab: 't3', ids: [sf.id], note: '', model: 'gemini-2.5-flash' })
   const retry = JSON.parse(log[log.length - 1].body)
   ok(a4.ok && !retry.generationConfig.thinkingConfig && retry.generationConfig.temperature === 0, '생각 단계를 모르는 모델이면 빼고 다시 (예전 모델은 temperature 0)')
   script = [(e) => new Response('{"error":{"message":"API key not valid. Please pass a valid API key."}}', { status: 400 })]
-  const a5 = await call('ocr:run', { ids: [sf.id], note: '', model: 'gemini-3.8-flash' })
+  const a5 = await call('ocr:run', { tab: 't3', ids: [sf.id], note: '', model: 'gemini-3.8-flash' })
   ok(!a5.ok && a5.error.includes('키가 올바르지 않습니다'), `키 오류 안내: ${a5.error}`)
   script = [(e) => sse([{ candidates: [{ content: { parts: [] }, finishReason: 'RECITATION' }] }], false)]
-  const a6 = await call('ocr:run', { ids: [sf.id], note: '', model: 'gemini-3.8-flash' })
+  const a6 = await call('ocr:run', { tab: 't3', ids: [sf.id], note: '', model: 'gemini-3.8-flash' })
   ok(!a6.ok && a6.error.includes('저작권'), `저작권으로 멈춤 안내: ${a6.error.slice(0, 40)}…`)
-  ok(!(await call('ocr:run', { ids: ['없는번호'], note: '', model: 'gemini-3.8-flash' })).ok, '고르지 않은 파일은 읽지 않음')
+  ok(!(await call('ocr:run', { tab: 't3', ids: ['없는번호'], note: '', model: 'gemini-3.8-flash' })).ok, '고르지 않은 파일은 읽지 않음')
+
+  ok(!(await call('ocr:run', { ids: [sf.id], note: '', model: 'gemini-3.8-flash' })).ok, '탭 번호가 없으면 읽지 않음')
+  ok(!(await call('ocr:continue', '없는탭')).ok, '없는 탭은 이어 받지 않음')
+
+  console.log('\n6b. 탭 — 따로 읽고, 화면을 떠나도 계속, 5개까지')
+  // 끌어 놓은 파일: PDF · 사진만 받고 나머지는 이름만 돌려준다
+  const dropped = await call('ocr:add', [small, path.join(USER_DATA, 'note.txt'), USER_DATA])
+  ok(dropped.files.length === 1 && dropped.files[0].name === '3학년 영어 수행.pdf' && !('path' in dropped.files[0]) && dropped.skipped.join() === 'note.txt,' + path.basename(USER_DATA), `끌어 놓은 파일: PDF 만 받고 txt · 폴더는 뺌 (${dropped.skipped.join(', ')})`)
+  // 탭 A 는 늦게, 탭 B 는 빨리 답한다 — 둘이 함께 읽는다
+  let releaseA
+  const gateA = new Promise((r) => (releaseA = r))
+  const before6 = calls.sent.length
+  script = [
+    async (e) => {
+      await gateA
+      return sse(textEvents('| 탭 | 값 |\n|---|---|\n| A | 1 |', 'STOP'), false)
+    },
+    (e) => sse(textEvents('| 탭 | 값 |\n|---|---|\n| B | 2 |', 'STOP'), false)
+  ]
+  const pa = call('ocr:run', { tab: 'tabA', ids: [dropped.files[0].id], note: '', model: 'gemini-3.8-flash' })
+  await new Promise((r) => setTimeout(r, 20))
+  ok(!(await call('ocr:run', { tab: 'tabA', ids: [dropped.files[0].id], note: '', model: 'gemini-3.8-flash' })).ok, '읽는 중인 탭에서 또 읽기는 막음')
+  const rb = await call('ocr:run', { tab: 'tabB', ids: [sf.id], note: '', model: 'gemini-3.8-flash' })
+  ok(rb.ok && rb.text.includes('| B | 2 |'), '탭 B 는 탭 A 를 기다리지 않고 먼저 끝남')
+  releaseA()
+  const ra = await pa
+  ok(ra.ok && ra.text.includes('| A | 1 |'), '탭 A 도 제 답을 받음')
+  const prog = calls.sent.slice(before6).filter((x) => x.ch === 'ocr:progress')
+  ok(prog.length >= 2 && prog.every((x) => x.payload.tab === 'tabA' || x.payload.tab === 'tabB') && prog.some((x) => x.payload.tab === 'tabA') && prog.some((x) => x.payload.tab === 'tabB'), '진행 표시에 탭 번호가 붙음')
+  // 멈추기는 그 탭만 — 둘 다 기다리는 중에 C 만 멈춘다
+  let releaseD
+  const gateD = new Promise((r) => (releaseD = r))
+  const waitAbort = (e) =>
+    new Promise((res, rej) => {
+      e.signal?.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+    })
+  script = [waitAbort, async (e) => (await gateD, sse(textEvents('| x |\n|---|\n| D |', 'STOP'), false))]
+  const pc = call('ocr:run', { tab: 'tabC', ids: [sf.id], note: '', model: 'gemini-3.8-flash' })
+  await new Promise((r) => setTimeout(r, 20))
+  const pd = call('ocr:run', { tab: 'tabD', ids: [sf.id], note: '', model: 'gemini-3.8-flash' })
+  await new Promise((r) => setTimeout(r, 20))
+  await call('ocr:cancel', 'tabC')
+  const rc = await pc
+  releaseD()
+  const rd = await pd
+  ok(!rc.ok && rc.error === '멈췄습니다.' && rd.ok && rd.text.includes('| D |'), '멈추기는 그 탭만 (C 는 멈추고 D 는 끝까지)')
+  // 5개까지 (tabA · tabB · tabC · tabD · t3 이 열려 있다 — t1 · t2 는 닫았다)
+  const sixth = await call('ocr:run', { tab: 'tabE', ids: [sf.id], note: '', model: 'gemini-3.8-flash' })
+  ok(!sixth.ok && sixth.error.includes('5개까지'), `여섯째 탭은 막음: ${sixth.error}`)
+  await Promise.all(['tabA', 'tabB', 'tabC', 'tabD', 't3'].map((t) => call('ocr:clear', t)))
 
   console.log('\n7. 만든이가 바꾼 지침 · 모델 (catalog.json 의 "ocr")')
   fs.writeFileSync(path.join(USER_DATA, 'catalog.json'), JSON.stringify({ fetchedAt: Date.now(), catalog: { schema: 1, tools: [], themes: [], ocr: { prompt: '새 지침: 표로만 답하세요', model: 'gemini-3.7-flash' } } }))
   script = [(e) => sse(textEvents('| a |\n|---|\n| 1 |', 'STOP'), false)]
-  await call('ocr:run', { ids: [sf.id], note: '', model: '' })
+  await call('ocr:run', { tab: 't7', ids: [sf.id], note: '', model: '' })
   const req7 = JSON.parse(log[log.length - 1].body)
   ok(log[log.length - 1].url.includes('/models/gemini-3.7-flash:') && req7.systemInstruction.parts[0].text.endsWith('새 지침: 표로만 답하세요') && req7.systemInstruction.parts[0].text.startsWith('OCR 전용 처리 규칙'), '바꾼 지침 · 기본 모델을 씀')
 

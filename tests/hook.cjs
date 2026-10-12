@@ -7,7 +7,8 @@ const fs = require('fs')
 
 const USER_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'wd-it-'))
 const handlers = new Map()
-const calls = { opened: [], revealed: [] }
+/** 화면으로 보낸 소식 (webContents.send) — 받는 중 글 · 진행 표시 시험에 쓴다 */
+const calls = { opened: [], revealed: [], sent: [] }
 const next = { open: [], save: [] }
 
 function stub(name) {
@@ -46,9 +47,20 @@ const app = new Proxy(
   { get: (t, p) => (p in t ? t[p] : stub(`app.${String(p)}`)) }
 )
 
+/** 창 — 화면으로 보내는 소식만 모으고 나머지는 아무 일도 하지 않는다 */
+function windowStub() {
+  const wc = new Proxy({ send: (ch, payload) => void calls.sent.push({ ch, payload }) }, { get: (t, p) => (p in t ? t[p] : stub(`webContents.${String(p)}`)) })
+  return new Proxy({ webContents: wc }, { get: (t, p) => (p in t ? t[p] : stub(`win.${String(p)}`)) })
+}
+const BrowserWindow = new Proxy(function () {}, {
+  construct: () => windowStub(),
+  get: (_t, p) => stub(`BrowserWindow.${String(p)}`)
+})
+
 const electron = new Proxy(
   {
     app,
+    BrowserWindow,
     ipcMain: { handle: (ch, fn) => handlers.set(ch, fn), on: () => {} },
     // 앱은 net.fetch(윈도우 인증서)로 밖에 나간다. 시험에서는 global.fetch 로 돌려 가로챌 수 있게 한다.
     net: { fetch: (...a) => global.fetch(...a) },

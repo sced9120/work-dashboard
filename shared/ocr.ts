@@ -21,6 +21,9 @@ export const OCR_TYPES: Record<string, string> = {
 export const OCR_MAX_PDF = 50 * 1024 * 1024
 export const OCR_MAX_IMAGE = 20 * 1024 * 1024
 
+/** 한 번에 열어 두고 따로 읽는 탭 수 */
+export const OCR_MAX_TABS = 5
+
 export interface OcrFile {
   /** 이번 실행에서만 쓰는 번호 (파일 경로는 화면에 넘기지 않는다) */
   id: string
@@ -30,6 +33,8 @@ export interface OcrFile {
 }
 
 export interface OcrRequest {
+  /** 어느 탭에서 읽는지 — 탭마다 따로 읽고 따로 이어 받는다 */
+  tab: string
   ids: string[]
   /** 추가 요청 (예: 학번 순으로) */
   note: string

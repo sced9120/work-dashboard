@@ -604,29 +604,6 @@ export interface ChatTurn {
   content: string
 }
 
-export interface ChatReply {
-  ok: boolean
-  answer: string
-  /** 답을 만들 때 근거로 삼은 자료의 이름들 */
-  sources: string[]
-  /**
-   * 도우미가 "이렇게 넣을까요?" 하고 내민 일감의 원문(JSON).
-   *
-   * 여기서는 글자로만 들고 다니고, 화면 쪽에서 읽어 목록으로 펼친다.
-   * 넣는 것은 사람이 확인하고 누를 때만 일어난다.
-   */
-  plan?: string
-  /** 근거로 실은 학교업무 도움자료의 자료 폴더. 말풍선 아래 버튼으로 연다. */
-  links?: { title: string; url: string }[]
-  error?: string
-}
-
-/** 대화에 함께 올린 파일 하나 */
-export interface ChatFile {
-  name: string
-  text: string
-}
-
 export const SUPPORTED_EXTENSIONS = [
   'hwp',
   'hwpx',

@@ -31,6 +31,9 @@ import { setUiPrefs, useUiPrefs } from './lib/theme'
 import { hasUnseenNew, loadCatalog, useCatalog } from './lib/catalog'
 import { openFeedback } from './lib/feedback'
 import { focusSearch } from './pages/Search'
+import { setOcrNotifier, useOcrTabs } from './lib/ocrStore'
+import { useChats } from './lib/chatStore'
+import { useToast } from './lib/toast'
 
 export type PageId =
   | '홈'
@@ -57,6 +60,30 @@ function Shell(): JSX.Element {
   const ui = useUiPrefs()
   const navp = useNavPrefs()
   const cat = useCatalog()
+  const toast = useToast()
+  // 다른 화면에 있어도 읽는 중 · 답을 받는 중이면 메뉴에 표시한다
+  const ocrBusy = useOcrTabs().tabs.some((t) => t.busy)
+  const chatBusy = Object.keys(useChats().live).length > 0
+  // 스캔 문서 → 엑셀 화면 밖에서 읽기가 끝나면 알린다
+  useEffect(() => {
+    setOcrNotifier((message, ok) => toast(message, ok ? 'ok' : 'err'))
+    return () => setOcrNotifier(null)
+  }, [toast])
+  // 창에 파일을 떨어뜨려도 프로그램이 그 파일로 넘어가지 않게 (받는 곳은 data-drop 이 붙은 화면만)
+  useEffect(() => {
+    const guard = (e: DragEvent): void => {
+      const target = e.target instanceof Element ? e.target : null
+      if (target?.closest('[data-drop]')) return
+      e.preventDefault()
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'none'
+    }
+    window.addEventListener('dragover', guard)
+    window.addEventListener('drop', guard)
+    return () => {
+      window.removeEventListener('dragover', guard)
+      window.removeEventListener('drop', guard)
+    }
+  }, [])
   /** 따라 배우기 목록을 열었는지, 지금 어느 화면을 배우는 중인지 */
   const [learnHub, setLearnHub] = useState(false)
   const [learning, setLearning] = useState<PageId | null>(null)
@@ -198,6 +225,7 @@ function Shell(): JSX.Element {
           >
             <span className="side-ai-ico">
               <Icon name="spark" size={20} />
+              {chatBusy && <i className="nav-busy" aria-label="답을 받는 중" />}
             </span>
             <span className="side-label">업무 도우미</span>
           </button>
@@ -219,6 +247,7 @@ function Shell(): JSX.Element {
                     <span className="nav-icon">
                       <Icon name={n.icon} />
                       {n.id === '도구' && newTools && <i className="nav-new" aria-label="새 도구" />}
+                      {n.id === 'OCR' && ocrBusy && <i className="nav-busy" aria-label="읽는 중" />}
                     </span>
                     <span className="side-label">{n.label}</span>
                   </button>

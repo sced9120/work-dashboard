@@ -19,10 +19,11 @@ import ExcelJS from 'exceljs'
 import type { MdTable } from '../../shared/mdtable'
 import { dropPartialTail, extractTables, plainCell } from '../../shared/mdtable'
 import type { OcrAnswer, OcrFile, OcrProgress, OcrRequest } from '../../shared/ocr'
-import { OCR_DEFAULT_MODEL, OCR_MAX_IMAGE, OCR_MAX_PDF, OCR_TYPES, fmtBytes, isGeminiModel, isModernGemini, ocrContinueText, ocrUserText, saysStoppedEarly } from '../../shared/ocr'
+import { OCR_DEFAULT_MODEL, OCR_MAX_IMAGE, OCR_MAX_PDF, OCR_MAX_TABS, OCR_TYPES, fmtBytes, isGeminiModel, isModernGemini, ocrContinueText, ocrUserText, saysStoppedEarly } from '../../shared/ocr'
 import { OCR_AGENT_PROMPT, OCR_RULES } from '../../shared/ocrPrompt'
 import { peekCatalog } from './catalog'
 import { httpFetch } from './http'
+import { readSse } from './sse'
 import { loadLocalSettings } from './secrets'
 
 const API = 'https://generativelanguage.googleapis.com'
@@ -58,8 +59,11 @@ interface Session {
   last: string
 }
 
-let session: Session | null = null
-let abort: AbortController | null = null
+/** 탭마다 따로 읽는다 (최대 OCR_MAX_TABS 개). 화면을 떠나도 계속 읽고, 탭을 닫거나 프로그램을 끌 때 지운다 */
+const sessions = new Map<string, Session>()
+const aborts = new Map<string, AbortController>()
+
+const tabOk = (id: unknown): id is string => typeof id === 'string' && /^[\w-]{1,64}$/.test(id)
 
 /* ---------- 파일 고르기 ---------- */
 
@@ -71,19 +75,35 @@ export async function pickFiles(win: BrowserWindow | null): Promise<OcrFile[]> {
     filters: [{ name: 'PDF · 사진', extensions: Object.keys(OCR_TYPES) }]
   })
   if (res.canceled) return []
+  return addPaths(res.filePaths).files
+}
+
+/** 고르거나 끌어 놓은 파일을 받아 둔다 (PDF · 사진만). 화면에는 번호로만 알려 준다 */
+export function addPaths(paths: unknown): { files: OcrFile[]; skipped: string[] } {
   const out: OcrFile[] = []
-  for (const p of res.filePaths) {
-    const ext = path.extname(p).slice(1).toLowerCase()
-    const mime = OCR_TYPES[ext]
-    if (!mime) continue
-    const size = fs.statSync(p).size
-    const id = crypto.randomUUID()
+  const skipped: string[] = []
+  for (const raw of (Array.isArray(paths) ? paths : []).slice(0, 100)) {
+    if (typeof raw !== 'string' || !raw) continue
+    const p = path.resolve(raw)
     const name = path.basename(p)
+    const mime = OCR_TYPES[path.extname(p).slice(1).toLowerCase()]
+    let size = 0
+    try {
+      const st = fs.statSync(p)
+      size = st.isFile() ? st.size : -1
+    } catch {
+      size = -1
+    }
+    if (!mime || size < 0) {
+      skipped.push(name)
+      continue
+    }
+    const id = crypto.randomUUID()
     picked.set(id, { path: p, name, size, mime })
     out.push({ id, name, size, mime })
   }
   // 스캔 파일은 번호를 붙여 나오는 일이 많아 이름 차례로 (2 가 10 보다 먼저)
-  return out.sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }))
+  return { files: out.sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true })), skipped }
 }
 
 /* ---------- Gemini 파일 저장소 (큰 파일) ---------- */
@@ -135,16 +155,21 @@ async function deleteUploaded(key: string, names: string[]): Promise<void> {
   )
 }
 
-/** 읽던 것을 끝낸다 — Gemini 에 올려 둔 파일도 지운다 */
-export async function clearOcr(): Promise<void> {
-  abort?.abort()
-  const s = session
-  session = null
-  if (s?.uploaded.length) await deleteUploaded(s.key, s.uploaded)
+/** 그 탭에서 읽던 것을 끝낸다 — Gemini 에 올려 둔 파일도 지운다. 탭을 주지 않으면 모두 (프로그램을 끌 때) */
+export async function clearOcr(tab?: string): Promise<void> {
+  const ids = tab === undefined ? [...new Set([...sessions.keys(), ...aborts.keys()])] : tabOk(tab) ? [tab] : []
+  await Promise.all(
+    ids.map(async (id) => {
+      aborts.get(id)?.abort()
+      const s = sessions.get(id)
+      sessions.delete(id)
+      if (s?.uploaded.length) await deleteUploaded(s.key, s.uploaded)
+    })
+  )
 }
 
-export function cancelOcr(): void {
-  abort?.abort()
+export function cancelOcr(tab: string): void {
+  if (tabOk(tab)) aborts.get(tab)?.abort()
 }
 
 /* ---------- 읽기 ---------- */
@@ -207,9 +232,6 @@ async function generate(s: Session, onProgress: (p: OcrProgress) => void, signal
   }
   if (!res.body) throw new Error('Gemini 가 빈 응답을 보냈습니다.')
 
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buf = ''
   let text = ''
   let finish = ''
   let blocked = ''
@@ -240,24 +262,7 @@ async function generate(s: Session, onProgress: (p: OcrProgress) => void, signal
     if (d.usageMetadata) usage = { input: d.usageMetadata.promptTokenCount ?? 0, output: d.usageMetadata.candidatesTokenCount ?? 0 }
     report()
   }
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) break
-    // 줄바꿈이 \r\n 이어도 한 가지로 (조각 경계에서 갈라져도 버퍼 전체를 다시 맞춘다)
-    buf = (buf + decoder.decode(value, { stream: true })).replace(/\r\n/g, '\n')
-    let cut: number
-    while ((cut = buf.indexOf('\n\n')) >= 0) {
-      const chunk = buf.slice(0, cut)
-      buf = buf.slice(cut + 2)
-      const data = chunk
-        .split('\n')
-        .filter((l) => l.startsWith('data:'))
-        .map((l) => l.slice(5).trim())
-        .join('')
-      if (data) take(data)
-    }
-  }
-  if (buf.trim().startsWith('data:')) take(buf.trim().slice(5).trim())
+  await readSse(res, take)
   report(true)
 
   if (blocked) throw new Error(`Gemini 가 이 문서를 읽기를 거절했습니다 (${blocked}).`)
@@ -272,9 +277,15 @@ async function generate(s: Session, onProgress: (p: OcrProgress) => void, signal
   return { ok: true, text, finish, truncated, usage }
 }
 
-/** 고른 파일을 읽는다 (새로 시작) */
+/** 고른 파일을 읽는다 (그 탭에서 새로 시작) */
 export async function runOcr(req: OcrRequest, onProgress: (p: OcrProgress) => void): Promise<OcrAnswer> {
   const fail = (error: string): OcrAnswer => ({ ok: false, text: '', finish: '', truncated: false, error })
+  const tab = req?.tab
+  if (!tabOk(tab)) return fail('탭을 찾지 못했습니다. 탭을 새로 열어 주세요.')
+  if (!sessions.has(tab) && !aborts.has(tab) && new Set([...sessions.keys(), ...aborts.keys()]).size >= OCR_MAX_TABS) {
+    return fail(`한 번에 ${OCR_MAX_TABS}개까지 읽습니다. 다 쓴 탭을 닫고 다시 해 주세요.`)
+  }
+  if (aborts.has(tab)) return fail('이 탭은 아직 읽는 중입니다.')
   const key = (loadLocalSettings().gemini_key ?? '').trim()
   if (!key) return fail('Gemini API 키가 없습니다. [설정 → AI 연결] 에서 Gemini 키를 넣어 주세요.')
   const files = (Array.isArray(req?.ids) ? req.ids : []).map((id) => picked.get(String(id))).filter((f): f is Picked => !!f)
@@ -285,15 +296,15 @@ export async function runOcr(req: OcrRequest, onProgress: (p: OcrProgress) => vo
     if (!fs.existsSync(f.path)) return fail(`「${f.name}」 을(를) 찾을 수 없습니다. 다시 골라 주세요.`)
   }
 
-  await clearOcr()
+  await clearOcr(tab)
   const ctrl = new AbortController()
-  abort = ctrl
+  aborts.set(tab, ctrl)
   const timer = setTimeout(() => ctrl.abort(), READ_TIMEOUT)
   // 만든이가 지침 · 기본 모델을 바꿔 두었으면 그것을 (catalog.json 의 "ocr" — 받으러 가지 않고 이 PC 에 둔 것)
   const remote = peekCatalog().ocr
   const model = isGeminiModel(String(req.model ?? '')) ? String(req.model) : remote?.model || OCR_DEFAULT_MODEL
   const s: Session = { key, model, system: `${OCR_RULES}\n\n${remote?.prompt || OCR_AGENT_PROMPT}`, turns: [], uploaded: [], last: '' }
-  session = s
+  sessions.set(tab, s)
   try {
     const parts: Part[] = []
     const total = files.reduce((n, f) => n + f.size, 0)
@@ -317,17 +328,18 @@ export async function runOcr(req: OcrRequest, onProgress: (p: OcrProgress) => vo
     return fail(e instanceof Error ? e.message : String(e))
   } finally {
     clearTimeout(timer)
-    if (abort === ctrl) abort = null
+    if (aborts.get(tab) === ctrl) aborts.delete(tab)
   }
 }
 
-/** 끊긴 답의 나머지를 받는다 */
-export async function continueOcr(onProgress: (p: OcrProgress) => void): Promise<OcrAnswer> {
+/** 그 탭에서 끊긴 답의 나머지를 받는다 */
+export async function continueOcr(tab: string, onProgress: (p: OcrProgress) => void): Promise<OcrAnswer> {
   const fail = (error: string): OcrAnswer => ({ ok: false, text: '', finish: '', truncated: false, error })
-  const s = session
+  const s = tabOk(tab) ? sessions.get(tab) : undefined
   if (!s || !s.last) return fail('이어 받을 결과가 없습니다. 처음부터 다시 읽어 주세요.')
+  if (aborts.has(tab)) return fail('이 탭은 아직 읽는 중입니다.')
   const ctrl = new AbortController()
-  abort = ctrl
+  aborts.set(tab, ctrl)
   const timer = setTimeout(() => ctrl.abort(), READ_TIMEOUT)
   try {
     const kept = dropPartialTail(s.last)
@@ -344,7 +356,7 @@ export async function continueOcr(onProgress: (p: OcrProgress) => void): Promise
     return fail(e instanceof Error ? e.message : String(e))
   } finally {
     clearTimeout(timer)
-    if (abort === ctrl) abort = null
+    if (aborts.get(tab) === ctrl) aborts.delete(tab)
   }
 }
 
