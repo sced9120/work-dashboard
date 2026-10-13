@@ -229,6 +229,73 @@ global.fetch = async (url, opts = {}) => {
   const t2 = JSON.parse(log[log.length - 1].body)
   ok(!('temperature' in (t1.generationConfig || {})) && t2.generationConfig.temperature === 0.2, `3.6 Flash: temperature 없음 · 2.5 Flash: 0.2`)
 
+  console.log('\n8b. OpenAI 키만 있을 때 — gpt-6-luna 로 같은 지침 · 같은 흐름')
+  fs.writeFileSync(path.join(USER_DATA, 'catalog.json'), JSON.stringify({ fetchedAt: Date.now(), catalog: { schema: 1, tools: [], themes: [], ocr: { prompt: '', model: '' } } }))
+  await call('local:save', { ...(await call('local:load')), gemini_key: '', openai_key: 'TEST-OPENAI-KEY' })
+  const oaSse = (text, finish, usage = true) => {
+    const lines = []
+    for (let i = 0; i < text.length; i += 50) lines.push(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: text.slice(i, i + 50) } }] })}\n\n`)
+    lines.push(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: finish }] })}\n\n`)
+    if (usage) lines.push(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 3200, completion_tokens: 700 } })}\n\n`)
+    lines.push('data: [DONE]\n\n')
+    const all = lines.join('')
+    const pieces = []
+    for (let i = 0; i < all.length; i += 29) pieces.push(all.slice(i, i + 29))
+    return new Response(new ReadableStream({ start(c) { for (const p of pieces) c.enqueue(enc.encode(p)); c.close() } }), { status: 200 })
+  }
+  next.open.push([small, img])
+  const oaFiles = await call('ocr:pick')
+  script = [(e) => oaSse('> 정리했습니다.\n\n| 번호 | 이름 |\n|---|---|\n| 1 | 학생가 |\n| 2 | 학생', 'length')]
+  const o1 = await call('ocr:run', { tab: 'oa', ids: oaFiles.map((f) => f.id), note: '학번 순으로', model: '' })
+  const oreq = JSON.parse(log[log.length - 1].body)
+  const ouser = oreq.messages[1].content
+  ok(log[log.length - 1].url === 'https://api.openai.com/v1/chat/completions' && log[log.length - 1].headers.Authorization === 'Bearer TEST-OPENAI-KEY', 'OpenAI 키로 Chat Completions')
+  ok(oreq.model === 'gpt-6-luna' && oreq.stream === true && oreq.reasoning_effort === 'low' && !('temperature' in oreq), `모델을 고르지 않으면 싼 등급 gpt-6-luna · 받는 대로 · 생각 low · temperature 없음 (${oreq.model})`)
+  ok(oreq.messages[0].role === 'system' && oreq.messages[0].content.startsWith('OCR 전용 처리 규칙') && oreq.messages[0].content.includes('Gemini OCR 전용 프롬프트'), '같은 OCR 규칙 + 에이전트 지침')
+  ok(ouser[0].type === 'file' && ouser[0].file.filename === 'document.pdf' && ouser[0].file.file_data.startsWith('data:application/pdf;base64,') && ouser[1].type === 'image_url' && ouser[1].image_url.detail === 'high' && ouser[1].image_url.url.startsWith('data:image/png;base64,') && ouser[2].text === '출력해주세요\n\n추가 요청사항: 학번 순으로', 'PDF 는 파일 그대로(이름은 document.pdf) · 사진은 detail high · "출력해주세요"')
+  ok(o1.ok && o1.truncated && o1.finish === 'length' && o1.usage.output === 700, '끊긴 답(length) → 이어 받기 표시 · 사용량')
+  script = [(e) => oaSse('| 번호 | 이름 |\n|---|---|\n| 2 | 학생나 |', 'stop')]
+  const o2 = await call('ocr:continue', 'oa')
+  const oreq2 = JSON.parse(log[log.length - 1].body)
+  ok(o2.ok && !o2.truncated && oreq2.messages.length === 4 && oreq2.messages[2].role === 'assistant' && !oreq2.messages[2].content.includes('| 2 | 학생') && oreq2.messages[3].content.includes('| 1 | 학생가 |') && oreq2.messages[1].content[0].type === 'file', '이어 받기: 앞 답(덜 나온 행 빼고) + 마지막 행 + 처음 파일도 다시')
+  ok(M.answersToTables([o1, o2])[0].rows.map((r) => r[0]).join() === '1,2', '두 답을 한 표로')
+  // 생각 단계를 모르는 모델이면 빼고 다시
+  script = [(e) => new Response('{"error":{"message":"Unsupported parameter: reasoning_effort"}}', { status: 400 }), (e) => oaSse('| a |\n|---|\n| 1 |', 'stop', false)]
+  const o3 = await call('ocr:run', { tab: 'oa', ids: [oaFiles[0].id], note: '', model: 'gpt-5.6-luna' })
+  ok(o3.ok && !('reasoning_effort' in JSON.parse(log[log.length - 1].body)) && JSON.parse(log[log.length - 1].body).model === 'gpt-5.6-luna', '고른 OpenAI 모델 · 생각 설정을 모르면 빼고 다시')
+  // HEIC 는 OpenAI 가 못 읽는다
+  const heicFile = path.join(USER_DATA, '폰.heic')
+  fs.writeFileSync(heicFile, Buffer.from([0, 0, 0, 24]))
+  const [hf] = (await call('ocr:add', [heicFile])).files
+  const o4 = await call('ocr:run', { tab: 'oa', ids: [hf.id], note: '', model: 'gpt-6-luna' })
+  ok(!o4.ok && o4.error.includes('HEIC'), `HEIC 는 미리 막고 안내: ${o4.error.slice(0, 30)}…`)
+  // Gemini 모델을 골랐는데 Gemini 키가 없으면
+  const o5 = await call('ocr:run', { tab: 'oa', ids: [oaFiles[0].id], note: '', model: 'gemini-3.8-flash' })
+  ok(!o5.ok && o5.error.includes('OpenAI 모델을 골라'), `Gemini 키가 없으면 OpenAI 모델을 고르라고: ${o5.error.slice(0, 30)}…`)
+  // 30MB 가 넘는 PDF 는 OpenAI 파일 저장소로 (이름은 document.pdf) → 탭을 닫으면 지움
+  const huge = path.join(USER_DATA, 'huge.pdf')
+  fs.writeFileSync(huge, Buffer.alloc(31 * 1024 * 1024, 7))
+  const [hg] = (await call('ocr:add', [huge])).files
+  script = [(e) => new Response(JSON.stringify({ id: 'file-abc123', object: 'file' }), { status: 200 }), (e) => oaSse('| a |\n|---|\n| 1 |', 'stop')]
+  const o6 = await call('ocr:run', { tab: 'oa2', ids: [hg.id], note: '', model: '' })
+  const up = log[log.length - 2]
+  const upBody = Buffer.from(up.body).toString('latin1')
+  const used = JSON.parse(log[log.length - 1].body).messages[1].content[0]
+  ok(o6.ok && up.url === 'https://api.openai.com/v1/files' && /multipart\/form-data; boundary=/.test(up.headers['Content-Type']) && upBody.includes('name="purpose"\r\n\r\nuser_data') && upBody.includes('filename="document.pdf"') && !upBody.includes('huge.pdf') && used.file.file_id === 'file-abc123', '큰 PDF 는 파일 저장소에 올려(이름 대신 document.pdf) file_id 로')
+  script = [(e) => new Response('{}', { status: 200 })]
+  await call('ocr:clear', 'oa2')
+  ok(log[log.length - 1].method === 'DELETE' && log[log.length - 1].url === 'https://api.openai.com/v1/files/file-abc123', '탭을 닫으면 올린 파일을 지움')
+  // 만든이가 catalog.json 으로 바꾼 OpenAI 기본 모델
+  fs.writeFileSync(path.join(USER_DATA, 'catalog.json'), JSON.stringify({ fetchedAt: Date.now(), catalog: { schema: 1, tools: [], themes: [], ocr: { prompt: '', model: '', openaiModel: 'gpt-6.1-luna' } } }))
+  script = [(e) => oaSse('| a |\n|---|\n| 1 |', 'stop')]
+  await call('ocr:run', { tab: 'oa', ids: [oaFiles[0].id], note: '', model: '' })
+  ok(JSON.parse(log[log.length - 1].body).model === 'gpt-6.1-luna', '만든이가 정한 OpenAI 기본 모델을 씀')
+  // 키가 하나도 없으면
+  await call('local:save', { ...(await call('local:load')), openai_key: '' })
+  const o7 = await call('ocr:run', { tab: 'oa', ids: [oaFiles[0].id], note: '', model: '' })
+  ok(!o7.ok && o7.error.includes('Gemini 또는 OpenAI'), '키가 없으면 둘 중 하나를 넣으라고')
+  await Promise.all(['oa', 't7'].map((t) => call('ocr:clear', t)))
+
   console.log('\n9. 인수인계 파일')
   const h = path.join(USER_DATA, 'h.db')
   next.save.push(h)

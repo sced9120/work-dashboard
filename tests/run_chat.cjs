@@ -159,6 +159,12 @@ const G = { provider: 'gemini', model: 'gemini-3.8-flash' }
   ok(r8.ok && r8.answer.includes('이어서 써 줘'), '답이 길어 끊기면 이어 달라고 하라고 안내')
   ok(!(await call('ai:chatStream', { reqId: 'q9', mode: 'free', jobTitle: '', instruction: '', history: [{ role: 'assistant', content: '혼자' }], model: G })).ok, '보낼 질문이 없으면 보내지 않음')
 
+  // 키를 지운 서비스를 골라 두었으면 키가 있는 서비스의 기본 모델로
+  await call('local:save', { ...(await call('local:load')), claude_key: '' })
+  script = [() => gemini('키 있는 쪽으로')]
+  const r11 = await call('ai:chatStream', { reqId: 'q11', mode: 'free', jobTitle: '', instruction: '', history: [{ role: 'user', content: '안녕' }], model: { provider: 'claude', model: 'claude-test' } })
+  ok(r11.ok && log[log.length - 1].url.includes('generativelanguage.googleapis.com') && log[log.length - 1].url.includes('/gemini-3.8-flash:'), '키가 없는 서비스를 골랐으면 키 있는 서비스(Gemini) 기본 모델로')
+
   console.log('\n8. 대화 보관 — 새로 · 목록 · 이름 바꾸기 · 지우기 (chats/ 폴더, DB 아님)')
   ok((await call('chats:list')).length === 0, '처음엔 비어 있음')
   const id = '3f2a9c1e-0b7d-4c55-9e21-7a1b2c3d4e5f'

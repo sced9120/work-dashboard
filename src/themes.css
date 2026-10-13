@@ -3542,3 +3542,23 @@ select:focus {
   line-height: 1.6;
   text-align: center;
 }
+
+/* ---------- 설정: 모델 안내 문서 ---------- */
+.model-docs {
+  display: grid;
+  gap: 4px;
+}
+.model-docs-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.model-docs-name {
+  min-width: 170px;
+  font-weight: 600;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

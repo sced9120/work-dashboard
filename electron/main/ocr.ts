@@ -1,6 +1,8 @@
 /**
  * 스캔 문서 → 엑셀 (OCR). 사용자가 넣어 둔 자기 Gemini 키로 PDF · 사진 원본을 Gemini 에 보내
  * 원문 그대로 마크다운 표를 받고, 그 표를 엑셀 파일로 저장한다.
+ * OpenAI 키만 있으면 OpenAI 의 싼 등급(OCR_OPENAI_MODEL)으로 같은 지침 · 같은 흐름으로 읽는다
+ * (사진은 detail high, PDF 는 파일 그대로 — 30MB 가 넘으면 OpenAI 파일 저장소에 올렸다가 지운다).
  *
  * 만든이의 Open WebUI 설정(Gemini 3.8 Flash OCR · Korean High-Res)을 그대로 따른다.
  *  - PDF 에서 글자를 뽑아 보내지 않고 원본 파일을 보낸다(스캔본은 글자가 없고, 뽑은 글은 표 · 취소선을 잃는다).
@@ -18,8 +20,24 @@ import crypto from 'node:crypto'
 import ExcelJS from 'exceljs'
 import type { MdTable } from '../../shared/mdtable'
 import { dropPartialTail, extractTables, plainCell } from '../../shared/mdtable'
-import type { OcrAnswer, OcrFile, OcrProgress, OcrRequest } from '../../shared/ocr'
-import { OCR_DEFAULT_MODEL, OCR_MAX_IMAGE, OCR_MAX_PDF, OCR_MAX_TABS, OCR_TYPES, fmtBytes, isGeminiModel, isModernGemini, ocrContinueText, ocrUserText, saysStoppedEarly } from '../../shared/ocr'
+import type { OcrAnswer, OcrFile, OcrProgress, OcrProvider, OcrRequest } from '../../shared/ocr'
+import {
+  OCR_DEFAULT_MODEL,
+  OCR_MAX_IMAGE,
+  OCR_MAX_PDF,
+  OCR_MAX_TABS,
+  OCR_OPENAI_IMAGES,
+  OCR_OPENAI_MODEL,
+  OCR_TYPES,
+  fmtBytes,
+  isGeminiModel,
+  isModernGemini,
+  isOpenaiModel,
+  ocrContinueText,
+  ocrProviderOf,
+  ocrUserText,
+  saysStoppedEarly
+} from '../../shared/ocr'
 import { OCR_AGENT_PROMPT, OCR_RULES } from '../../shared/ocrPrompt'
 import { peekCatalog } from './catalog'
 import { httpFetch } from './http'
@@ -27,8 +45,12 @@ import { readSse } from './sse'
 import { loadLocalSettings } from './secrets'
 
 const API = 'https://generativelanguage.googleapis.com'
+const OA = 'https://api.openai.com/v1'
 /** 요청 하나에 바로 싣는 파일 크기 합 (base64 로 늘어나도 요청 20MB 안쪽) */
 const INLINE_LIMIT = 14 * 1024 * 1024
+/** OpenAI: 요청 하나에 바로 싣는 합 · 한 번에 읽는 파일 합 (OpenAI 가 받는 것은 요청당 50MB) */
+const OA_INLINE_LIMIT = 30 * 1024 * 1024
+const OA_TOTAL_LIMIT = 50 * 1024 * 1024
 /** 한 번 읽는 데 기다리는 최대 시간 */
 const READ_TIMEOUT = 15 * 60 * 1000
 
@@ -48,12 +70,26 @@ interface Picked {
 /** 이번 실행에서 사용자가 고른 파일 (화면은 번호로만 가리킨다) */
 const picked = new Map<string, Picked>()
 
+/** OpenAI Chat Completions 의 한 마디 */
+type OaPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string; detail: 'high' } }
+  | { type: 'file'; file: { filename: string; file_data: string } | { file_id: string } }
+interface OaMsg {
+  role: 'system' | 'user' | 'assistant'
+  content: string | OaPart[]
+}
+
 interface Session {
+  provider: OcrProvider
   key: string
   model: string
   system: string
+  /** Gemini 대화 */
   turns: Turn[]
-  /** Gemini 파일 저장소에 올린 것 — 끝나면 지운다 */
+  /** OpenAI 대화 */
+  messages: OaMsg[]
+  /** 파일 저장소에 올린 것(Gemini: files/… · OpenAI: file-…) — 끝나면 지운다 */
   uploaded: string[]
   /** 마지막으로 받은 답 */
   last: string
@@ -147,15 +183,40 @@ async function uploadFile(key: string, f: Picked, signal: AbortSignal): Promise<
   return { uri: file.uri!, name: file.name! }
 }
 
-async function deleteUploaded(key: string, names: string[]): Promise<void> {
+async function deleteUploaded(s: Session): Promise<void> {
   await Promise.all(
-    names.map((n) =>
-      httpFetch(`${API}/v1beta/${n}`, { method: 'DELETE', headers: { 'x-goog-api-key': key } }).catch(() => undefined)
+    s.uploaded.map((n) =>
+      (s.provider === 'openai'
+        ? httpFetch(`${OA}/files/${encodeURIComponent(n)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${s.key}` } })
+        : httpFetch(`${API}/v1beta/${n}`, { method: 'DELETE', headers: { 'x-goog-api-key': s.key } })
+      ).catch(() => undefined)
     )
   )
 }
 
-/** 그 탭에서 읽던 것을 끝낸다 — Gemini 에 올려 둔 파일도 지운다. 탭을 주지 않으면 모두 (프로그램을 끌 때) */
+/** OpenAI 파일 저장소에 올린다 (큰 PDF) — 이름은 document.pdf 로만, 끝나면 지운다 */
+async function uploadOpenai(key: string, f: Picked, signal: AbortSignal): Promise<string> {
+  const boundary = `----wd${crypto.randomBytes(12).toString('hex')}`
+  const head = (name: string, extra = ''): string => `--${boundary}\r\nContent-Disposition: form-data; name="${name}"${extra}\r\n`
+  const body = Buffer.concat([
+    Buffer.from(`${head('purpose')}\r\nuser_data\r\n`),
+    Buffer.from(`${head('file', '; filename="document.pdf"')}Content-Type: ${f.mime}\r\n\r\n`),
+    fs.readFileSync(f.path),
+    Buffer.from(`\r\n--${boundary}--\r\n`)
+  ])
+  const res = await httpFetch(`${OA}/files`, {
+    method: 'POST',
+    signal,
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+    body
+  })
+  if (!res.ok) throw new Error(await describeOpenai(res))
+  const id = ((await res.json()) as { id?: string }).id
+  if (!id) throw new Error('OpenAI 파일 저장소에 올리지 못했습니다.')
+  return id
+}
+
+/** 그 탭에서 읽던 것을 끝낸다 — Gemini · OpenAI 에 올려 둔 파일도 지운다. 탭을 주지 않으면 모두 (프로그램을 끌 때) */
 export async function clearOcr(tab?: string): Promise<void> {
   const ids = tab === undefined ? [...new Set([...sessions.keys(), ...aborts.keys()])] : tabOk(tab) ? [tab] : []
   await Promise.all(
@@ -163,7 +224,7 @@ export async function clearOcr(tab?: string): Promise<void> {
       aborts.get(id)?.abort()
       const s = sessions.get(id)
       sessions.delete(id)
-      if (s?.uploaded.length) await deleteUploaded(s.key, s.uploaded)
+      if (s?.uploaded.length) await deleteUploaded(s)
     })
   )
 }
@@ -200,13 +261,111 @@ async function describe(res: Response): Promise<string> {
   }
 }
 
+async function describeOpenai(res: Response): Promise<string> {
+  let detail = ''
+  try {
+    detail = (await res.text()).slice(0, 400)
+  } catch {
+    /* 상태 코드만으로 안내한다 */
+  }
+  switch (res.status) {
+    case 401:
+    case 403:
+      return 'OpenAI API 키가 올바르지 않거나 권한이 없습니다. [설정 → AI 연결] 에서 키를 다시 확인해 주세요.'
+    case 404:
+      return `OpenAI 에 그 모델이 없습니다(또는 이 키로 쓸 수 없습니다). 다른 모델을 골라 주세요. (${detail})`
+    case 413:
+      return '파일이 너무 큽니다. 나눠서 읽어 주세요.'
+    case 429:
+      return /insufficient_quota/.test(detail)
+        ? 'OpenAI 크레딧이 없습니다. platform.openai.com 의 결제(Billing)를 확인해 주세요.'
+        : 'OpenAI 사용량 한도에 걸렸습니다. 잠시 뒤 다시 해 주세요.'
+    default:
+      return `OpenAI 오류 (${res.status}) ${detail}`
+  }
+}
+
 interface GenOptions {
   thinking: boolean
   media: boolean
 }
 
+/** 받는 동안 표 줄 수 · 글자 수를 0.3초마다 알린다 */
+function reporter(onProgress: (p: OcrProgress) => void): (text: string, force?: boolean) => void {
+  let lastSent = 0
+  return (text, force = false) => {
+    const now = Date.now()
+    if (!force && now - lastSent < 300) return
+    lastSent = now
+    const rows = text.split('\n').filter((l) => l.trim().startsWith('|')).length
+    onProgress({ phase: 'read', chars: text.length, rows: Math.max(0, rows - 2) })
+  }
+}
+
+/** 표 뒤에 "몇 페이지까지 처리했다" 고 적고 멈춘 경우도 끊긴 것으로 본다 */
+const stoppedEarly = (text: string): boolean => saysStoppedEarly(text.slice(text.lastIndexOf('|') + 1))
+
+/** OpenAI 로 한 번 묻고 받는 대로 쌓는다 (Chat Completions · 받는 대로) */
+async function generateOpenai(s: Session, onProgress: (p: OcrProgress) => void, signal: AbortSignal, reasoning = true): Promise<OcrAnswer> {
+  const res = await httpFetch(`${OA}/chat/completions`, {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.key}` },
+    body: JSON.stringify({
+      model: s.model,
+      messages: [{ role: 'system', content: s.system }, ...s.messages],
+      stream: true,
+      stream_options: { include_usage: true },
+      // Gemini 의 '생각 low' 와 같게 — 모르는 모델이면 빼고 한 번만 다시
+      ...(reasoning ? { reasoning_effort: 'low' } : {})
+    })
+  })
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '')
+    if (res.status === 400 && reasoning && /reasoning/i.test(txt)) return generateOpenai(s, onProgress, signal, false)
+    throw new Error(await describeOpenai(new Response(txt, { status: res.status })))
+  }
+  let text = ''
+  let finish = ''
+  let refusal = ''
+  let usage: OcrAnswer['usage']
+  const report = reporter(onProgress)
+  await readSse(res, (data) => {
+    if (data === '[DONE]') return
+    let d: {
+      choices?: { delta?: { content?: string; refusal?: string }; finish_reason?: string | null }[]
+      usage?: { prompt_tokens?: number; completion_tokens?: number }
+      error?: { message?: string }
+    }
+    try {
+      d = JSON.parse(data)
+    } catch {
+      return
+    }
+    if (d.error) throw new Error(`OpenAI 오류: ${d.error.message ?? ''}`)
+    const c = d.choices?.[0]
+    if (c?.delta?.content) text += c.delta.content
+    if (c?.delta?.refusal) refusal += c.delta.refusal
+    if (c?.finish_reason) finish = c.finish_reason
+    if (d.usage) usage = { input: d.usage.prompt_tokens ?? 0, output: d.usage.completion_tokens ?? 0 }
+    report(text)
+  })
+  report(text, true)
+  if (!text.trim()) {
+    if (refusal) throw new Error(`OpenAI 가 이 문서를 읽기를 거절했습니다: ${refusal.slice(0, 200)}`)
+    if (finish === 'content_filter') throw new Error('OpenAI 가 안전 기준에 걸린다며 멈췄습니다(content_filter).')
+    throw new Error('OpenAI 가 빈 답을 보냈습니다. 다시 해 보거나 다른 모델을 골라 주세요.')
+  }
+  return { ok: true, text, finish, truncated: finish === 'length' || stoppedEarly(text), usage }
+}
+
 /** 한 번 묻고 받는 대로 쌓는다 */
-async function generate(s: Session, onProgress: (p: OcrProgress) => void, signal: AbortSignal, opts: GenOptions = { thinking: true, media: true }): Promise<OcrAnswer> {
+function generate(s: Session, onProgress: (p: OcrProgress) => void, signal: AbortSignal): Promise<OcrAnswer> {
+  return s.provider === 'openai' ? generateOpenai(s, onProgress, signal) : generateGemini(s, onProgress, signal)
+}
+
+/** Gemini 로 한 번 묻고 받는 대로 쌓는다 */
+async function generateGemini(s: Session, onProgress: (p: OcrProgress) => void, signal: AbortSignal, opts: GenOptions = { thinking: true, media: true }): Promise<OcrAnswer> {
   const body = {
     systemInstruction: { parts: [{ text: s.system }] },
     contents: s.turns,
@@ -226,8 +385,8 @@ async function generate(s: Session, onProgress: (p: OcrProgress) => void, signal
   if (!res.ok) {
     const txt = await res.text().catch(() => '')
     // 그 모델이 생각 단계 · 그림 해상도 설정을 모르면 빼고 한 번만 다시
-    if (res.status === 400 && opts.thinking && /thinking/i.test(txt)) return generate(s, onProgress, signal, { ...opts, thinking: false })
-    if (res.status === 400 && opts.media && /media_?resolution/i.test(txt)) return generate(s, onProgress, signal, { ...opts, media: false })
+    if (res.status === 400 && opts.thinking && /thinking/i.test(txt)) return generateGemini(s, onProgress, signal, { ...opts, thinking: false })
+    if (res.status === 400 && opts.media && /media_?resolution/i.test(txt)) return generateGemini(s, onProgress, signal, { ...opts, media: false })
     throw new Error(await describe(new Response(txt, { status: res.status })))
   }
   if (!res.body) throw new Error('Gemini 가 빈 응답을 보냈습니다.')
@@ -236,14 +395,8 @@ async function generate(s: Session, onProgress: (p: OcrProgress) => void, signal
   let finish = ''
   let blocked = ''
   let usage: OcrAnswer['usage']
-  let lastSent = 0
-  const report = (force = false): void => {
-    const now = Date.now()
-    if (!force && now - lastSent < 300) return
-    lastSent = now
-    const rows = text.split('\n').filter((l) => l.trim().startsWith('|')).length
-    onProgress({ phase: 'read', chars: text.length, rows: Math.max(0, rows - 2) })
-  }
+  const progress = reporter(onProgress)
+  const report = (force = false): void => progress(text, force)
   const take = (json: string): void => {
     let d: {
       candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[]
@@ -271,10 +424,7 @@ async function generate(s: Session, onProgress: (p: OcrProgress) => void, signal
     if (finish === 'SAFETY') throw new Error('Gemini 가 안전 기준에 걸린다며 멈췄습니다(SAFETY).')
     throw new Error('Gemini 가 빈 답을 보냈습니다. 다시 해 보거나 다른 모델을 골라 주세요.')
   }
-  // 표 뒤에 "몇 페이지까지 처리했다" 고 적고 멈춘 경우도 끊긴 것으로 본다
-  const tail = text.slice(text.lastIndexOf('|') + 1)
-  const truncated = finish === 'MAX_TOKENS' || saysStoppedEarly(tail)
-  return { ok: true, text, finish, truncated, usage }
+  return { ok: true, text, finish, truncated: finish === 'MAX_TOKENS' || stoppedEarly(text), usage }
 }
 
 /** 고른 파일을 읽는다 (그 탭에서 새로 시작) */
@@ -286,14 +436,36 @@ export async function runOcr(req: OcrRequest, onProgress: (p: OcrProgress) => vo
     return fail(`한 번에 ${OCR_MAX_TABS}개까지 읽습니다. 다 쓴 탭을 닫고 다시 해 주세요.`)
   }
   if (aborts.has(tab)) return fail('이 탭은 아직 읽는 중입니다.')
-  const key = (loadLocalSettings().gemini_key ?? '').trim()
-  if (!key) return fail('Gemini API 키가 없습니다. [설정 → AI 연결] 에서 Gemini 키를 넣어 주세요.')
+  // 고른 모델로 어느 서비스로 읽을지 — 모델을 고르지 않았으면 Gemini 키가 있으면 Gemini, 없고 OpenAI 키만 있으면 OpenAI
+  const settings = loadLocalSettings()
+  const geminiKey = (settings.gemini_key ?? '').trim()
+  const openaiKey = (settings.openai_key ?? '').trim()
+  const asked = String(req.model ?? '')
+  const provider: OcrProvider = ocrProviderOf(asked) ?? (geminiKey || !openaiKey ? 'gemini' : 'openai')
+  const key = provider === 'openai' ? openaiKey : geminiKey
+  if (!key) {
+    return fail(
+      provider === 'openai'
+        ? 'OpenAI API 키가 없습니다. [설정 → AI 연결] 에서 OpenAI 키를 넣거나 Gemini 모델을 골라 주세요.'
+        : openaiKey
+          ? 'Gemini API 키가 없습니다. OpenAI 모델을 골라 읽거나, [설정 → AI 연결] 에서 Gemini 키를 넣어 주세요.'
+          : 'Gemini 또는 OpenAI API 키가 없습니다. [설정 → AI 연결] 에서 키를 넣어 주세요.'
+    )
+  }
   const files = (Array.isArray(req?.ids) ? req.ids : []).map((id) => picked.get(String(id))).filter((f): f is Picked => !!f)
   if (!files.length) return fail('읽을 파일을 먼저 골라 주세요.')
   for (const f of files) {
     const max = f.mime === 'application/pdf' ? OCR_MAX_PDF : OCR_MAX_IMAGE
     if (f.size > max) return fail(`「${f.name}」 이(가) 너무 큽니다(${fmtBytes(f.size)}). ${f.mime === 'application/pdf' ? 'PDF 는 50MB' : '사진은 20MB'} 까지 읽습니다. 나눠서 읽어 주세요.`)
     if (!fs.existsSync(f.path)) return fail(`「${f.name}」 을(를) 찾을 수 없습니다. 다시 골라 주세요.`)
+    if (provider === 'openai' && f.mime !== 'application/pdf' && !OCR_OPENAI_IMAGES.has(f.mime)) {
+      return fail(`「${f.name}」: OpenAI 는 HEIC 사진을 읽지 못합니다. JPG · PNG 로 바꾸거나 Gemini 모델로 읽어 주세요.`)
+    }
+  }
+  const total = files.reduce((n, f) => n + f.size, 0)
+  if (provider === 'openai' && total > OA_TOTAL_LIMIT) return fail(`OpenAI 는 한 번에 50MB 까지 읽습니다(지금 ${fmtBytes(total)}). 나눠서 읽어 주세요.`)
+  if (provider === 'openai' && files.filter((f) => f.mime !== 'application/pdf').reduce((n, f) => n + f.size, 0) > OA_INLINE_LIMIT) {
+    return fail('사진이 너무 많습니다(합 30MB 까지). 나눠서 읽어 주세요.')
   }
 
   await clearOcr(tab)
@@ -302,12 +474,42 @@ export async function runOcr(req: OcrRequest, onProgress: (p: OcrProgress) => vo
   const timer = setTimeout(() => ctrl.abort(), READ_TIMEOUT)
   // 만든이가 지침 · 기본 모델을 바꿔 두었으면 그것을 (catalog.json 의 "ocr" — 받으러 가지 않고 이 PC 에 둔 것)
   const remote = peekCatalog().ocr
-  const model = isGeminiModel(String(req.model ?? '')) ? String(req.model) : remote?.model || OCR_DEFAULT_MODEL
-  const s: Session = { key, model, system: `${OCR_RULES}\n\n${remote?.prompt || OCR_AGENT_PROMPT}`, turns: [], uploaded: [], last: '' }
+  const model =
+    provider === 'openai'
+      ? isOpenaiModel(asked)
+        ? asked
+        : remote?.openaiModel || OCR_OPENAI_MODEL
+      : isGeminiModel(asked)
+        ? asked
+        : remote?.model || OCR_DEFAULT_MODEL
+  const s: Session = { provider, key, model, system: `${OCR_RULES}\n\n${remote?.prompt || OCR_AGENT_PROMPT}`, turns: [], messages: [], uploaded: [], last: '' }
   sessions.set(tab, s)
   try {
+    if (provider === 'openai') {
+      // 사진은 높은 해상도로, PDF 는 파일 그대로(OpenAI 가 쪽 그림과 글자를 함께 본다). 크면 PDF 는 파일 저장소로
+      const content: OaPart[] = []
+      const big = total > OA_INLINE_LIMIT
+      const pdfs = files.filter((f) => f.mime === 'application/pdf')
+      for (const f of files) {
+        if (f.mime !== 'application/pdf') {
+          content.push({ type: 'image_url', image_url: { url: `data:${f.mime};base64,${fs.readFileSync(f.path).toString('base64')}`, detail: 'high' } })
+        } else if (big) {
+          onProgress({ phase: 'upload', chars: pdfs.indexOf(f), rows: pdfs.length })
+          const id = await uploadOpenai(key, f, ctrl.signal)
+          s.uploaded.push(id)
+          content.push({ type: 'file', file: { file_id: id } })
+        } else {
+          // 파일 이름에 학생 이름이 들어 있을 수 있어 보내지 않는다
+          content.push({ type: 'file', file: { filename: 'document.pdf', file_data: `data:application/pdf;base64,${fs.readFileSync(f.path).toString('base64')}` } })
+        }
+      }
+      onProgress({ phase: 'wait', chars: 0, rows: 0 })
+      s.messages = [{ role: 'user', content: [...content, { type: 'text', text: ocrUserText(String(req.note ?? '')) }] }]
+      const a = await generate(s, onProgress, ctrl.signal)
+      s.last = a.text
+      return a
+    }
     const parts: Part[] = []
-    const total = files.reduce((n, f) => n + f.size, 0)
     if (total <= INLINE_LIMIT) {
       for (const f of files) parts.push({ inlineData: { mimeType: f.mime, data: fs.readFileSync(f.path).toString('base64') } })
     } else {
@@ -346,7 +548,8 @@ export async function continueOcr(tab: string, onProgress: (p: OcrProgress) => v
     const t = extractTables(kept)
     const lastTable = t[t.length - 1]
     const lastRow = lastTable?.rows.length ? `| ${lastTable.rows[lastTable.rows.length - 1].map((c) => c.replace(/\|/g, '\\|')).join(' | ')} |` : ''
-    s.turns.push({ role: 'model', parts: [{ text: kept }] }, { role: 'user', parts: [{ text: ocrContinueText(lastRow) }] })
+    if (s.provider === 'openai') s.messages.push({ role: 'assistant', content: kept }, { role: 'user', content: ocrContinueText(lastRow) })
+    else s.turns.push({ role: 'model', parts: [{ text: kept }] }, { role: 'user', parts: [{ text: ocrContinueText(lastRow) }] })
     onProgress({ phase: 'wait', chars: 0, rows: 0 })
     const a = await generate(s, onProgress, ctrl.signal)
     s.last = a.text

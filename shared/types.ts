@@ -523,9 +523,10 @@ export interface PickedFile {
   name: string
 }
 
-export const OPENAI_MODELS = ['gpt-5.6-terra', 'gpt-5.6-luna'] as const
+/** 기본 목록 — 새로 나온 것을 앞에 둔다. GPT-6 (2026.9): sol 이 주력, luna 가 싼 등급(스캔 문서 → 엑셀의 OpenAI 권장) */
+export const OPENAI_MODELS = ['gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-terra', 'gpt-5.6-luna'] as const
 export const GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'] as const
-export const CLAUDE_MODELS = ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5'] as const
+export const CLAUDE_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1', 'claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5'] as const
 
 /** 프로그램이 기본으로 아는 모델 목록. 여기 있는 것은 지울 수 없다. */
 export const BUILTIN_MODELS: Record<Provider, readonly string[]> = {

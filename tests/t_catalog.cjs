@@ -68,6 +68,9 @@ ok(oc.prompt === '새 지침\n둘째 줄' && oc.model === 'gemini-3.9-flash', 'O
 const badOcr = sanitizeCatalog({ ocr: { model: 'gpt-5; rm -rf' } })
 ok(badOcr.catalog.ocr.model === '' && badOcr.dropped.some((d) => d.includes('ocr.model')), 'gemini- 모델이 아니면 빼고 알림')
 ok(sanitizeCatalog({}).catalog.ocr.prompt === '' && sanitizeCatalog({ ocr: 'x' }).catalog.ocr.model === '', 'OCR 칸이 없거나 틀려도 빈칸')
+const oa = sanitizeCatalog({ ocr: { openaiModel: 'gpt-6.1-luna' } }).catalog.ocr
+const badOa = sanitizeCatalog({ ocr: { openaiModel: 'gemini-3.8-flash' } })
+ok(oa.openaiModel === 'gpt-6.1-luna' && badOa.catalog.ocr.openaiModel === '' && badOa.dropped.some((d) => d.includes('ocr.openaiModel')), 'OpenAI 키만 있을 때의 OCR 모델 (gpt- 만)')
 
 // 저장소의 실제 파일
 const real = sanitizeCatalog(JSON.parse(fs.readFileSync(path.join(__dirname, '../remote/catalog.json'), 'utf8')))

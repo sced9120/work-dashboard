@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { MdTable } from '../../shared/mdtable'
 import { answersToTables, plainCell, proseOf, toTsv } from '../../shared/mdtable'
-import { OCR_DEFAULT_MODEL, OCR_MAX_TABS, fmtBytes } from '../../shared/ocr'
+import type { OcrProvider } from '../../shared/ocr'
+import { OCR_DEFAULT_MODEL, OCR_MAX_TABS, OCR_OPENAI_MODEL, fmtBytes, ocrProviderOf } from '../../shared/ocr'
 import { OCR_AGENT_PROMPT } from '../../shared/ocrPrompt'
 import { modelsFor } from '../../shared/types'
 import type { PageId } from '../App'
@@ -31,28 +32,43 @@ interface Props {
 }
 
 const MODEL_KEY = 'wd_ocr_model'
+
+/** 키를 넣은 서비스의 모델만 — Gemini 가 먼저, OpenAI 키만 있으면 OpenAI 의 싼 등급을 권장으로 */
+export interface OcrModels {
+  groups: { provider: OcrProvider; label: string; models: string[]; recommended: string }[]
+  /** 아무것도 고르지 않았을 때 쓸 모델 */
+  fallback: string
+}
+
+const WHO: Record<OcrProvider, { name: string; company: string }> = {
+  gemini: { name: 'Gemini', company: 'Google' },
+  openai: { name: 'OpenAI', company: 'OpenAI' }
+}
 /** 화면에 미리 보여 줄 행 수 (엑셀에는 모두 들어간다) */
 const PREVIEW_ROWS = 200
 
 /** 탭 하나 — 파일 고르기 · 읽기 · 결과 */
-function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null; models: string[] }): JSX.Element {
+function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null; models: OcrModels }): JSX.Element {
   const toast = useToast()
   const remote = useCatalog().catalog.ocr
   const id = tab.id
   const [seconds, setSeconds] = useState(0)
   const [drag, setDrag] = useState(0)
 
-  // 만든이가 정한 기본 모델 → 이 PC 에서 마지막으로 고른 모델
+  // 이 탭에서 고른 것 → 이 PC 에서 마지막으로 고른 것(키가 있는 서비스일 때만) → 권장
+  const usable = (m: string): boolean => models.groups.some((g) => g.models.includes(m))
   const model = useMemo(() => {
-    if (tab.model) return tab.model
+    if (tab.model && usable(tab.model)) return tab.model
     let saved = ''
     try {
       saved = window.localStorage.getItem(MODEL_KEY) || ''
     } catch {
-      // 기억 못 해도 기본 모델로
+      // 기억 못 해도 권장 모델로
     }
-    return saved || remote.model || OCR_DEFAULT_MODEL
-  }, [tab.model, remote.model])
+    return saved && usable(saved) ? saved : models.fallback
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab.model, models])
+  const who = WHO[ocrProviderOf(model) ?? 'gemini']
 
   useEffect(() => {
     if (!tab.busy) return
@@ -107,9 +123,9 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
   const status = !p
     ? '보내는 중…'
     : p.phase === 'upload'
-      ? `큰 파일을 Gemini 에 올리는 중… (${p.chars + 1}/${p.rows})`
+      ? `큰 파일을 ${who.name} 에 올리는 중… (${p.chars + 1}/${p.rows})`
       : p.phase === 'wait'
-        ? 'Gemini 가 문서를 읽는 중…'
+        ? `${who.name} 가 문서를 읽는 중…`
         : `받는 중 — 표 ${p.rows}줄 · ${p.chars.toLocaleString()}자`
 
   return (
@@ -172,7 +188,7 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
             />
           </div>
           <div className="field">
-            <label>Gemini 모델</label>
+            <label>모델</label>
             <select
               value={model}
               onChange={(e) => {
@@ -186,14 +202,23 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
               disabled={busy}
               style={{ width: 'auto', minWidth: 220 }}
             >
-              {[...new Set([model, ...models])].filter(Boolean).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                  {m === (remote.model || OCR_DEFAULT_MODEL) ? ' (권장)' : ''}
-                </option>
+              {models.groups.map((g) => (
+                <optgroup key={g.provider} label={g.label}>
+                  {g.models.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                      {m === g.recommended ? ' (권장)' : ''}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
-            <div className="hint">그림을 높은 해상도로 보고(High-Res), 생각은 짧게, 검색 · 도구는 쓰지 않습니다.</div>
+            <div className="hint">
+              {who.name === 'OpenAI'
+                ? '사진은 높은 해상도(detail high)로, PDF 는 파일 그대로 보내고, 생각은 짧게 합니다. HEIC 사진은 OpenAI 가 읽지 못합니다.'
+                : '그림을 높은 해상도로 보고(High-Res), 생각은 짧게, 검색 · 도구는 쓰지 않습니다.'}{' '}
+              설정에 키를 넣은 서비스의 모델만 나옵니다.
+            </div>
           </div>
           <details className="neis-howto">
             <summary>읽는 지침 보기</summary>
@@ -204,15 +229,21 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
 
       <div className="card ocr-send">
         <div className="note note-danger small" style={{ marginBottom: 10 }}>
-          <b>보내는 것:</b> 고른 파일 <b>원본 그대로</b>(학생 이름 · 학번 · 글씨 모두)를 내 Gemini 키로 Google 에 보냅니다. 사진 속 글자라 미리
-          가릴 수 없습니다.
+          <b>보내는 것:</b> 고른 파일 <b>원본 그대로</b>(학생 이름 · 학번 · 글씨 모두)를 내 {who.name} 키로 {who.company} 에 보냅니다. 사진 속 글자라
+          미리 가릴 수 없습니다.
           <br />
-          무료 등급 키로 보낸 내용은 Google 이 서비스 개선에 쓰고 사람이 볼 수도 있습니다. 학생 자료는 <b>결제를 켠(유료 등급) 키</b>를 쓰고, 학교
-          · 교육청의 생성형 AI 지침을 먼저 확인하세요. 받은 결과는 이 프로그램에 저장하지 않습니다.
+          {who.name === 'OpenAI' ? (
+            <>OpenAI 는 API 로 보낸 내용을 기본으로 학습에 쓰지 않는다고 밝히지만, 남용 감시를 위해 일정 기간 보관할 수 있습니다. </>
+          ) : (
+            <>
+              무료 등급 키로 보낸 내용은 Google 이 서비스 개선에 쓰고 사람이 볼 수도 있습니다. 학생 자료는 <b>결제를 켠(유료 등급) 키</b>를 쓰고,{' '}
+            </>
+          )}
+          학교 · 교육청의 생성형 AI 지침을 먼저 확인하세요. 받은 결과는 이 프로그램에 저장하지 않습니다.
         </div>
         <label className="ocr-agree">
           <input type="checkbox" checked={tab.agree} onChange={(e) => patchTab(id, { agree: e.target.checked })} disabled={busy} />
-          위 내용을 확인했고, 이 파일을 Gemini 로 보내도 됩니다
+          위 내용을 확인했고, 이 파일을 {who.name} 로 보내도 됩니다
         </label>
         <div className="row" style={{ marginTop: 10 }}>
           <button className="btn btn-primary" onClick={() => void run()} disabled={busy || !files.length || !tab.agree || !hasKey}>
@@ -297,7 +328,7 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
             </div>
           ))}
           {tables.some((t) => t.rows.some((r) => r.some((c) => /\[(불확실|판독 불가)/.test(c)))) && (
-            <p className="hint">노랗게 칠한 칸은 Gemini 가 [불확실] · [판독 불가] 로 표시한 곳입니다. 원본과 맞춰 고쳐 주세요.</p>
+            <p className="hint">노랗게 칠한 칸은 AI 가 [불확실] · [판독 불가] 로 표시한 곳입니다. 원본과 맞춰 고쳐 주세요.</p>
           )}
         </div>
       )}
@@ -312,7 +343,7 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
 }
 
 /**
- * 스캔 문서 → 엑셀 (OCR). 스캔한 PDF · 사진을 사용자의 Gemini 키로 보내 원문 그대로 표로 받고 엑셀로 저장한다.
+ * 스캔 문서 → 엑셀 (OCR). 스캔한 PDF · 사진을 사용자의 Gemini 키(없으면 OpenAI 키)로 보내 원문 그대로 표로 받고 엑셀로 저장한다.
  * 탭(최대 5개)마다 따로 읽고, 다른 화면으로 가도 계속 읽는다(src/lib/ocrStore.ts). 실제 일은 electron/main/ocr.ts.
  * 받은 결과는 파일로 저장하지 않는다(프로그램을 끄거나 탭을 닫으면 사라진다).
  */
@@ -320,18 +351,29 @@ export default function Ocr({ onGo }: Props): JSX.Element {
   const toast = useToast()
   const ask = useConfirm()
   const { tabs, active } = useOcrTabs()
-  const [hasKey, setHasKey] = useState<boolean | null>(null)
-  const [models, setModels] = useState<string[]>([OCR_DEFAULT_MODEL])
+  const remote = useCatalog().catalog.ocr
+  const [keys, setKeys] = useState<{ gemini: boolean; openai: boolean } | null>(null)
+  const [lists, setLists] = useState<{ gemini: string[]; openai: string[] }>({ gemini: [], openai: [] })
   const tab = tabs.find((t) => t.id === active) ?? tabs[0]
+  const hasKey = keys ? keys.gemini || keys.openai : null
+
+  // 키를 넣은 서비스의 모델만. 권장: Gemini 는 만든이가 정한 것(없으면 3.8 Flash), OpenAI 는 싼 등급(gpt-6-luna)
+  const models = useMemo<OcrModels>(() => {
+    const groups: OcrModels['groups'] = []
+    const gRec = remote.model || OCR_DEFAULT_MODEL
+    const oRec = remote.openaiModel || OCR_OPENAI_MODEL
+    if (keys?.gemini) groups.push({ provider: 'gemini', label: 'Google Gemini', models: [...new Set([gRec, ...lists.gemini])], recommended: gRec })
+    if (keys?.openai) groups.push({ provider: 'openai', label: 'OpenAI', models: [...new Set([oRec, ...lists.openai])], recommended: oRec })
+    return { groups, fallback: groups[0]?.recommended ?? gRec }
+  }, [keys, lists, remote.model, remote.openaiModel])
 
   useEffect(() => {
     initOcr()
     setOcrMounted(true)
     void (async () => {
       const s = await window.api.local.load()
-      setHasKey(!!s.gemini_key?.trim())
-      const list = modelsFor('gemini', s.custom_models, s.hidden_models)
-      setModels([...new Set([OCR_DEFAULT_MODEL, ...list])])
+      setKeys({ gemini: !!s.gemini_key?.trim(), openai: !!s.openai_key?.trim() })
+      setLists({ gemini: modelsFor('gemini', s.custom_models, s.hidden_models), openai: modelsFor('openai', s.custom_models, s.hidden_models) })
     })()
     // 화면을 떠나도 읽던 것은 계속 읽는다 — 올려 둔 파일은 탭을 닫거나 프로그램을 끌 때 지운다
     return () => setOcrMounted(false)
@@ -355,15 +397,16 @@ export default function Ocr({ onGo }: Props): JSX.Element {
       <div className="page-head">
         <h1>스캔 문서 → 엑셀</h1>
         <p>
-          스캔한 PDF · 사진을 Gemini 가 <b>글자 그대로</b> 읽어 표로 만들고, 엑셀 파일로 저장합니다. 요약하지 않고, 취소선으로 지운 글은
-          빼고, 헷갈리는 글자는 [불확실: …] 로 남깁니다. 설정에 넣어 둔 <b>내 Gemini API 키</b>를 씁니다. 탭을 열어 여러 문서를 함께 읽을 수 있습니다.
+          스캔한 PDF · 사진을 AI 가 <b>글자 그대로</b> 읽어 표로 만들고, 엑셀 파일로 저장합니다. 요약하지 않고, 취소선으로 지운 글은
+          빼고, 헷갈리는 글자는 [불확실: …] 로 남깁니다. 설정에 넣어 둔 <b>내 Gemini 키</b>(없으면 <b>OpenAI 키</b>)를 씁니다. 탭을 열어 여러 문서를 함께 읽을
+          수 있습니다.
         </p>
       </div>
 
       {hasKey === false && (
         <div className="note note-warn ocr-nokey">
-          Gemini API 키가 없습니다. [설정 → AI 연결] 에서 Gemini 키를 넣으면 쓸 수 있습니다(다른 AI 를 쓰고 있어도 이 기능은 Gemini 키로
-          동작합니다).{' '}
+          Gemini · OpenAI API 키가 없습니다. [설정 → AI 연결] 에서 둘 가운데 하나의 키를 넣으면 쓸 수 있습니다(이 기능은 Gemini 설정에 맞춰 만들고
+          시험했습니다).{' '}
           <button className="btn btn-sm" onClick={() => onGo('설정')}>
             설정으로
           </button>

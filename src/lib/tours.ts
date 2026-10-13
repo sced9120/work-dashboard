@@ -228,9 +228,9 @@ export const TOURS: Record<PageId, Tour> = {
   },
   OCR: {
     page: 'OCR',
-    intro: '스캔한 PDF · 사진을 글자 그대로 표로 읽어 엑셀로 (내 Gemini 키)',
+    intro: '스캔한 PDF · 사진을 글자 그대로 표로 읽어 엑셀로 (내 Gemini · OpenAI 키)',
     steps: [
-      { sel: H1, title: '스캔 문서 → 엑셀', body: '스캔한 PDF · 사진을 Gemini 가 글자 그대로 읽어 표로 만들고 엑셀로 저장합니다. 요약하지 않고, 취소선으로 지운 글은 뺍니다. 설정에 넣은 내 Gemini 키를 씁니다.' },
+      { sel: H1, title: '스캔 문서 → 엑셀', body: '스캔한 PDF · 사진을 AI 가 글자 그대로 읽어 표로 만들고 엑셀로 저장합니다. 요약하지 않고, 취소선으로 지운 글은 뺍니다. 설정에 넣은 내 Gemini 키를 쓰고, OpenAI 키만 있으면 OpenAI 의 싼 등급(gpt-6-luna)으로 읽습니다.' },
       { sel: '.main .ocr-tabs', title: '탭', body: '탭마다 따로 읽습니다(5개까지). 다른 화면으로 가도 읽던 것은 계속 읽고, 다 읽으면 알려 드립니다.', optional: true },
       { sel: '.main button', text: '파일 고르기', title: '파일 고르기', body: 'PDF · 사진을 여러 개 고를 수 있고, 끌어 놓아도 됩니다. 이름 차례로 한 표에 모아 읽습니다.' },
       { sel: '.main textarea', title: '추가 요청', body: '“학번 순으로”, “영어 본문만”처럼 더 바라는 것을 적습니다. 비워 두면 문서 전체를 원문 그대로 표로 옮깁니다.' },
