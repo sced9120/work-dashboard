@@ -193,6 +193,18 @@ const G = { provider: 'gemini', model: 'gemini-3.8-flash' }
   const saved = await call('chats:savePresets', [{ id: 'p-abc123', name: '수학 세특', text: '지침 글' }, { id: 'builtin-setuk', name: '가짜', text: 'x' }, { id: 'p-empty', name: '', text: '' }])
   ok(saved.length === 1 && saved[0].name === '수학 세특' && (await call('chats:presets')).length === 1, '내 지침만 저장 (보기 · 빈 것은 뺌)')
 
+  console.log('\n9b. 예전 기본 모델은 새 모델로 한 번만 (v3.3.1)')
+  await call('local:save', await call('local:load'))
+  const sfile = path.join(USER_DATA, 'settings.json')
+  const old = JSON.parse(fs.readFileSync(sfile, 'utf8'))
+  delete old.models_rev
+  fs.writeFileSync(sfile, JSON.stringify({ ...old, openai_model: 'gpt-5.6-terra', claude_model: 'claude-sonnet-5', gemini_model: 'gemini-3.6-flash', feature_models: { chat: { provider: 'openai', model: 'gpt-5.6-luna' }, analyze: { provider: 'claude', model: 'claude-haiku-4-5' }, summary: { provider: 'gemini', model: 'gemini-3.8-flash' } } }))
+  const up = await call('local:load')
+  ok(up.openai_model === 'gpt-6-sol' && up.claude_model === 'claude-sonnet-5-5' && up.gemini_model === 'gemini-3.6-flash', `기본 모델: ${up.openai_model} · ${up.claude_model} · ${up.gemini_model}`)
+  ok(up.feature_models.chat.model === 'gpt-6-luna' && up.feature_models.analyze.model === 'claude-haiku-5-5' && up.feature_models.summary.model === 'gemini-3.8-flash', '화면마다 고른 모델도 같은 등급의 새 모델로 (Gemini 는 그대로)')
+  await call('local:save', { ...up, openai_model: 'gpt-5.6-terra' })
+  ok((await call('local:load')).openai_model === 'gpt-5.6-terra' && JSON.parse(fs.readFileSync(sfile, 'utf8')).models_rev === 2, '바뀐 뒤 사람이 다시 고른 예전 모델은 그대로')
+
   console.log('\n10. 인수인계 파일에는 대화가 들어가지 않음')
   const h = path.join(USER_DATA, 'handoff.db')
   next.save.push(h)

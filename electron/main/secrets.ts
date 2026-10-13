@@ -10,6 +10,13 @@ import type {
   ModelChoice,
   Provider
 } from '../../shared/types'
+import { MODEL_UPGRADES } from '../../shared/types'
+
+/**
+ * 모델 기본값을 몇 번째로 바꿨는지. 저장된 값이 이보다 낮으면 예전 기본 모델을 같은 등급의 새 모델로 한 번 바꾼다.
+ * 2 = v3.3.1 (GPT-6 · Claude 5.5). 저장할 때 늘 이 값을 적으므로, 그 뒤에 사람이 고른 예전 모델은 건드리지 않는다.
+ */
+const MODELS_REV = 2
 
 /**
  * API 키는 인수인계 DB가 아니라 이 PC에만 저장한다.
@@ -22,9 +29,9 @@ const DEFAULTS: LocalSettings = {
   openai_key: '',
   gemini_key: '',
   claude_key: '',
-  openai_model: 'gpt-5.6-terra',
+  openai_model: 'gpt-6-sol',
   gemini_model: 'gemini-3.6-flash',
-  claude_model: 'claude-sonnet-5',
+  claude_model: 'claude-sonnet-5-5',
   feature_models: {},
   custom_models: {},
   hidden_models: {},
@@ -40,6 +47,7 @@ const DEFAULTS: LocalSettings = {
 
 interface StoredShape {
   provider?: string
+  models_rev?: number
   openai_model?: string
   gemini_model?: string
   claude_model?: string
@@ -143,8 +151,21 @@ export function loadLocalSettings(): LocalSettings {
   return cached
 }
 
+/** 예전 기본 모델이면 새 모델로 (아직 바꾸지 않은 설정 파일만) */
+function upgradeModels(raw: StoredShape): StoredShape {
+  if ((raw.models_rev ?? 0) >= MODELS_REV) return raw
+  const up = (m: string | undefined): string | undefined => (m && MODEL_UPGRADES[m]) || m
+  const feature = raw.feature_models && typeof raw.feature_models === 'object' ? raw.feature_models : undefined
+  return {
+    ...raw,
+    openai_model: up(raw.openai_model),
+    claude_model: up(raw.claude_model),
+    ...(feature ? { feature_models: Object.fromEntries(Object.entries(feature).map(([k, v]) => [k, v && typeof v === 'object' ? { ...v, model: up(v.model) } : v])) } : {})
+  }
+}
+
 function readLocalSettings(): LocalSettings {
-  const raw = read()
+  const raw = upgradeModels(read())
   const useEnc = encryptionAvailable()
 
   const openai_key = useEnc ? decrypt(raw.enc?.openai_key) : (raw.plain?.openai_key ?? '')
@@ -177,6 +198,7 @@ export function saveLocalSettings(next: LocalSettings): void {
   const useEnc = encryptionAvailable()
   const out: StoredShape = {
     provider: next.provider,
+    models_rev: MODELS_REV,
     openai_model: next.openai_model || DEFAULTS.openai_model,
     gemini_model: next.gemini_model || DEFAULTS.gemini_model,
     claude_model: next.claude_model || DEFAULTS.claude_model,

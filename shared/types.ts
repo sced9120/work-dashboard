@@ -528,6 +528,18 @@ export const OPENAI_MODELS = ['gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-terra', 'gpt-5
 export const GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'] as const
 export const CLAUDE_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1', 'claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5'] as const
 
+/**
+ * 예전 기본 목록의 모델 → 같은 등급의 새 모델 (v3.3.1). 이 PC 의 설정을 한 번만 바꾼다(secrets.ts 의 models_rev).
+ * 바뀐 뒤에 사람이 다시 예전 모델을 고르면 그대로 둔다.
+ */
+export const MODEL_UPGRADES: Record<string, string> = {
+  'gpt-5.6-terra': 'gpt-6-sol',
+  'gpt-5.6-luna': 'gpt-6-luna',
+  'claude-opus-5': 'claude-opus-5-5',
+  'claude-sonnet-5': 'claude-sonnet-5-5',
+  'claude-haiku-4-5': 'claude-haiku-5-5'
+}
+
 /** 프로그램이 기본으로 아는 모델 목록. 여기 있는 것은 지울 수 없다. */
 export const BUILTIN_MODELS: Record<Provider, readonly string[]> = {
   gemini: GEMINI_MODELS,
