@@ -23,9 +23,9 @@ const DEFAULT_LOCAL: LocalSettings = {
   openai_key: '',
   gemini_key: '',
   claude_key: '',
-  openai_model: 'gpt-5.6-terra',
+  openai_model: 'gpt-6-sol',
   gemini_model: 'gemini-3.6-flash',
-  claude_model: 'claude-sonnet-5',
+  claude_model: 'claude-sonnet-5-5',
   feature_models: {},
   custom_models: {},
   hidden_models: {},
@@ -37,31 +37,39 @@ const DEFAULT_LOCAL: LocalSettings = {
   gcal_url: ''
 }
 
-/** 서비스별 이름·키 발급처·키 생김새 */
+/** 서비스별 이름·키 발급처·키 생김새 · 모델 목록 · 가격 문서 */
 const PROVIDERS: Record<
   Provider,
-  { label: string; keyUrl: string; keyHint: string; placeholder: string }
+  { label: string; keyUrl: string; keyHint: string; placeholder: string; modelsUrl: string; pricingUrl: string }
 > = {
   gemini: {
     label: 'Google Gemini',
     keyUrl: 'https://aistudio.google.com/apikey',
     keyHint: 'Google AI Studio(aistudio.google.com/apikey)에서 무료로 키를 만들 수 있습니다.',
-    placeholder: 'AIza…'
+    placeholder: 'AIza…',
+    modelsUrl: 'https://ai.google.dev/gemini-api/docs/models',
+    pricingUrl: 'https://ai.google.dev/gemini-api/docs/pricing'
   },
   openai: {
     label: 'OpenAI',
     keyUrl: 'https://platform.openai.com/api-keys',
     keyHint: 'platform.openai.com/api-keys 에서 키를 만들 수 있습니다. 사용량만큼 과금됩니다.',
-    placeholder: 'sk-…'
+    placeholder: 'sk-…',
+    modelsUrl: 'https://developers.openai.com/api/docs/models',
+    pricingUrl: 'https://developers.openai.com/api/docs/pricing'
   },
   claude: {
     label: 'Claude (Anthropic)',
     keyUrl: 'https://console.anthropic.com/settings/keys',
     keyHint:
       'console.anthropic.com/settings/keys 에서 키를 만들 수 있습니다. 사용량만큼 과금됩니다.',
-    placeholder: 'sk-ant-…'
+    placeholder: 'sk-ant-…',
+    modelsUrl: 'https://platform.claude.com/docs/en/models/overview',
+    pricingUrl: 'https://platform.claude.com/docs/en/about-claude/pricing'
   }
 }
+
+const keyOf = (l: LocalSettings, p: Provider): string => (p === 'openai' ? l.openai_key : p === 'claude' ? l.claude_key : l.gemini_key)
 
 export default function Settings({ onProfileChanged }: Props): JSX.Element {
   const toast = useToast()
@@ -332,8 +340,10 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
                 key={p}
                 className={`btn ${local.provider === p ? 'btn-primary' : ''}`}
                 onClick={() => setLocal({ ...local, provider: p })}
+                title={keyOf(local, p)?.trim() ? '키를 넣었습니다' : '키를 아직 넣지 않았습니다'}
               >
                 {PROVIDERS[p].label}
+                {keyOf(local, p)?.trim() ? ' ✓' : ''}
               </button>
             ))}
           </div>
@@ -376,6 +386,30 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
         </div>
 
         <div className="field">
+          <label>모델 안내 문서</label>
+          <div className="model-docs">
+            {(['gemini', 'openai', 'claude'] as const).map((p) => (
+              <div key={p} className="model-docs-row">
+                <span className="model-docs-name">
+                  {PROVIDERS[p].label}
+                  {keyOf(local, p)?.trim() ? <span className="badge badge-accent">키 있음</span> : null}
+                </span>
+                <button className="link" onClick={() => void window.api.shell.open(PROVIDERS[p].modelsUrl)}>
+                  모델 목록 ↗
+                </button>
+                <button className="link" onClick={() => void window.api.shell.open(PROVIDERS[p].pricingUrl)}>
+                  가격 ↗
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="hint">
+            서비스마다 어떤 모델이 있고 얼마인지 보는 공식 문서입니다(브라우저로 엽니다). 새 모델 이름을 찾아 아래 [목록에 추가] 에 넣으면 됩니다.
+            스캔 문서 → 엑셀은 Gemini 키가 있으면 Gemini 로, OpenAI 키만 있으면 OpenAI 의 싼 등급(gpt-6-luna)으로 읽습니다.
+          </div>
+        </div>
+
+        <div className="field">
           <label>모델 목록 관리 — {providerInfo.label}</label>
           <div className="row">
             <input
@@ -385,7 +419,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void addModel()
               }}
-              placeholder="새 모델 이름 (예: gpt-5.6-luna)"
+              placeholder="새 모델 이름 (예: gpt-6-luna)"
               style={{ flex: 1, minWidth: 200 }}
             />
             <button className="btn" onClick={() => void addModel()} disabled={!newModel.trim()}>
@@ -422,7 +456,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
           )}
 
           <div className="hint">
-            여기 있는 이름이 <b>모든 AI 화면의 모델 고르개</b>에 그대로 나옵니다. 새 모델이 나오면
+            여기 있는 이름이 <b>모든 AI 화면의 모델 고르개</b>에 그대로 나옵니다(키를 넣은 서비스만). 새 모델이 나오면
             이름만 넣어 두면 되고, 안 쓰는 모델은 × 로 빼면 됩니다.{' '}
             <b>기본 제공 모델도 뺄 수 있습니다</b> — 실수로 뺐다면 [기본 목록으로 되돌리기]로
             복구됩니다. 파란 딱지는 직접 추가한 것입니다.

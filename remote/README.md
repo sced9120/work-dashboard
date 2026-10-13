@@ -121,11 +121,14 @@
 ```json
   "ocr": {
     "model": "gemini-3.8-flash",
+    "openaiModel": "gpt-6-luna",
     "prompt": "# Gemini OCR 전용 프롬프트 …\n\n(줄바꿈은 \\n 으로)"
   }
 ```
 
 - `prompt` 는 'OCR 데이터 스캔 에이전트' 자리를 통째로 바꿉니다. 앞의 'OCR 전용 처리 규칙'(원문 그대로 · 추측 금지)은 늘 붙습니다
 - `model` 은 `gemini-` 로 시작해야 합니다. 사용자가 화면에서 다른 모델을 고르면 그것을 씁니다
+- `openaiModel` 은 Gemini 키 없이 **OpenAI 키만 있는 사용자**가 쓸 기본 모델입니다(`gpt-` 로 시작, v3.3.1 부터). 비우면 `gpt-6-luna`.
+  OpenAI 가 더 싸고 잘 읽는 모델을 내면 여기만 바꾸면 됩니다
 - JSON 글 안에서 줄바꿈은 `\n`, 큰따옴표는 `\"` 로 적습니다. 긴 지침은 제게 맡기셔도 됩니다
 

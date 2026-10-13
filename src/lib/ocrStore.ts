@@ -5,7 +5,7 @@ import { answersToTables } from '../../shared/mdtable'
 
 /**
  * 스캔 문서 → 엑셀의 탭 (최대 5개) — 화면 밖에 둔다. 다른 화면으로 가도 읽던 것은 계속 읽고, 돌아오면 그대로 있다.
- * 받은 결과는 이 프로그램이 켜져 있는 동안만 있다(파일로 저장하지 않는다). 탭을 닫으면 Gemini 에 올려 둔 파일도 지운다.
+ * 받은 결과는 이 프로그램이 켜져 있는 동안만 있다(파일로 저장하지 않는다). 탭을 닫으면 Gemini · OpenAI 에 올려 둔 파일도 지운다.
  */
 
 export interface OcrTab {
@@ -119,7 +119,7 @@ export function setActive(id: string): void {
   if (tabOf(id)) set({ ...state, active: id })
 }
 
-/** 탭 닫기 — 읽던 것을 멈추고 Gemini 에 올려 둔 파일을 지운다. 마지막 탭이면 빈 탭으로 */
+/** 탭 닫기 — 읽던 것을 멈추고 Gemini · OpenAI 에 올려 둔 파일을 지운다. 마지막 탭이면 빈 탭으로 */
 export function closeTab(id: string): void {
   const i = state.tabs.findIndex((t) => t.id === id)
   if (i < 0) return

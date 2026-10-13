@@ -159,6 +159,12 @@ const G = { provider: 'gemini', model: 'gemini-3.8-flash' }
   ok(r8.ok && r8.answer.includes('이어서 써 줘'), '답이 길어 끊기면 이어 달라고 하라고 안내')
   ok(!(await call('ai:chatStream', { reqId: 'q9', mode: 'free', jobTitle: '', instruction: '', history: [{ role: 'assistant', content: '혼자' }], model: G })).ok, '보낼 질문이 없으면 보내지 않음')
 
+  // 키를 지운 서비스를 골라 두었으면 키가 있는 서비스의 기본 모델로
+  await call('local:save', { ...(await call('local:load')), claude_key: '' })
+  script = [() => gemini('키 있는 쪽으로')]
+  const r11 = await call('ai:chatStream', { reqId: 'q11', mode: 'free', jobTitle: '', instruction: '', history: [{ role: 'user', content: '안녕' }], model: { provider: 'claude', model: 'claude-test' } })
+  ok(r11.ok && log[log.length - 1].url.includes('generativelanguage.googleapis.com') && log[log.length - 1].url.includes('/gemini-3.8-flash:'), '키가 없는 서비스를 골랐으면 키 있는 서비스(Gemini) 기본 모델로')
+
   console.log('\n8. 대화 보관 — 새로 · 목록 · 이름 바꾸기 · 지우기 (chats/ 폴더, DB 아님)')
   ok((await call('chats:list')).length === 0, '처음엔 비어 있음')
   const id = '3f2a9c1e-0b7d-4c55-9e21-7a1b2c3d4e5f'
@@ -186,6 +192,18 @@ const G = { provider: 'gemini', model: 'gemini-3.8-flash' }
   console.log('\n9. 지침 모음')
   const saved = await call('chats:savePresets', [{ id: 'p-abc123', name: '수학 세특', text: '지침 글' }, { id: 'builtin-setuk', name: '가짜', text: 'x' }, { id: 'p-empty', name: '', text: '' }])
   ok(saved.length === 1 && saved[0].name === '수학 세특' && (await call('chats:presets')).length === 1, '내 지침만 저장 (보기 · 빈 것은 뺌)')
+
+  console.log('\n9b. 예전 기본 모델은 새 모델로 한 번만 (v3.3.1)')
+  await call('local:save', await call('local:load'))
+  const sfile = path.join(USER_DATA, 'settings.json')
+  const old = JSON.parse(fs.readFileSync(sfile, 'utf8'))
+  delete old.models_rev
+  fs.writeFileSync(sfile, JSON.stringify({ ...old, openai_model: 'gpt-5.6-terra', claude_model: 'claude-sonnet-5', gemini_model: 'gemini-3.6-flash', feature_models: { chat: { provider: 'openai', model: 'gpt-5.6-luna' }, analyze: { provider: 'claude', model: 'claude-haiku-4-5' }, summary: { provider: 'gemini', model: 'gemini-3.8-flash' } } }))
+  const up = await call('local:load')
+  ok(up.openai_model === 'gpt-6-sol' && up.claude_model === 'claude-sonnet-5-5' && up.gemini_model === 'gemini-3.6-flash', `기본 모델: ${up.openai_model} · ${up.claude_model} · ${up.gemini_model}`)
+  ok(up.feature_models.chat.model === 'gpt-6-luna' && up.feature_models.analyze.model === 'claude-haiku-5-5' && up.feature_models.summary.model === 'gemini-3.8-flash', '화면마다 고른 모델도 같은 등급의 새 모델로 (Gemini 는 그대로)')
+  await call('local:save', { ...up, openai_model: 'gpt-5.6-terra' })
+  ok((await call('local:load')).openai_model === 'gpt-5.6-terra' && JSON.parse(fs.readFileSync(sfile, 'utf8')).models_rev === 2, '바뀐 뒤 사람이 다시 고른 예전 모델은 그대로')
 
   console.log('\n10. 인수인계 파일에는 대화가 들어가지 않음')
   const h = path.join(USER_DATA, 'handoff.db')

@@ -4,7 +4,29 @@
  * 그림 해상도 high · 생각 low · 검색 · 도구 없음 · PDF 는 글자를 뽑지 않고 원본 그대로 보낸다.
  */
 
+import { isGeminiModel } from './gemini'
+
 export const OCR_DEFAULT_MODEL = 'gemini-3.8-flash'
+/**
+ * OpenAI 키만 있을 때 쓰는 OCR 모델 — GPT-6 의 싼 등급(Gemini Flash 처럼). 사진 · PDF 를 함께 받는다.
+ * 만든이가 catalog.json 의 "ocr": { "openaiModel": … } 로 바꿀 수 있다.
+ */
+export const OCR_OPENAI_MODEL = 'gpt-6-luna'
+
+export type OcrProvider = 'gemini' | 'openai'
+
+/** OpenAI 모델 이름 (gpt-… · o3 · chatgpt-…) */
+export const isOpenaiModel = (m: string): boolean => /^(gpt-|chatgpt-|o\d)[a-z0-9.-]{0,60}$/.test(m)
+
+/** 모델 이름으로 어느 서비스로 읽을지 */
+export function ocrProviderOf(model: string): OcrProvider | null {
+  if (isGeminiModel(model)) return 'gemini'
+  if (isOpenaiModel(model)) return 'openai'
+  return null
+}
+
+/** OpenAI 가 받는 사진 (HEIC 는 받지 않는다) */
+export const OCR_OPENAI_IMAGES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
 
 /** 고를 수 있는 파일 → Gemini 가 받는 형식 */
 export const OCR_TYPES: Record<string, string> = {

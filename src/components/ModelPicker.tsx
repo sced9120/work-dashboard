@@ -37,11 +37,17 @@ function defaultModel(s: LocalSettings, p: Provider): string {
   return s.gemini_model
 }
 
-/** 이 기능에 쓸 (서비스·모델). 저장된 선택이 있으면 그것, 없으면 전역 기본. */
+const ORDER: Provider[] = ['gemini', 'openai', 'claude']
+
+/**
+ * 이 기능에 쓸 (서비스·모델). 저장된 선택이 있으면 그것, 없으면 전역 기본.
+ * 그 서비스의 키가 없으면(키를 지웠거나 다른 서비스만 쓰는 경우) 키가 있는 서비스의 기본 모델로.
+ */
 function initialChoice(s: LocalSettings, feature: AiFeature): ModelChoice {
   const saved = s.feature_models?.[feature]
-  if (saved?.model) return saved
-  const p = saved?.provider ?? s.provider
+  if (saved?.model && hasKey(s, saved.provider)) return saved
+  const wanted = saved?.provider ?? s.provider
+  const p = hasKey(s, wanted) ? wanted : hasKey(s, s.provider) ? s.provider : (ORDER.find((x) => hasKey(s, x)) ?? wanted)
   return { provider: p, model: defaultModel(s, p) }
 }
 
@@ -77,7 +83,7 @@ export default function ModelPicker({
 
   const availableProviders = useMemo<Provider[]>(() => {
     if (!settings) return []
-    return (['gemini', 'openai', 'claude'] as Provider[]).filter((p) => hasKey(settings, p))
+    return ORDER.filter((p) => hasKey(settings, p))
   }, [settings])
 
   const applyChoice = async (
@@ -156,12 +162,12 @@ export default function ModelPicker({
           value={customOpen ? '__custom__' : selectValue}
           onChange={(e) => onSelectChange(e.target.value)}
         >
-          {(['gemini', 'openai', 'claude'] as Provider[]).map((p) => {
-            const enabled = availableProviders.includes(p)
+          {/* 키를 넣은 서비스의 모델만 보인다 */}
+          {availableProviders.map((p) => {
             return (
-              <optgroup key={p} label={`${PROVIDER_LABEL[p]}${enabled ? '' : ' (키 없음)'}`}>
+              <optgroup key={p} label={PROVIDER_LABEL[p]}>
                 {modelsFor(p, settings.custom_models, settings.hidden_models).map((m) => (
-                  <option key={m} value={`${p}${OPT_SEP}${m}`} disabled={!enabled}>
+                  <option key={m} value={`${p}${OPT_SEP}${m}`}>
                     {m}
                   </option>
                 ))}
@@ -182,8 +188,8 @@ export default function ModelPicker({
             value={choice.provider}
             onChange={(e) => setChoice({ ...choice, provider: e.target.value as Provider })}
           >
-            {(['gemini', 'openai', 'claude'] as Provider[]).map((p) => (
-              <option key={p} value={p} disabled={!availableProviders.includes(p)}>
+            {availableProviders.map((p) => (
+              <option key={p} value={p}>
                 {PROVIDER_LABEL[p]}
               </option>
             ))}
@@ -195,7 +201,7 @@ export default function ModelPicker({
             onKeyDown={(e) => {
               if (e.key === 'Enter') commitCustom()
             }}
-            placeholder="예: gpt-5.6-terra · claude-opus-5 · gemini-3.6-flash"
+            placeholder="예: gpt-6-sol · claude-opus-5-5 · gemini-3.6-flash"
             className="model-picker-input"
           />
           <button className="btn btn-sm btn-primary" onClick={commitCustom} disabled={!custom.trim()}>

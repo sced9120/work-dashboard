@@ -323,8 +323,8 @@ function openaiSupportsTemperature(model: string): boolean {
   const m = model.toLowerCase()
   // o1/o3/o4 는 이름이 `o1`, `o1-mini`, `o3-mini`, `o4-mini` 처럼 온다.
   if (/^o[1-9](-|$)/.test(m)) return false
-  // gpt-5.x / gpt-5-* / gpt-5.6-luna 처럼 gpt-5 계열 (gpt-4·gpt-3.5 는 제외)
-  if (/^gpt-5(\.|-|$)/.test(m)) return false
+  // gpt-5.x / gpt-5-* / gpt-5.6-luna · gpt-6-luna 처럼 gpt-5 이후 계열 (gpt-4·gpt-3.5 는 제외)
+  if (/^gpt-([5-9]|\d{2,})(\.|-|$)/.test(m)) return false
   return true
 }
 
@@ -484,10 +484,17 @@ function resolveChoice(
   feature: AiFeature,
   override?: ModelChoice | null
 ): ModelChoice {
-  const from = override ?? settings.feature_models?.[feature]
-  if (from && from.model) return { provider: from.provider, model: from.model }
-  if (from?.provider) return { provider: from.provider, model: defaultModelFor(settings, from.provider) }
-  return { provider: settings.provider, model: defaultModelFor(settings, settings.provider) }
+  const pick = (): ModelChoice => {
+    const from = override ?? settings.feature_models?.[feature]
+    if (from && from.model) return { provider: from.provider, model: from.model }
+    if (from?.provider) return { provider: from.provider, model: defaultModelFor(settings, from.provider) }
+    return { provider: settings.provider, model: defaultModelFor(settings, settings.provider) }
+  }
+  const choice = pick()
+  // 고른 서비스의 키가 없고 다른 서비스 키만 있으면 그쪽 기본 모델로 (화면의 모델 고르개도 키 있는 서비스만 보여 준다)
+  if (keyFor(settings, choice.provider)) return choice
+  const other = (['gemini', 'openai', 'claude'] as Provider[]).find((p) => keyFor(settings, p))
+  return other ? { provider: other, model: defaultModelFor(settings, other) } : choice
 }
 
 function keyFor(settings: LocalSettings, p: Provider): string {
