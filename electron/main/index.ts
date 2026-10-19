@@ -170,8 +170,10 @@ function createWindow(): void {
     }
   })
 
-  // 자동 실행으로 켜진 경우에는 창을 띄우지 않고 트레이에만 올린다.
-  const startHidden = process.argv.includes('--hidden') && loadLocalSettings().keep_in_tray
+  // 자동 실행으로 켜졌고 [켤 때 창은 띄우지 않기]를 골랐을 때만 창 없이 트레이에만 올린다.
+  // 설정도 함께 본다 — 예전 판이 '--hidden' 을 붙여 등록해 둔 자동 실행으로 켜져도 창이 뜨게.
+  const settings = loadLocalSettings()
+  const startHidden = process.argv.includes('--hidden') && settings.keep_in_tray && settings.start_hidden
   mainWindow.on('ready-to-show', () => {
     if (!startHidden) mainWindow?.show()
   })
@@ -686,6 +688,7 @@ function registerIpc(): void {
     const osChanged =
       before.open_at_login !== s.open_at_login ||
       before.keep_in_tray !== s.keep_in_tray ||
+      before.start_hidden !== s.start_hidden ||
       before.notify_deadlines !== s.notify_deadlines ||
       before.notify_days !== s.notify_days
 

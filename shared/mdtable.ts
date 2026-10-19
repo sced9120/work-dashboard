@@ -201,6 +201,45 @@ export function answersToTables(answers: { text: string; truncated: boolean }[])
   }, [])
 }
 
+/**
+ * 쪽 묶음별로 따로 받은 표들을 하나로 — 첫 묶음의 표가 기준이고, 뒤 묶음의 표는 칸 수가 같으면
+ * (머리글 글자가 조금 달라도) 이어 붙인다. 이름 칸 등이 `continued` 인 행(앞 묶음에서 이어지는 쪽)은
+ * 앞 행에 붙인다: 쪽 번호 칸은 ', ' 로, 나머지 칸은 한 칸 띄워 잇는다.
+ */
+export function mergeChunkTables(chunks: MdTable[][], continued: string): MdTable[] {
+  const out: MdTable[] = []
+  for (const tables of chunks) {
+    for (const t of tables) {
+      const base = out.find((b) => b.header.length === t.header.length)
+      if (!base) {
+        out.push({ ...t, rows: t.rows.map((r) => [...r]) })
+        continue
+      }
+      const pageCol = base.header.findIndex((h) => /페이지|쪽/.test(h))
+      for (const r of t.rows) {
+        const prev = base.rows[base.rows.length - 1]
+        if (!prev || !r.some((c) => c.trim() === continued)) {
+          base.rows.push([...r])
+          continue
+        }
+        r.forEach((c, j) => {
+          const v = c.trim()
+          if (!v || v === continued) return
+          if (!prev[j]?.trim()) prev[j] = v
+          else if (prev[j].trim() !== v) prev[j] = `${prev[j].trim()}${j === pageCol ? ', ' : ' '}${v}`
+        })
+      }
+    }
+  }
+  return out
+}
+
+/** 표를 다시 마크다운으로 (칸 안의 | 는 \| 로) */
+export function tableToMd(t: MdTable): string {
+  const row = (r: string[]): string => `| ${r.map((c) => c.replace(/\|/g, '\\|')).join(' | ')} |`
+  return [t.title ? `# ${t.title}\n` : '', row(t.header), row(t.header.map(() => '---')), ...t.rows.map(row)].filter(Boolean).join('\n')
+}
+
 /** 엑셀 · 표 계산기에 붙여 넣을 수 있게 탭으로 */
 export function toTsv(t: MdTable): string {
   const clean = (s: string): string => plainCell(s).replace(/[\t\r\n]+/g, ' ')

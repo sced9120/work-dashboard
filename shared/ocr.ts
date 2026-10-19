@@ -81,6 +81,9 @@ export interface OcrProgress {
   chars: number
   /** 받은 표 줄 수 (머리글 빼고) */
   rows: number
+  /** 쪽을 나눠 읽을 때 — 다 읽은 묶음 수 · 전체 묶음 수 */
+  part?: number
+  parts?: number
 }
 
 export { isGeminiModel, isModernGemini } from './gemini'
@@ -90,6 +93,31 @@ export function ocrUserText(note: string): string {
   const n = note.trim()
   return n ? `출력해주세요\n\n추가 요청사항: ${n}` : '출력해주세요'
 }
+
+/**
+ * OpenAI 로 긴 PDF 를 쪽 묶음으로 나눠 읽을 때의 사용자 말 — 이 묶음이 전체의 몇 쪽인지,
+ * 열 머리글(두 번째 묶음부터), 앞 묶음에서 이어지는 쪽을 어떻게 쓰는지 알려 준다.
+ */
+export function ocrChunkText(note: string, from: number, to: number, total: number, header: string): string {
+  return [
+    ocrUserText(note),
+    '',
+    `이 요청에는 전체 ${total}쪽 문서 가운데 ${from}~${to}쪽(${to - from + 1}쪽)만 붙어 있습니다. 나머지 쪽은 따로 읽어 합칩니다.`,
+    `붙어 있는 ${to - from + 1}쪽을 모두 읽고, 그 안의 모든 사람 · 모든 쪽을 빠짐없이 표로 옮기세요. 출력할 공간은 충분하니 줄이지 마세요.`,
+    `'페이지' 열에는 전체 문서 기준 쪽 번호(${from}~${to})를 쓰세요.`,
+    header
+      ? `열 머리글은 앞 쪽들과 똑같이 다음을 그대로 쓰세요:\n${header}`
+      : '',
+    from > 1
+      ? `첫 쪽(${from}쪽)에 이름 · 학번 칸이 없고 앞 쪽에서 이어지는 글만 있으면, 그 쪽은 한 행으로 쓰되 이름 칸에는 '${OCR_CONTINUED}' 이라고만 쓰고 본문 칸에 그 쪽의 글을 모두 옮기세요.`
+      : ''
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+/** 앞 묶음에서 이어지는 쪽을 가리키는 이름 칸 표시 — 합칠 때 앞 행에 붙인다 */
+export const OCR_CONTINUED = '(앞에서 이어짐)'
 
 /** 끊긴 답을 이어 받을 때 — 마지막으로 다 받은 행을 알려 주고 그다음부터 */
 export function ocrContinueText(lastRow: string): string {

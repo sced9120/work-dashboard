@@ -117,8 +117,8 @@ export function applyLocalSettings(): void {
   try {
     app.setLoginItemSettings({
       openAtLogin: s.open_at_login,
-      // 자동 실행일 때는 창을 띄우지 않고 트레이에만 올린다.
-      args: s.keep_in_tray ? ['--hidden'] : []
+      // 자동 실행이어도 창을 띄운다. [켤 때 창은 띄우지 않기]를 골랐을 때만 트레이에만 올린다.
+      args: s.keep_in_tray && s.start_hidden ? ['--hidden'] : []
     })
   } catch {
     // 자동 실행을 못 거는 환경(Portable, 정책 제한)에서는 조용히 넘긴다.
