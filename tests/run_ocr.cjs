@@ -250,8 +250,8 @@ global.fetch = async (url, opts = {}) => {
   const oreq = JSON.parse(log[log.length - 1].body)
   const ouser = oreq.messages[1].content
   ok(log[log.length - 1].url === 'https://api.openai.com/v1/chat/completions' && log[log.length - 1].headers.Authorization === 'Bearer TEST-OPENAI-KEY', 'OpenAI 키로 Chat Completions')
-  ok(oreq.model === 'gpt-6-luna' && oreq.stream === true && oreq.reasoning_effort === 'low' && !('temperature' in oreq), `모델을 고르지 않으면 싼 등급 gpt-6-luna · 받는 대로 · 생각 low · temperature 없음 (${oreq.model})`)
-  ok(oreq.messages[0].role === 'system' && oreq.messages[0].content.startsWith('OCR 전용 처리 규칙') && oreq.messages[0].content.includes('Gemini OCR 전용 프롬프트'), '같은 OCR 규칙 + 에이전트 지침')
+  ok(oreq.model === 'gpt-6-luna' && oreq.stream === true && oreq.reasoning_effort === 'medium' && !('temperature' in oreq), `모델을 고르지 않으면 싼 등급 gpt-6-luna · 받는 대로 · 생각 medium · temperature 없음 (${oreq.model})`)
+  ok(oreq.messages[0].role === 'system' && oreq.messages[0].content.startsWith('OCR 전용 처리 규칙') && oreq.messages[0].content.includes('Gemini OCR 전용 프롬프트') && oreq.messages[0].content.includes('OpenAI 출력 추가 규칙') && oreq.messages[0].content.includes("'짧은 글'"), '같은 OCR 규칙 + 에이전트 지침 + OpenAI 규칙(자리표시 말 · 이름 줄이기 · 몇 명만 금지)')
   ok(ouser[0].type === 'file' && ouser[0].file.filename === 'document.pdf' && ouser[0].file.file_data.startsWith('data:application/pdf;base64,') && ouser[1].type === 'image_url' && ouser[1].image_url.detail === 'high' && ouser[1].image_url.url.startsWith('data:image/png;base64,') && ouser[2].text === '출력해주세요\n\n추가 요청사항: 학번 순으로', 'PDF 는 파일 그대로(이름은 document.pdf) · 사진은 detail high · "출력해주세요"')
   ok(o1.ok && o1.truncated && o1.finish === 'length' && o1.usage.output === 700, '끊긴 답(length) → 이어 받기 표시 · 사용량')
   script = [(e) => oaSse('| 번호 | 이름 |\n|---|---|\n| 2 | 학생나 |', 'stop')]
@@ -285,6 +285,52 @@ global.fetch = async (url, opts = {}) => {
   script = [(e) => new Response('{}', { status: 200 })]
   await call('ocr:clear', 'oa2')
   ok(log[log.length - 1].method === 'DELETE' && log[log.length - 1].url === 'https://api.openai.com/v1/files/file-abc123', '탭을 닫으면 올린 파일을 지움')
+  // 쪽이 많은 PDF 는 4쪽씩 잘라 따로 읽고 표 하나로 (10쪽 → 4 · 4 · 2)
+  const { PDFDocument } = require(path.join(__dirname, '../node_modules/pdf-lib'))
+  const doc10 = await PDFDocument.create()
+  for (let i = 0; i < 10; i++) doc10.addPage([200, 200])
+  const ten = path.join(USER_DATA, '보고서 10쪽.pdf')
+  fs.writeFileSync(ten, Buffer.from(await doc10.save()))
+  const [tf] = (await call('ocr:add', [ten])).files
+  const H = '| 페이지 | 학번 | 이름 | 상세 내용 |\n|---|---|---|---|\n'
+  const chunkReply = (e) => {
+    const b = JSON.parse(e.body)
+    if (b.messages.length > 2) return oaSse(`${H}| 8 | 10104 | 박학생 | 넷째 글 |`, 'stop')
+    const userText = b.messages[1].content.find((p) => p.type === 'text').text
+    const from = Number(/가운데 (\d+)~/.exec(userText)[1])
+    if (from === 1) return oaSse(`> 반복 양식(유형 A)로 정리했습니다.\n\n${H}| 1-2 | 10101 | 고다성 | 첫째 글 |\n| 3-4 | 10102 | 김학생 | 둘째 글 앞부분 |`, 'stop')
+    if (from === 5) return oaSse(`${H}| 5 | | (앞에서 이어짐) | 둘째 글 뒷부분 |\n| 6-7 | 10103 | 이학생 | 셋째 \\| 글 |\n| 8 | 10104 | 박학`, 'length')
+    return oaSse(`${H}| 9-10 | 10105 | 최학생 | 다섯째 글 |`, 'stop')
+  }
+  script = Array.from({ length: 4 }, () => chunkReply)
+  const sentBefore = calls.sent.length
+  const o8 = await call('ocr:run', { tab: 'oa3', ids: [tf.id], note: '', model: '' })
+  const chunkReqs = log.slice(-4).map((e) => JSON.parse(e.body))
+  const pdfParts = chunkReqs.slice(0, 3).map((b) => b.messages[1].content[0])
+  const pagesOf = async (p) => (await PDFDocument.load(Buffer.from(p.file.file_data.split(',')[1], 'base64'))).getPageCount()
+  const counts = await Promise.all(pdfParts.map(pagesOf))
+  ok(counts.join() === '4,4,2' && pdfParts.every((p) => p.file.filename === 'document.pdf'), `10쪽 PDF 를 4쪽씩 잘라 보냄 (${counts.join(', ')}쪽)`)
+  const texts = chunkReqs.slice(0, 3).map((b) => b.messages[1].content[1].text)
+  ok(texts[0].includes('1~4쪽') && !texts[0].includes('열 머리글') && texts[1].includes('| 페이지 | 학번 | 이름 | 상세 내용 |') && texts[1].includes('(앞에서 이어짐)'), '첫 묶음 뒤로는 같은 열 머리글 · 이어지는 쪽 표시를 알려 줌')
+  ok(chunkReqs[3].messages.length === 4 && chunkReqs[3].messages[2].role === 'assistant' && chunkReqs[3].messages[3].content.includes('| 6-7 | 10103 |'), '끊긴 묶음은 그 묶음 안에서 이어 받음')
+  const mt = M.answersToTables([o8])
+  ok(o8.ok && !o8.truncated && mt.length === 1 && mt[0].rows.length === 5, `표 하나로 합침 (${mt.map((t) => t.rows.length).join('+')}행)`)
+  ok(mt[0].rows[1].join('/') === '3-4, 5/10102/김학생/둘째 글 앞부분 둘째 글 뒷부분' && mt[0].rows[2][3] === '셋째 | 글' && mt[0].rows.map((r) => r[2]).join() === '고다성,김학생,이학생,박학생,최학생', '앞 묶음에서 이어지는 쪽은 앞 행에 붙이고 | 는 그대로')
+  ok(o8.text.startsWith('> 반복 양식') && o8.usage.output === 2800, '안내 문장 · 사용량 합')
+  ok(calls.sent.slice(sentBefore).some((m) => m.payload?.parts === 3 && m.payload?.part === 3), '진행 표시에 묶음 수')
+  const o9 = await call('ocr:continue', 'oa3')
+  ok(!o9.ok && o9.error.includes('나눠'), '나눠 읽은 뒤에는 이어 받을 것이 없다고')
+  // 한 묶음이 계속 실패하면 받은 것만 두고 빠진 쪽을 알림
+  const failing = (e) => {
+    const b = JSON.parse(e.body)
+    const from = Number(/가운데 (\d+)~/.exec(b.messages[1].content.find((p) => p.type === 'text').text)[1])
+    if (from === 9) return new Response('{"error":{"message":"server"}}', { status: 500 })
+    return chunkReply(e)
+  }
+  script = Array.from({ length: 6 }, () => failing)
+  const o10 = await call('ocr:run', { tab: 'oa3', ids: [tf.id], note: '', model: '' })
+  ok(o10.ok && o10.text.includes('9~10쪽') && M.answersToTables([o10])[0].rows.length === 4, `실패한 묶음만 빠지고 알림 (${o10.ok ? o10.text.split('\n')[2]?.slice(0, 40) : o10.error})`)
+  await call('ocr:clear', 'oa3')
   // 만든이가 catalog.json 으로 바꾼 OpenAI 기본 모델
   fs.writeFileSync(path.join(USER_DATA, 'catalog.json'), JSON.stringify({ fetchedAt: Date.now(), catalog: { schema: 1, tools: [], themes: [], ocr: { prompt: '', model: '', openaiModel: 'gpt-6.1-luna' } } }))
   script = [(e) => oaSse('| a |\n|---|\n| 1 |', 'stop')]

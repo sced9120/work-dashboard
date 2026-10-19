@@ -3,6 +3,8 @@
  * 원문 그대로 마크다운 표를 받고, 그 표를 엑셀 파일로 저장한다.
  * OpenAI 키만 있으면 OpenAI 의 싼 등급(OCR_OPENAI_MODEL)으로 같은 지침 · 같은 흐름으로 읽는다
  * (사진은 detail high, PDF 는 파일 그대로 — 30MB 가 넘으면 OpenAI 파일 저장소에 올렸다가 지운다).
+ * 다만 OpenAI 는 쪽이 많으면 몇 사람만 읽고 줄이는 버릇이 있어, 4쪽이 넘으면 PDF 를 4쪽씩 잘라(pdf-lib)
+ * 묶음마다 따로 읽고(동시에 3개까지) 표를 하나로 합친다. 지침에는 OpenAI 용 규칙(OCR_OPENAI_RULES)을 덧붙인다.
  *
  * 만든이의 Open WebUI 설정(Gemini 3.8 Flash OCR · Korean High-Res)을 그대로 따른다.
  *  - PDF 에서 글자를 뽑아 보내지 않고 원본 파일을 보낸다(스캔본은 글자가 없고, 뽑은 글은 표 · 취소선을 잃는다).
@@ -18,13 +20,15 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import ExcelJS from 'exceljs'
+import { PDFDocument } from 'pdf-lib'
 import type { MdTable } from '../../shared/mdtable'
-import { dropPartialTail, extractTables, plainCell } from '../../shared/mdtable'
+import { answersToTables, dropPartialTail, extractTables, mergeChunkTables, plainCell, proseOf, tableToMd } from '../../shared/mdtable'
 import type { OcrAnswer, OcrFile, OcrProgress, OcrProvider, OcrRequest } from '../../shared/ocr'
 import {
   OCR_DEFAULT_MODEL,
   OCR_MAX_IMAGE,
   OCR_MAX_PDF,
+  OCR_CONTINUED,
   OCR_MAX_TABS,
   OCR_OPENAI_IMAGES,
   OCR_OPENAI_MODEL,
@@ -33,12 +37,13 @@ import {
   isGeminiModel,
   isModernGemini,
   isOpenaiModel,
+  ocrChunkText,
   ocrContinueText,
   ocrProviderOf,
   ocrUserText,
   saysStoppedEarly
 } from '../../shared/ocr'
-import { OCR_AGENT_PROMPT, OCR_RULES } from '../../shared/ocrPrompt'
+import { OCR_AGENT_PROMPT, OCR_OPENAI_RULES, OCR_RULES } from '../../shared/ocrPrompt'
 import { peekCatalog } from './catalog'
 import { httpFetch } from './http'
 import { readSse } from './sse'
@@ -53,6 +58,11 @@ const OA_INLINE_LIMIT = 30 * 1024 * 1024
 const OA_TOTAL_LIMIT = 50 * 1024 * 1024
 /** 한 번 읽는 데 기다리는 최대 시간 */
 const READ_TIMEOUT = 15 * 60 * 1000
+/** OpenAI: 이 쪽 수가 넘으면 이만큼씩 나눠 읽는다 · 동시에 읽는 묶음 수 · 묶음이 끊기면 이어 받는 횟수 · 오류 때 다시 해 보는 횟수 */
+const OA_CHUNK_PAGES = 4
+const OA_PARALLEL = 3
+const OA_CHUNK_CONTINUE = 3
+const OA_CHUNK_RETRY = 2
 
 type Part = { text: string } | { inlineData: { mimeType: string; data: string } } | { fileData: { mimeType: string; fileUri: string } }
 interface Turn {
@@ -93,6 +103,8 @@ interface Session {
   uploaded: string[]
   /** 마지막으로 받은 답 */
   last: string
+  /** 쪽을 나눠 읽어 합친 답 — 이어 받을 것이 없다 */
+  chunked?: boolean
 }
 
 /** 탭마다 따로 읽는다 (최대 OCR_MAX_TABS 개). 화면을 떠나도 계속 읽고, 탭을 닫거나 프로그램을 끌 때 지운다 */
@@ -195,13 +207,13 @@ async function deleteUploaded(s: Session): Promise<void> {
 }
 
 /** OpenAI 파일 저장소에 올린다 (큰 PDF) — 이름은 document.pdf 로만, 끝나면 지운다 */
-async function uploadOpenai(key: string, f: Picked, signal: AbortSignal): Promise<string> {
+async function uploadOpenai(key: string, f: { mime: string; data: Buffer }, signal: AbortSignal): Promise<string> {
   const boundary = `----wd${crypto.randomBytes(12).toString('hex')}`
   const head = (name: string, extra = ''): string => `--${boundary}\r\nContent-Disposition: form-data; name="${name}"${extra}\r\n`
   const body = Buffer.concat([
     Buffer.from(`${head('purpose')}\r\nuser_data\r\n`),
     Buffer.from(`${head('file', '; filename="document.pdf"')}Content-Type: ${f.mime}\r\n\r\n`),
-    fs.readFileSync(f.path),
+    f.data,
     Buffer.from(`\r\n--${boundary}--\r\n`)
   ])
   const res = await httpFetch(`${OA}/files`, {
@@ -316,8 +328,8 @@ async function generateOpenai(s: Session, onProgress: (p: OcrProgress) => void, 
       messages: [{ role: 'system', content: s.system }, ...s.messages],
       stream: true,
       stream_options: { include_usage: true },
-      // Gemini 의 '생각 low' 와 같게 — 모르는 모델이면 빼고 한 번만 다시
-      ...(reasoning ? { reasoning_effort: 'low' } : {})
+      // 생각 medium — low 로는 이름 · 긴 글을 줄여 쓰는 일이 잦았다. 모르는 모델이면 빼고 한 번만 다시
+      ...(reasoning ? { reasoning_effort: 'medium' } : {})
     })
   })
   if (!res.ok) {
@@ -482,10 +494,19 @@ export async function runOcr(req: OcrRequest, onProgress: (p: OcrProgress) => vo
       : isGeminiModel(asked)
         ? asked
         : remote?.model || OCR_DEFAULT_MODEL
-  const s: Session = { provider, key, model, system: `${OCR_RULES}\n\n${remote?.prompt || OCR_AGENT_PROMPT}`, turns: [], messages: [], uploaded: [], last: '' }
+  const system = `${OCR_RULES}\n\n${remote?.prompt || OCR_AGENT_PROMPT}${provider === 'openai' ? `\n\n${OCR_OPENAI_RULES}` : ''}`
+  const s: Session = { provider, key, model, system, turns: [], messages: [], uploaded: [], last: '' }
   sessions.set(tab, s)
   try {
     if (provider === 'openai') {
+      // 쪽이 많으면 나눠 읽는다 (PDF 를 읽지 못하면 예전처럼 한 번에)
+      const chunks = await splitPages(files)
+      if (chunks && chunks.length > 1) {
+        const a = await readChunked(s, chunks, String(req.note ?? ''), onProgress, ctrl.signal)
+        s.last = a.text
+        s.chunked = true
+        return a
+      }
       // 사진은 높은 해상도로, PDF 는 파일 그대로(OpenAI 가 쪽 그림과 글자를 함께 본다). 크면 PDF 는 파일 저장소로
       const content: OaPart[] = []
       const big = total > OA_INLINE_LIMIT
@@ -495,7 +516,7 @@ export async function runOcr(req: OcrRequest, onProgress: (p: OcrProgress) => vo
           content.push({ type: 'image_url', image_url: { url: `data:${f.mime};base64,${fs.readFileSync(f.path).toString('base64')}`, detail: 'high' } })
         } else if (big) {
           onProgress({ phase: 'upload', chars: pdfs.indexOf(f), rows: pdfs.length })
-          const id = await uploadOpenai(key, f, ctrl.signal)
+          const id = await uploadOpenai(key, { mime: f.mime, data: fs.readFileSync(f.path) }, ctrl.signal)
           s.uploaded.push(id)
           content.push({ type: 'file', file: { file_id: id } })
         } else {
@@ -534,11 +555,169 @@ export async function runOcr(req: OcrRequest, onProgress: (p: OcrProgress) => vo
   }
 }
 
+/* ---------- OpenAI: 쪽을 나눠 읽기 ---------- */
+
+/** 쪽 묶음 하나 — 전체 문서 기준 from~to 쪽과, 그 쪽들만 담은 PDF 조각 · 사진 */
+interface PageChunk {
+  from: number
+  to: number
+  items: { mime: string; data: Buffer }[]
+}
+
+/**
+ * 고른 파일들을 차례로 이어 OA_CHUNK_PAGES 쪽씩 묶는다 (PDF 는 그 쪽들만 새 PDF 로, 사진은 한 장이 한 쪽).
+ * PDF 를 열지 못하면(암호 · 깨진 파일) null — 나누지 않고 예전처럼 한 번에 읽는다.
+ */
+async function splitPages(files: Picked[]): Promise<PageChunk[] | null> {
+  const pages: { mime: string; data?: Buffer; doc?: PDFDocument; index?: number }[] = []
+  for (const f of files) {
+    const data = fs.readFileSync(f.path)
+    if (f.mime !== 'application/pdf') {
+      pages.push({ mime: f.mime, data })
+      continue
+    }
+    try {
+      const doc = await PDFDocument.load(data, { ignoreEncryption: true, updateMetadata: false })
+      const n = doc.getPageCount()
+      if (!n) return null
+      for (let i = 0; i < n; i++) pages.push({ mime: f.mime, doc, index: i })
+    } catch {
+      return null
+    }
+  }
+  if (pages.length <= OA_CHUNK_PAGES) return null
+  const chunks: PageChunk[] = []
+  for (let start = 0; start < pages.length; start += OA_CHUNK_PAGES) {
+    const group = pages.slice(start, start + OA_CHUNK_PAGES)
+    const items: PageChunk['items'] = []
+    // 같은 PDF 에서 이어지는 쪽은 한 조각으로
+    for (let i = 0; i < group.length; ) {
+      const p = group[i]
+      if (!p.doc) {
+        items.push({ mime: p.mime, data: p.data! })
+        i++
+        continue
+      }
+      const idx: number[] = []
+      while (i < group.length && group[i].doc === p.doc) idx.push(group[i++].index!)
+      const out = await PDFDocument.create()
+      for (const page of await out.copyPages(p.doc, idx)) out.addPage(page)
+      items.push({ mime: 'application/pdf', data: Buffer.from(await out.save()) })
+    }
+    chunks.push({ from: start + 1, to: start + group.length, items })
+  }
+  return chunks
+}
+
+/** 묶음 하나를 읽는다 — 끊기면 마지막 행 다음부터 이어 받고, 오류면 잠시 뒤 다시 해 본다 */
+async function readChunk(
+  s: Session,
+  c: PageChunk,
+  total: number,
+  note: string,
+  header: string,
+  onProgress: (p: OcrProgress) => void,
+  signal: AbortSignal
+): Promise<{ answers: OcrAnswer[]; usage: { input: number; output: number } }> {
+  const content: OaPart[] = []
+  const big = c.items.reduce((n, it) => n + it.data.length, 0) > OA_INLINE_LIMIT
+  for (const it of c.items) {
+    if (it.mime !== 'application/pdf') {
+      content.push({ type: 'image_url', image_url: { url: `data:${it.mime};base64,${it.data.toString('base64')}`, detail: 'high' } })
+    } else if (big) {
+      const id = await uploadOpenai(s.key, it, signal)
+      s.uploaded.push(id)
+      content.push({ type: 'file', file: { file_id: id } })
+    } else {
+      content.push({ type: 'file', file: { filename: 'document.pdf', file_data: `data:application/pdf;base64,${it.data.toString('base64')}` } })
+    }
+  }
+  const sub: Session = { ...s, messages: [{ role: 'user', content: [...content, { type: 'text', text: ocrChunkText(note, c.from, c.to, total, header) }] }] }
+  const answers: OcrAnswer[] = []
+  const usage = { input: 0, output: 0 }
+  for (let round = 0; ; round++) {
+    let a: OcrAnswer | null = null
+    for (let attempt = 0; !a; attempt++) {
+      try {
+        a = await generateOpenai(sub, onProgress, signal)
+      } catch (e) {
+        if (signal.aborted || attempt >= OA_CHUNK_RETRY || /API 키|크레딧|모델이 없습니다/.test(e instanceof Error ? e.message : '')) throw e
+        await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)))
+      }
+    }
+    answers.push(a)
+    usage.input += a.usage?.input ?? 0
+    usage.output += a.usage?.output ?? 0
+    if (!a.truncated || round >= OA_CHUNK_CONTINUE) return { answers, usage }
+    const kept = dropPartialTail(a.text)
+    const t = extractTables(kept)
+    const last = t[t.length - 1]
+    const lastRow = last?.rows.length ? `| ${last.rows[last.rows.length - 1].map((x) => x.replace(/\|/g, '\\|')).join(' | ')} |` : ''
+    sub.messages.push({ role: 'assistant', content: kept }, { role: 'user', content: ocrContinueText(lastRow) })
+  }
+}
+
+/**
+ * 묶음들을 읽어 표 하나로 합친다. 첫 묶음을 먼저 읽어 열 머리글을 정하고, 나머지는 그 머리글로 동시에 OA_PARALLEL 개씩.
+ * 첫 묶음이 실패하면(키 · 크레딧 등) 그대로 실패, 뒤 묶음이 실패하면 받은 것만 두고 빠진 쪽을 알린다.
+ */
+async function readChunked(s: Session, chunks: PageChunk[], note: string, onProgress: (p: OcrProgress) => void, signal: AbortSignal): Promise<OcrAnswer> {
+  const total = chunks[chunks.length - 1].to
+  const live = new Map<number, OcrProgress>()
+  let done = 0
+  const report = (i: number) => (p: OcrProgress): void => {
+    live.set(i, p)
+    let chars = 0
+    let rows = 0
+    for (const v of live.values()) {
+      chars += v.chars
+      rows += v.rows
+    }
+    onProgress({ phase: p.phase === 'upload' ? 'wait' : p.phase, chars, rows, part: done, parts: chunks.length })
+  }
+  onProgress({ phase: 'wait', chars: 0, rows: 0, part: 0, parts: chunks.length })
+  const results: ({ answers: OcrAnswer[]; usage: { input: number; output: number } } | null)[] = new Array(chunks.length).fill(null)
+  const failed: string[] = []
+
+  results[0] = await readChunk(s, chunks[0], total, note, '', report(0), signal)
+  done = 1
+  const firstTables = answersToTables(results[0].answers)
+  const main = firstTables.reduce<(typeof firstTables)[number] | undefined>((m, t) => (!m || t.rows.length > m.rows.length ? t : m), undefined)
+  const header = main ? tableToMd({ title: '', header: main.header, rows: [] }) : ''
+
+  let next = 1
+  const worker = async (): Promise<void> => {
+    while (next < chunks.length) {
+      const i = next++
+      try {
+        results[i] = await readChunk(s, chunks[i], total, note, header, report(i), signal)
+      } catch (e) {
+        if (signal.aborted) throw e
+        failed.push(`${chunks[i].from}~${chunks[i].to}쪽 (${e instanceof Error ? e.message : String(e)})`)
+      }
+      done++
+      report(i)(live.get(i) ?? { phase: 'read', chars: 0, rows: 0 })
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(OA_PARALLEL, chunks.length - 1) }, worker))
+
+  const tables = mergeChunkTables(
+    results.map((r) => (r ? answersToTables(r.answers) : [])),
+    OCR_CONTINUED
+  )
+  const intro = proseOf(results[0].answers[0].text).split('\n').find((l) => l.trim()) ?? ''
+  const missing = failed.length ? `\n\n> ⚠ 다음 쪽은 읽지 못했습니다. 그 쪽만 따로 다시 읽어 주세요: ${failed.join(' · ')}` : ''
+  const text = `${intro}${missing}\n\n${tables.map(tableToMd).join('\n\n')}`
+  const usage = results.reduce((u, r) => ({ input: u.input + (r?.usage.input ?? 0), output: u.output + (r?.usage.output ?? 0) }), { input: 0, output: 0 })
+  return { ok: true, text, finish: 'stop', truncated: false, usage }
+}
+
 /** 그 탭에서 끊긴 답의 나머지를 받는다 */
 export async function continueOcr(tab: string, onProgress: (p: OcrProgress) => void): Promise<OcrAnswer> {
   const fail = (error: string): OcrAnswer => ({ ok: false, text: '', finish: '', truncated: false, error })
   const s = tabOk(tab) ? sessions.get(tab) : undefined
   if (!s || !s.last) return fail('이어 받을 결과가 없습니다. 처음부터 다시 읽어 주세요.')
+  if (s.chunked) return fail('쪽을 나눠 모두 받았습니다. 빠진 것이 있으면 처음부터 다시 읽어 주세요.')
   if (aborts.has(tab)) return fail('이 탭은 아직 읽는 중입니다.')
   const ctrl = new AbortController()
   aborts.set(tab, ctrl)

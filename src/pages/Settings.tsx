@@ -33,6 +33,7 @@ const DEFAULT_LOCAL: LocalSettings = {
   notify_days: 3,
   keep_in_tray: false,
   open_at_login: false,
+  start_hidden: false,
   neis_key: '',
   gcal_url: ''
 }
@@ -535,8 +536,24 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
           />
           <span className="small">
             <b>컴퓨터를 켤 때 자동으로 실행하기</b>
+            <span className="muted"> — 켜지면 창이 화면에 뜹니다</span>
           </span>
         </label>
+
+        {local.open_at_login && local.keep_in_tray && (
+          <label className="row" style={{ gap: 8, cursor: 'pointer', marginBottom: 10, marginLeft: 23 }}>
+            <input
+              type="checkbox"
+              checked={local.start_hidden}
+              onChange={(e) => setLocal({ ...local, start_hidden: e.target.checked })}
+              style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
+            />
+            <span className="small">
+              <b>켤 때는 창을 띄우지 않고 시계 옆에만 두기</b>
+              <span className="muted"> — 시계 옆 아이콘을 두 번 눌러 엽니다</span>
+            </span>
+          </label>
+        )}
 
         {local.notify_deadlines && !local.keep_in_tray && (
           <div className="note note-warn">

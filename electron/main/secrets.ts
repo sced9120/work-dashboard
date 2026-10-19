@@ -41,6 +41,8 @@ const DEFAULTS: LocalSettings = {
   notify_days: 3,
   keep_in_tray: false,
   open_at_login: false,
+  // 자동 실행으로 켜져도 창을 띄운다. 트레이에만 숨어 있으면 켜진 줄 모르고 지나치기 쉽다.
+  start_hidden: false,
   neis_key: '',
   gcal_url: ''
 }
@@ -58,6 +60,7 @@ interface StoredShape {
   notify_days?: number
   keep_in_tray?: boolean
   open_at_login?: boolean
+  start_hidden?: boolean
   /** base64로 인코딩된 암호문 */
   enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string; gcal_url?: string }
   /** 암호화를 못 쓰는 환경일 때만 사용 */
@@ -189,6 +192,7 @@ function readLocalSettings(): LocalSettings {
     notify_days: raw.notify_days ?? DEFAULTS.notify_days,
     keep_in_tray: raw.keep_in_tray ?? DEFAULTS.keep_in_tray,
     open_at_login: raw.open_at_login ?? DEFAULTS.open_at_login,
+    start_hidden: raw.start_hidden ?? DEFAULTS.start_hidden,
     neis_key,
     gcal_url
   }
@@ -208,7 +212,8 @@ export function saveLocalSettings(next: LocalSettings): void {
     notify_deadlines: next.notify_deadlines,
     notify_days: next.notify_days || DEFAULTS.notify_days,
     keep_in_tray: next.keep_in_tray,
-    open_at_login: next.open_at_login
+    open_at_login: next.open_at_login,
+    start_hidden: next.start_hidden
   }
 
   const enc = (v: string): string => (v ? safeStorage.encryptString(v).toString('base64') : '')

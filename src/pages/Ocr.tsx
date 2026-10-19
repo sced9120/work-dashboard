@@ -120,13 +120,14 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
   }
 
   const p = tab.progress
+  const parts = p?.parts ? ` (${p.parts}묶음 중 ${p.part ?? 0}묶음 끝)` : ''
   const status = !p
     ? '보내는 중…'
     : p.phase === 'upload'
       ? `큰 파일을 ${who.name} 에 올리는 중… (${p.chars + 1}/${p.rows})`
       : p.phase === 'wait'
-        ? `${who.name} 가 문서를 읽는 중…`
-        : `받는 중 — 표 ${p.rows}줄 · ${p.chars.toLocaleString()}자`
+        ? `${who.name} 가 문서를 읽는 중…${parts}`
+        : `받는 중 — 표 ${p.rows}줄 · ${p.chars.toLocaleString()}자${parts}`
 
   return (
     <div
