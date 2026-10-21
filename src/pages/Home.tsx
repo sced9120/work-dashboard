@@ -7,6 +7,8 @@ import type { CalView } from '../components/Calendar'
 import LastYear from '../components/LastYear'
 import MealCard from '../components/MealCard'
 import TodayPanel from '../components/TodayPanel'
+import Icon from '../components/Icon'
+import type { IconName } from '../components/Icon'
 import {
   ClassTtWidget,
   DeadlinesWidget,
@@ -52,7 +54,8 @@ export type WidgetId =
   | 'quick'
 
 interface WidgetDef {
-  icon: string
+  /** 제목 앞 아이콘 (이모지 대신 테마 색을 따르는 선 아이콘) */
+  icon: IconName
   title: string
   desc: string
   /** 처음 넓이 */
@@ -66,19 +69,19 @@ interface WidgetDef {
 }
 
 export const WIDGETS: Record<WidgetId, WidgetDef> = {
-  school: { icon: '🏫', title: '학교 정보', desc: '나이스에서 받은 학교 이름 · 주소 · 전화 · 누리집 (작은 띠)', wide: true, rank: 0, page: '설정', h: 50 },
-  today: { icon: '✦', title: '오늘', desc: '지금 몇 교시 · 오늘 일정 · 도우미에게 묻기 · 절차 기한 · 급식을 한 판에', wide: true, rank: 0.5, h: 620 },
-  meal: { icon: '🍱', title: '오늘 급식', desc: '조식 · 중식 · 석식 (나이스)', wide: true, rank: 1, h: 270 },
-  mytt: { icon: '🕘', title: '내 시간표', desc: '지금 몇 교시인지, 다음 수업 · 한 주 시간표 그림', wide: false, rank: 2, page: '시간표', h: 480 },
-  classtt: { icon: '⭐', title: '우리 반 시간표', desc: '담임 학급 시간표 (시간표 파일 또는 나이스)', wide: false, rank: 3, page: '시간표', h: 330 },
-  schedule: { icon: '📅', title: '다가오는 학사일정', desc: '앞으로 45일 안의 학교 행사 · 시험 · 휴업일 (나이스)', wide: false, rank: 4, page: '달력', h: 260 },
-  deadlines: { icon: '⏰', title: '절차 기한', desc: '다가오는 통보 · 통지 기한과 D-day', wide: false, rank: 5, page: '기한', h: 220 },
-  calendar: { icon: '🗓', title: '달력', desc: '한 달 · 한 주 보기, 일정 넣기 · 옮기기', wide: true, rank: 6, page: '달력', h: 560 },
-  tasks: { icon: '✅', title: '이 달 업무', desc: '이번 달 · 수시 업무 체크', wide: false, rank: 7, page: '로드맵', h: 240 },
-  help: { icon: '🧭', title: '내 업무 도움자료', desc: '고른 내 업무의 교육청 자료 폴더', wide: false, rank: 8, page: '도움자료', h: 240 },
-  lastyear: { icon: '🔁', title: '작년 이맘때', desc: '지난 학년도 이맘때 했던 일', wide: true, rank: 9, page: '로드맵', h: 220 },
-  notices: { icon: '📌', title: '메모 · 공지', desc: '다음 담당자에게 남길 메모', wide: false, rank: 10, h: 300 },
-  quick: { icon: '🚀', title: '빠른 이동', desc: '자주 가는 화면 버튼', wide: false, rank: 11, h: 260 }
+  school: { icon: 'school', title: '학교 정보', desc: '나이스에서 받은 학교 이름 · 주소 · 전화 · 누리집 (작은 띠)', wide: true, rank: 0, page: '설정', h: 50 },
+  today: { icon: 'spark', title: '오늘', desc: '지금 몇 교시 · 오늘 일정 · 도우미에게 묻기 · 절차 기한 · 급식을 한 판에', wide: true, rank: 0.5, h: 620 },
+  meal: { icon: 'meal', title: '오늘 급식', desc: '조식 · 중식 · 석식 (나이스)', wide: true, rank: 1, h: 270 },
+  mytt: { icon: 'clock', title: '내 시간표', desc: '지금 몇 교시인지, 다음 수업 · 한 주 시간표 그림', wide: false, rank: 2, page: '시간표', h: 480 },
+  classtt: { icon: 'class', title: '우리 반 시간표', desc: '담임 학급 시간표 (시간표 파일 또는 나이스)', wide: false, rank: 3, page: '시간표', h: 330 },
+  schedule: { icon: 'event', title: '다가오는 학사일정', desc: '앞으로 45일 안의 학교 행사 · 시험 · 휴업일 (나이스)', wide: false, rank: 4, page: '달력', h: 260 },
+  deadlines: { icon: 'hourglass', title: '절차 기한', desc: '다가오는 통보 · 통지 기한과 D-day', wide: false, rank: 5, page: '기한', h: 220 },
+  calendar: { icon: 'calendar', title: '달력', desc: '한 달 · 한 주 보기, 일정 넣기 · 옮기기', wide: true, rank: 6, page: '달력', h: 560 },
+  tasks: { icon: 'guide', title: '이 달 업무', desc: '이번 달 · 수시 업무 체크', wide: false, rank: 7, page: '로드맵', h: 240 },
+  help: { icon: 'compass', title: '내 업무 도움자료', desc: '고른 내 업무의 교육청 자료 폴더', wide: false, rank: 8, page: '도움자료', h: 240 },
+  lastyear: { icon: 'past', title: '작년 이맘때', desc: '지난 학년도 이맘때 했던 일', wide: true, rank: 9, page: '로드맵', h: 220 },
+  notices: { icon: 'pin', title: '메모 · 공지', desc: '다음 담당자에게 남길 메모', wide: false, rank: 10, h: 300 },
+  quick: { icon: 'rocket', title: '빠른 이동', desc: '자주 가는 화면 버튼', wide: false, rank: 11, h: 260 }
 }
 
 interface WidgetState {
@@ -459,7 +462,8 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
         <header className="hw-head" onPointerDown={free ? (e) => begin(e, w.id, 'move') : undefined} title={free ? '제목 줄을 끌어 옮기고, 모서리를 끌어 크기를 바꿉니다' : undefined}>
           {editing && !free && <span className="hw-grip" title="끌어서 옮기기">⠿</span>}
           <span className="hw-title">
-            {def.icon} {strip && !w.folded ? '' : def.title}
+            <Icon name={def.icon} size={16} className="hw-ico" />
+            {strip && !w.folded ? '' : def.title}
           </span>
           {strip && !w.folded ? <span className="hw-strip-body">{body(w)}</span> : <span className="spacer" />}
           {!w.folded && !strip && extra(w)}
@@ -581,7 +585,9 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
             <div className="hw-add-list">
               {hidden.map((id) => (
                 <button key={id} className="pickcard" onClick={() => commit([...layout, { id, wide: WIDGETS[id].wide, folded: false }])}>
-                  <span className="pickcard-icon">{WIDGETS[id].icon}</span>
+                  <span className="pickcard-icon">
+                    <Icon name={WIDGETS[id].icon} size={20} />
+                  </span>
                   <span className="pickcard-body">
                     <span className="pickcard-name">{WIDGETS[id].title}</span>
                     <span className="pickcard-sum">{WIDGETS[id].desc}</span>

@@ -398,3 +398,7 @@ scripts/make-icon.mjs  아이콘 생성 (외부 도구 없이 픽셀을 직접 �
 
 자료 파일은 평범한 SQLite 파일이라 필요하면 DB 뷰어로도 열립니다.
 예전 Streamlit 버전에서 쓰던 `school_admin_v25_final.db` 도 그대로 불러올 수 있습니다.
+
+## 함께 쓴 것
+
+- 아이콘: [Lucian Icons](https://lucianlabs.dev/icons/) v2.0.13 (MIT License, © 2026 Lucian) — 쓰는 아이콘만 `src/vendor/lucian-icons/` 에 그대로 넣었습니다(라이선스 전문 포함). 색은 테마를 따르도록 `src/themes.css` 14번에서 맞춥니다.

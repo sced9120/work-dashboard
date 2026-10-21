@@ -16,6 +16,7 @@
  *  11. 시간표 → 동교과 선생님
  *  12. 미드나잇 · 라벤더 테마
  *  13. 스캔 문서 → 엑셀 (OCR)
+ *  14. 아이콘 (Lucian Icons — 테마 색 하나로)
  * 내 시간표 그림(.ttb)과 발표자료 미리보기(.slide-thumb)는 출력물 모양이라 어느 테마에서도 원래 색이다.
  */
 
@@ -3561,4 +3562,83 @@ select:focus {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* ================= 14. 아이콘 (Lucian Icons) ================= */
+
+/*
+ * 아이콘마다 제 색(빨강 · 주황 …)이 있지만, 화면에서 튀지 않게 테마의 색 하나로 칠하고 바탕은 옅게 둔다.
+ *  --li-accent: 바탕 · 작은 칠에 쓰는 색 (선은 늘 글자색)
+ *  --li-tint:   바탕 진하기. 밝게는 그대로 투명도, 어둡게는 tint ÷ .24 만큼 짙은 색으로 칠해져 더 낮게 둔다
+ */
+:root {
+  --li-accent: var(--accent);
+  --li-tint: 0.14;
+  --li-weight: 1.75;
+}
+:root[data-mode='dark'] {
+  --li-tint: 0.08;
+}
+/* 회색 벤토: 거의 무채색 */
+:root[data-theme='bento'] {
+  --li-accent: #7a7a74;
+  --li-tint: 0.13;
+}
+:root[data-theme='bento'][data-mode='dark'] {
+  --li-accent: #a6a6a1;
+  --li-tint: 0.07;
+}
+/* 글래스: 남보라 */
+:root[data-theme='glass'] {
+  --li-accent: #4b4fd8;
+}
+:root[data-theme='glass'][data-mode='dark'] {
+  --li-accent: #8f93ff;
+}
+/* 미드나잇: 보라 (주황은 손잡이에만) */
+:root[data-theme='midnight'] {
+  --li-accent: #7c3aed;
+}
+:root[data-theme='midnight'][data-mode='dark'] {
+  --li-accent: #8b5cf6;
+  --li-tint: 0.09;
+}
+/* 라벤더: 보라 */
+:root[data-theme='lavender'] {
+  --li-accent: #6c5ce7;
+}
+:root[data-theme='lavender'][data-mode='dark'] {
+  --li-accent: #8c82ff;
+}
+
+/* 왼쪽 메뉴는 글자색 한 가지로 — 메뉴 줄마다 색이 섞이지 않게 */
+.sidebar {
+  --li-accent: currentColor;
+  --li-tint: 0.12;
+}
+:root[data-mode='dark'] .sidebar {
+  --li-tint: 0.06;
+}
+/* 고른 칸 · 채운 칩처럼 바탕이 뒤집힌 곳은 그 글자색으로 조금 더 */
+.sidebar .nav-btn.active,
+.side-ai.active,
+.btn-primary,
+.tool-pinned {
+  --li-accent: currentColor;
+  --li-tint: 0.2;
+}
+
+/* 위젯 제목 · 위젯 고르기 칸 */
+.hw-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hw-title .hw-ico {
+  flex: none;
+}
+.pickcard-icon {
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
 }
