@@ -55,6 +55,7 @@ const FREE_SUGGESTIONS = [
 ]
 
 const SIDE_KEY = 'wd_chat_side'
+const WIDE_KEY = 'wd_chat_wide'
 
 /** 도우미가 내민 한글 파일 만들기 카드 */
 function DocCard({
@@ -397,8 +398,24 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
       return true
     }
   })
+  // 넓게 보기 — 대화 칸을 화면 너비만큼 (Open WebUI 의 Widescreen)
+  const [wide, setWide] = useState(() => {
+    try {
+      return window.localStorage.getItem(WIDE_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // 입력칸은 적는 만큼 늘어난다 (화면 높이의 40% 까지)
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, Math.round(window.innerHeight * 0.4))}px`
+  }, [input])
 
   useEffect(() => {
     void initChats()
@@ -428,6 +445,15 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [rec?.messages.length, live?.text, id])
+
+  const toggleWide = (): void => {
+    setWide(!wide)
+    try {
+      window.localStorage.setItem(WIDE_KEY, wide ? '0' : '1')
+    } catch {
+      // 이번에만
+    }
+  }
 
   const toggleSide = (): void => {
     setSide(!side)
@@ -521,15 +547,15 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
   const welcome = free ? (
     <div className="chat-welcome">
       <div className="chat-welcome-emoji">💬</div>
-      <div className="chat-welcome-title">일반 대화</div>
-      <p className="muted small" style={{ maxWidth: 500, textAlign: 'center' }}>
+      <div className="chat-welcome-title">무엇이든 이야기해 보세요</div>
+      <p className="chat-welcome-sub">
         보관한 공문 · 업무는 싣지 않고 그냥 대화합니다. 위 <b>📝 지침</b>에 적은 대로 대화 내내 따릅니다.
         <br />
         학생 결과물(보고서 · 활동지 · 사진 · 스캔 PDF)을 <b>끌어 놓거나 [📎 파일]</b>로 올리고 세특 초안을 부탁해 보세요. 그림을 만들어 주지는 않습니다.
       </p>
       <div className="chat-suggest">
         {FREE_SUGGESTIONS.map((s) => (
-          <button key={s} className="chat-suggest-btn" onClick={() => setInput(s)} disabled={busy}>
+          <button key={s} className="chat-suggest-btn" onClick={() => (setInput(s), inputRef.current?.focus())} disabled={busy}>
             {s}
           </button>
         ))}
@@ -539,7 +565,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
     <div className="chat-welcome">
       <div className="chat-welcome-emoji">📚</div>
       <div className="chat-welcome-title">무엇을 도와드릴까요?</div>
-      <p className="muted small" style={{ maxWidth: 480, textAlign: 'center' }}>
+      <p className="chat-welcome-sub">
         {docCount > 0 ? (
           <>보관된 공문 원문 {docCount.toLocaleString()}건과 등록된 업무·일지를 근거로 답합니다.</>
         ) : (
@@ -569,9 +595,18 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
     </div>
   )
 
+  const avatar = (
+    <div className="chat-avatar" aria-hidden="true">
+      {free ? '💬' : '📚'}
+    </div>
+  )
+  const who = <div className="chat-who">{free ? 'AI' : '업무 도우미'}</div>
+
   const bubble = (m: Msg, i: number): JSX.Element => (
     <div key={i} className={`chat-row ${m.role}`}>
+      {m.role === 'assistant' && avatar}
       <div className={`chat-bubble ${m.role} ${m.error ? 'err' : ''}`}>
+        {m.role === 'assistant' && who}
         {m.attachments && m.attachments.length > 0 && (
           <div className="chat-files">
             {m.attachments.map((a, ai) => (
@@ -698,11 +733,6 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
       onDragOver={(e) => hasFiles(e) && e.preventDefault()}
       onDrop={onDrop}
     >
-      <div className="page-head" style={{ marginBottom: 10 }}>
-        <h1>업무 도우미</h1>
-        <p>보관해 둔 공문 · 업무 · 일지를 바탕으로 묻고 답하거나(업무 도우미), 지침을 주고 그냥 대화합니다(일반 대화). 대화는 왼쪽 목록에 남습니다.</p>
-      </div>
-
       {!hasKey && (
         <div className="note note-warn" style={{ marginBottom: 10 }}>
           AI 도우미는 API 키가 있어야 씁니다.{' '}
@@ -740,97 +770,105 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
                 </button>
               ))}
             </div>
+            {hasKey && <ModelPicker feature="chat" label="모델" onReady={setModel} onChange={setModel} />}
             <span className="chat-bar-title" title={rec?.title}>
               {rec && isSaved(rec.id) ? rec.title : ''}
             </span>
+            <button className={`btn btn-sm btn-ghost chat-wide-btn ${wide ? 'on' : ''}`} onClick={toggleWide} title={wide ? '대화 칸을 가운데로 모아 보기' : '대화 칸을 화면 너비만큼 넓게 보기'}>
+              {wide ? '⇥⇤ 가운데로' : '⇤⇥ 넓게'}
+            </button>
           </div>
-
-          {hasKey && <ModelPicker feature="chat" label="이 대화에 쓸 모델" onReady={setModel} onChange={setModel} />}
-
-          {free && rec && <InstructionBox rec={rec} locked={busy} />}
 
           <div className="chat-thread">
-            {msgs.length === 0 && !busy ? (
-              welcome
-            ) : (
-              <div className="chat-list">
-                {msgs.map(bubble)}
-                {busy && (
-                  <div className="chat-row assistant">
-                    <div className="chat-bubble assistant">
-                      {liveText(rec, live.text).trim() ? (
-                        <div className="chat-md">
-                          <Markdown text={liveText(rec, live.text)} />
-                        </div>
-                      ) : (
-                        <span className="chat-typing">
-                          <i />
-                          <i />
-                          <i />
-                        </span>
-                      )}
+            <div className={`chat-col ${wide ? 'wide' : ''}`}>
+              {free && rec && <InstructionBox rec={rec} locked={busy} />}
+              {msgs.length === 0 && !busy ? (
+                welcome
+              ) : (
+                <div className="chat-list">
+                  {msgs.map(bubble)}
+                  {busy && (
+                    <div className="chat-row assistant">
+                      {avatar}
+                      <div className="chat-bubble assistant">
+                        {who}
+                        {liveText(rec, live.text).trim() ? (
+                          <div className="chat-md">
+                            <Markdown text={liveText(rec, live.text)} />
+                          </div>
+                        ) : (
+                          <span className="chat-typing">
+                            <i />
+                            <i />
+                            <i />
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
-                <div ref={endRef} />
-              </div>
-            )}
-          </div>
-
-          {files.length > 0 && (
-            <div className="chat-attached">
-              <span className="small muted">함께 보낼 파일</span>
-              {files.map((f, i) => (
-                <span key={`${f.name}${i}`} className="chat-file-chip">
-                  {kindIcon(f)} {f.name} <span className="muted">{kindNote(f)}</span>
-                  <button className="chat-file-x" title="빼기" onClick={() => setFiles((prev) => prev.filter((_, xi) => xi !== i))}>
-                    ✕
-                  </button>
-                </span>
-              ))}
+                  )}
+                  <div ref={endRef} />
+                </div>
+              )}
             </div>
-          )}
-
-          <div className="chat-composer">
-            <button className="btn btn-sm" onClick={() => void attach()} disabled={busy || reading || !hasKey} title="문서 · 사진을 올려 함께 보며 이야기합니다. 끌어 놓아도 됩니다.">
-              {reading ? '읽는 중…' : '📎 파일'}
-            </button>
-            <textarea
-              ref={inputRef}
-              className="chat-input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder={
-                !hasKey
-                  ? '설정에서 API 키를 먼저 넣어 주세요.'
-                  : free
-                    ? '무엇이든 적어 보세요. 파일을 끌어 놓아도 됩니다. (Enter 전송 · Shift+Enter 줄바꿈)'
-                    : '무엇이든 물어보세요. 넣어 달라고 하셔도 됩니다. (Enter 전송 · Shift+Enter 줄바꿈)'
-              }
-              rows={1}
-              disabled={!hasKey}
-            />
-            {busy ? (
-              <button className="btn" onClick={() => stopChat(id)} title="답 받기를 멈춥니다">
-                ⏹ 멈추기
-              </button>
-            ) : (
-              <button className="btn btn-primary" onClick={() => void send(input)} disabled={(!input.trim() && !files.length) || !hasKey}>
-                보내기
-              </button>
-            )}
           </div>
-          <p className="hint" style={{ marginTop: 6 }}>
-            답은 AI가 만든 것이라 틀릴 수 있습니다.{' '}
-            {free ? (
-              <>올린 파일 · 적은 글은 그대로 AI 로 갑니다. 학생 이름은 가리고 올리면 안전합니다.</>
-            ) : (
-              <>
-                <b>넣기 전에 날짜와 건수를, 저장하기 전에 칸마다 들어갈 글을 꼭 확인하세요.</b> 도우미는 더하기만 할 수 있고, 지우거나 고치지는 못합니다.
-              </>
-            )}
-          </p>
+
+          <div className={`chat-composer-wrap ${wide ? 'wide' : ''}`}>
+            <div className="chat-composer">
+              {files.length > 0 && (
+                <div className="chat-attached">
+                  {files.map((f, i) => (
+                    <span key={`${f.name}${i}`} className="chat-file-chip">
+                      {kindIcon(f)} {f.name} <span className="muted">{kindNote(f)}</span>
+                      <button className="chat-file-x" title="빼기" onClick={() => setFiles((prev) => prev.filter((_, xi) => xi !== i))}>
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <textarea
+                ref={inputRef}
+                className="chat-input"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder={
+                  !hasKey
+                    ? '설정에서 API 키를 먼저 넣어 주세요.'
+                    : free
+                      ? '무엇이든 적어 보세요. 파일을 끌어 놓아도 됩니다. (Enter 전송 · Shift+Enter 줄바꿈)'
+                      : '무엇이든 물어보세요. 넣어 달라고 하셔도 됩니다. (Enter 전송 · Shift+Enter 줄바꿈)'
+                }
+                rows={1}
+                disabled={!hasKey}
+              />
+              <div className="chat-composer-foot">
+                <button className="chat-tool" onClick={() => void attach()} disabled={busy || reading || !hasKey} title="문서 · 사진을 올려 함께 보며 이야기합니다. 끌어 놓아도 됩니다.">
+                  {reading ? '읽는 중…' : '📎 파일 올리기'}
+                </button>
+                <span className="spacer" />
+                {busy ? (
+                  <button className="chat-send stop" onClick={() => stopChat(id)} title="답 받기를 멈춥니다" aria-label="멈추기">
+                    ■
+                  </button>
+                ) : (
+                  <button className="chat-send" onClick={() => void send(input)} disabled={(!input.trim() && !files.length) || !hasKey} title="보내기 (Enter)" aria-label="보내기">
+                    ↑
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="hint chat-foot-hint">
+              답은 AI가 만든 것이라 틀릴 수 있습니다.{' '}
+              {free ? (
+                <>올린 파일 · 적은 글은 그대로 AI 로 갑니다. 학생 이름은 가리고 올리면 안전합니다.</>
+              ) : (
+                <>
+                  <b>넣기 전에 날짜와 건수를, 저장하기 전에 칸마다 들어갈 글을 꼭 확인하세요.</b> 도우미는 더하기만 할 수 있고, 지우거나 고치지는 못합니다.
+                </>
+              )}
+            </p>
+          </div>
         </div>
       </div>
 

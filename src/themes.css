@@ -3642,3 +3642,471 @@ select:focus {
   place-items: center;
   color: var(--text-2);
 }
+
+/* ---------- 업무 도우미: Open WebUI 처럼 넓고 편하게 (v3.5) ----------
+ * 머리말을 없애고 화면 높이를 다 쓴다. 대화는 가운데 한 줄(넓게 보기를 켜면 화면 너비)로,
+ * AI 답은 말풍선 없이 글처럼, 내 말은 오른쪽의 옅은 말풍선. 입력칸은 아래의 둥근 상자 하나(파일 · 보내기가 안에).
+ */
+.main.main-chat {
+  padding: 14px 18px 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.main-chat > .chat-page {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+.chat-page {
+  font-size: 15px;
+}
+.chat-layout {
+  gap: 0;
+}
+.chat-side {
+  width: 260px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  padding: 4px 12px 4px 0;
+}
+.chat-main {
+  gap: 0;
+  padding-left: 14px;
+}
+.side-closed .chat-main {
+  padding-left: 0;
+}
+.chat-bar {
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+}
+.chat-bar .model-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.chat-bar .model-picker-label {
+  margin: 0;
+}
+.chat-bar .model-picker-select {
+  min-width: 180px;
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+.chat-wide-btn.on {
+  color: var(--accent);
+}
+.chat-main .chat-thread,
+.chat-thread {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 18px 0 8px;
+  min-height: 160px;
+}
+.chat-col {
+  max-width: 860px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.chat-col.wide,
+.chat-composer-wrap.wide {
+  max-width: none;
+}
+.chat-list {
+  gap: 26px;
+}
+.chat-row {
+  gap: 12px;
+  align-items: flex-start;
+}
+.chat-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+}
+.chat-who {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 4px 0 4px;
+}
+.chat-bubble {
+  box-shadow: none;
+  line-height: 1.75;
+}
+.chat-bubble.assistant {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.chat-bubble.assistant.err {
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--danger-soft);
+}
+.chat-bubble.user {
+  max-width: 75%;
+  padding: 10px 16px;
+  border-radius: 20px;
+  border-bottom-right-radius: 20px;
+  background: var(--surface-3);
+  color: var(--text);
+}
+.chat-bubble.user .chat-file-chip {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.chat-md {
+  font-size: 15px;
+}
+.chat-md .md table {
+  font-size: 13.5px;
+}
+.chat-acts {
+  margin-top: 8px;
+}
+.chat-welcome {
+  justify-content: center;
+  padding: 24px 0 8px;
+  gap: 8px;
+}
+.chat-welcome-emoji {
+  font-size: 44px;
+}
+.chat-welcome-title {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.chat-welcome-sub {
+  max-width: 620px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+.chat-suggest {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 720px;
+  gap: 10px;
+  margin-top: 18px;
+}
+.chat-suggest-btn {
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  min-height: 64px;
+}
+.chat-inst {
+  border-radius: 14px;
+}
+.chat-composer-wrap {
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 6px 12px 0;
+}
+.chat-composer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: 0 4px 18px rgba(16, 24, 40, 0.08);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.chat-composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 4px 18px rgba(16, 24, 40, 0.08);
+}
+.chat-composer .chat-attached {
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.chat-composer .chat-input,
+.chat-composer .chat-input:focus {
+  min-height: 28px;
+  max-height: none;
+  padding: 6px 6px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.chat-composer-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chat-tool {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-2, var(--text));
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.chat-tool:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.chat-tool:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.chat-send {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.chat-send:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.chat-send.stop {
+  background: var(--text);
+  color: var(--surface);
+  font-size: 13px;
+}
+.chat-foot-hint {
+  text-align: center;
+  margin: 6px 0 0;
+  font-size: 11.5px;
+}
+@media (max-width: 900px) {
+  .chat-suggest {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .chat-bubble.user {
+    max-width: 90%;
+  }
+}
+
+/* ---------- 문서 스캔 · 정리: 읽는 방법 고르기 · 폴더 일괄 분석 (v3.5) ---------- */
+.ocr-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+  max-width: 760px;
+}
+.ocr-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
+.ocr-mode small {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 12px;
+}
+.ocr-mode.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.batch {
+  position: relative;
+}
+.batch-folder {
+  font-weight: 700;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.batch-summary {
+  margin: 8px 0 6px;
+}
+.batch-students {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.batch-list {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.batch-list th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  text-align: left;
+  font-weight: 700;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+.batch-list td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.batch-list tr.off td {
+  opacity: 0.45;
+}
+.batch-file {
+  display: inline-block;
+  max-width: 240px;
+  margin: 1px 6px 1px 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.batch-st {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.batch-st.reading {
+  color: var(--accent);
+}
+.batch-st.done {
+  color: var(--ok);
+}
+.batch-st.err {
+  color: var(--danger);
+  cursor: help;
+}
+.batch-radio,
+.batch-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.batch-radio input,
+.batch-check input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+}
+.batch-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px dashed var(--border);
+}
+.batch-opt textarea {
+  width: 100%;
+  line-height: 1.55;
+}
+.batch-progress {
+  margin-top: 10px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-3, var(--border));
+  overflow: hidden;
+}
+.batch-progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+.batch-table {
+  width: max-content;
+  min-width: 100%;
+}
+.batch-table td {
+  min-width: 90px;
+  max-width: 280px;
+}
+.batch-table td:nth-child(-n + 2),
+.batch-list td:nth-child(-n + 3) {
+  white-space: nowrap;
+}
+.batch-clip {
+  cursor: pointer;
+}
+.batch-table td.batch-seteuk-td {
+  min-width: 340px;
+  max-width: 380px;
+}
+.batch-seteuk {
+  cursor: text;
+  line-height: 1.6;
+}
+.batch-seteuk:hover {
+  background: var(--accent-soft);
+}
+.batch-len {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.batch-len-warn {
+  color: var(--warn);
+  font-weight: 700;
+}
+.batch-seteuk-edit textarea {
+  width: 100%;
+  min-width: 280px;
+  line-height: 1.55;
+}
+.batch-row-err td {
+  background: var(--danger-soft);
+}
+@media (max-width: 900px) {
+  .ocr-modes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

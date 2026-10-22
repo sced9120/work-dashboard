@@ -34,6 +34,8 @@ import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './h
 import { clearGcalCache, exportIcs, gcalEvents, gcalTest } from './gcal'
 import { getCatalog } from './catalog'
 import { addPaths, cancelOcr, clearOcr, continueOcr, pickFiles, runOcr, saveXlsx } from './ocr'
+import { addFolder, cancelBatch, pickFolder, runBatch, saveBatch } from './batch'
+import type { BatchOptions, BatchRequest, BatchRow } from '../../shared/batch'
 import { deleteChat, getChat, listChats, listPresets, renameChat, saveChat, savePresets } from './chats'
 import type { ChatAttachment, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
 import { CHAT_IMAGE_TYPES, CHAT_MAX_FILE } from '../../shared/chat'
@@ -306,6 +308,15 @@ function registerIpc(): void {
   // 탭을 닫을 때 — Gemini 에 올려 둔 파일도 지운다 (화면을 떠나는 것만으로는 지우지 않는다)
   ipcMain.handle('ocr:clear', (_e, tab: string) => clearOcr(String(tab)))
   ipcMain.handle('ocr:save', (_e, tables: MdTable[], title: string) => saveXlsx(mainWindow, tables, String(title ?? '')))
+
+  /* ---------- 폴더 일괄 분석 (학생별 정리 · 세특 · 채점) ---------- */
+  ipcMain.handle('batch:pick', () => pickFolder(mainWindow))
+  ipcMain.handle('batch:add', (_e, p: string) => addFolder(p))
+  ipcMain.handle('batch:run', (_e, req: BatchRequest) => runBatch(req, (p) => send('batch:progress', p)))
+  ipcMain.handle('batch:cancel', (_e, job: string) => cancelBatch(String(job)))
+  ipcMain.handle('batch:save', (_e, rows: BatchRow[], options: BatchOptions, title: string, format: string) =>
+    saveBatch(mainWindow, rows, options, String(title ?? ''), format === 'csv' ? 'csv' : 'xlsx')
+  )
 
   /* ---------- 알림 ---------- */
   ipcMain.handle('notify:checkNow', () => checkDeadlinesNow())

@@ -40,7 +40,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
       { id: '학습', icon: 'inbox', label: '문서로 업무 만들기' },
       { id: '위원회', icon: 'doc', label: '학교 문서 만들기' },
       { id: '발표', icon: 'screen', label: '발표자료 만들기' },
-      { id: 'OCR', icon: 'scan', label: '스캔 문서 → 엑셀' },
+      { id: 'OCR', icon: 'scan', label: '문서 스캔 · 정리' },
       { id: '도구', icon: 'grid', label: '도구 모음' }
     ]
   }
