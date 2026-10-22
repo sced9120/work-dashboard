@@ -58,7 +58,7 @@ export type Provider = 'openai' | 'gemini' | 'claude'
  * AI 기능별로 어떤 서비스·모델을 쓸지.
  * 각 기능에서 개별 선택할 수 있고, 저장돼 다음에도 이어진다.
  */
-export type AiFeature = 'analyze' | 'summary' | 'scenario' | 'chat'
+export type AiFeature = 'analyze' | 'summary' | 'scenario' | 'chat' | 'batch'
 
 export interface ModelChoice {
   provider: Provider

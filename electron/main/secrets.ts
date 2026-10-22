@@ -75,7 +75,7 @@ function coerceProvider(p: string | undefined): Provider {
 function coerceFeatureModels(raw: StoredShape['feature_models']): FeatureModels {
   if (!raw || typeof raw !== 'object') return {}
   const out: FeatureModels = {}
-  const keys: AiFeature[] = ['analyze', 'summary', 'scenario', 'chat']
+  const keys: AiFeature[] = ['analyze', 'summary', 'scenario', 'chat', 'batch']
   for (const k of keys) {
     const v = raw[k]
     if (v && typeof v.model === 'string' && v.model.trim()) {

@@ -9,6 +9,7 @@
 ```bash
 npm run build
 node -r ./tests/hook.cjs ./tests/run_ocr.cjs       # 스캔 문서 → 엑셀 (OCR)
+node -r ./tests/hook.cjs ./tests/run_batch.cjs     # 폴더 일괄 분석 (학생별 정리 · 세특 · 채점)
 node -r ./tests/hook.cjs ./tests/run_chat.cjs      # 업무 도우미 · 일반 대화 · 대화 보관
 node -r ./tests/hook.cjs ./tests/run_catalog.cjs   # 도구 모음 목록 받기
 node -r ./tests/hook.cjs ./tests/run_memo.cjs      # 자유 메모장
@@ -23,6 +24,7 @@ Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron
 | 파일 | 보는 것 |
 |---|---|
 | `run_ocr.cjs` | 파일 고르기(경로는 화면에 안 넘김) · 보내는 요청 모양(지침 · 그림 해상도 high · 생각 low · temperature 없음) · PDF 원본 inline · 끊긴 답 이어 받기 · 큰 파일 Gemini 파일 저장소(이름 안 보냄 · 끝나면 지움) · 오류 안내 · 엑셀(글자 그대로 · 수식 아님 · LaTeX 는 읽기 쉬운 글자로 · 아주 긴 칸은 열을 넓혀 줄 높이 409 안에) · 탭(끌어 놓은 파일 · 함께 읽기 · 진행 표시에 탭 번호 · 그 탭만 멈추기 · 5개까지 · 닫으면 그 탭이 올린 파일만 지움) · OpenAI 키만 있을 때(gpt-6-luna · 같은 지침 + OpenAI 규칙 · 생각 medium · detail high · PDF 그대로 · 이어 받기 · 생각 설정 빼고 다시 · HEIC 막기 · 큰 PDF 파일 저장소 · 4쪽 넘는 PDF 는 4쪽씩 나눠 읽고 한 표로(같은 머리글 · 이어지는 쪽 붙이기 · 묶음 안 이어 받기 · 실패한 묶음만 빠짐) · 만든이 모델 · 키 없음) · 만든이 지침 바꾸기 · 기존 Gemini 대화 temperature |
+| `run_batch.cjs` | 폴더 고르기 · 끌어 놓기(경로는 화면에 안 넘김) · 학번(이름)으로 묶기(사진 두 장 = 한 학생 · 하위 폴더 이름 · 임시 파일 빼기) · 학생마다 요청 한 번 · 워드 글 + 안의 그림 · 파일 이름 · 학생 이름 안 보냄 · JSON 으로 받기 · 지침(항목 · 글자 수 · 채점 기준) · 세특 글자 수 고쳐 받기 · 항목 이름 맞추기 · 엑셀 · CSV(BOM) · OpenAI(detail high · PDF 이름 없이) · Claude(document) · 키 오류면 멈춤 |
 | `run_chat.cjs` | 파일 올리기(글 · 사진 · 스캔 PDF · 막는 것) · 일반 대화(지침 · 보관 자료 없음 · temperature 없음) · 다음 질문에도 앞 파일 · 고르지 않은 경로는 안 읽음 · 업무 도우미 지침 · OpenAI(image_url · file) · Claude(image · document) · HEIC · 받는 대로 · 멈추기 · 오류 · 대화 보관(목록 · 이름 · 지우기 · 이상한 번호) · 지침 모음 · 키 없는 서비스를 골랐으면 키 있는 서비스로 · 인수인계 파일에 안 들어감 |
 | `run_catalog.cjs` | GitHub → jsDelivr · 3시간 두기 · 깨진 파일이면 마지막 것 · 인수인계 파일에 안 들어감 |
 | `run_memo.cjs` | 메모 · 자유 워크플로우 · 검색 · '넘기기' 켠 것만 인수인계 |

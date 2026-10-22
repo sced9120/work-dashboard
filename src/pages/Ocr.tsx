@@ -6,6 +6,7 @@ import { OCR_DEFAULT_MODEL, OCR_MAX_TABS, OCR_OPENAI_MODEL, fmtBytes, ocrProvide
 import { OCR_AGENT_PROMPT } from '../../shared/ocrPrompt'
 import { modelsFor } from '../../shared/types'
 import type { PageId } from '../App'
+import FolderBatch from '../components/FolderBatch'
 import Icon from '../components/Icon'
 import { useCatalog } from '../lib/catalog'
 import { useConfirm } from '../lib/confirm'
@@ -32,6 +33,7 @@ interface Props {
 }
 
 const MODEL_KEY = 'wd_ocr_model'
+const MODE_KEY = 'wd_ocr_mode'
 
 /** 키를 넣은 서비스의 모델만 — Gemini 가 먼저, OpenAI 키만 있으면 OpenAI 의 싼 등급을 권장으로 */
 export interface OcrModels {
@@ -357,6 +359,22 @@ export default function Ocr({ onGo }: Props): JSX.Element {
   const [lists, setLists] = useState<{ gemini: string[]; openai: string[] }>({ gemini: [], openai: [] })
   const tab = tabs.find((t) => t.id === active) ?? tabs[0]
   const hasKey = keys ? keys.gemini || keys.openai : null
+  // 파일을 골라 표로 읽기 / 폴더째 학생별로 정리하기
+  const [mode, setMode] = useState<'files' | 'folder'>(() => {
+    try {
+      return window.localStorage.getItem(MODE_KEY) === 'folder' ? 'folder' : 'files'
+    } catch {
+      return 'files'
+    }
+  })
+  const switchMode = (m: 'files' | 'folder'): void => {
+    setMode(m)
+    try {
+      window.localStorage.setItem(MODE_KEY, m)
+    } catch {
+      // 이번에만
+    }
+  }
 
   // 키를 넣은 서비스의 모델만. 권장: Gemini 는 만든이가 정한 것(없으면 3.8 Flash), OpenAI 는 싼 등급(gpt-6-luna)
   const models = useMemo<OcrModels>(() => {
@@ -393,16 +411,46 @@ export default function Ocr({ onGo }: Props): JSX.Element {
     closeTab(t.id)
   }
 
+  const modes = (
+    <div className="ocr-modes" role="tablist" aria-label="읽는 방법">
+      <button role="tab" aria-selected={mode === 'files'} className={`ocr-mode ${mode === 'files' ? 'active' : ''}`} onClick={() => switchMode('files')}>
+        📄 파일을 표로 옮기기
+        <small>스캔 PDF · 사진을 글자 그대로 한 표에</small>
+      </button>
+      <button role="tab" aria-selected={mode === 'folder'} className={`ocr-mode ${mode === 'folder' ? 'active' : ''}`} onClick={() => switchMode('folder')}>
+        📁 폴더째 학생별 정리
+        <small>학생마다 항목 정리 · 세특 · 채점 → 엑셀 · CSV</small>
+      </button>
+    </div>
+  )
+
+  if (mode === 'folder') {
+    return (
+      <>
+        <div className="page-head">
+          <h1>문서 스캔 · 정리</h1>
+          <p>
+            학생 결과물이 모인 <b>폴더</b>를 고르면, 파일 이름의 학번 · 이름으로 학생별로 묶어(사진 여러 장도 한 사람) 학생마다 AI 가 결과물을 읽고 <b>정한 항목별로 정리</b>합니다.
+            원하면 <b>세특 초안</b>과 <b>채점</b>까지 받아 엑셀 · CSV 로 저장합니다. 설정에 넣어 둔 내 Gemini · OpenAI · Claude 키를 씁니다.
+          </p>
+        </div>
+        {modes}
+        <FolderBatch onSettings={() => onGo('설정')} />
+      </>
+    )
+  }
+
   return (
     <>
       <div className="page-head">
-        <h1>스캔 문서 → 엑셀</h1>
+        <h1>문서 스캔 · 정리</h1>
         <p>
           스캔한 PDF · 사진을 AI 가 <b>글자 그대로</b> 읽어 표로 만들고, 엑셀 파일로 저장합니다. 요약하지 않고, 취소선으로 지운 글은
           빼고, 헷갈리는 글자는 [불확실: …] 로 남깁니다. 설정에 넣어 둔 <b>내 Gemini 키</b>(없으면 <b>OpenAI 키</b>)를 씁니다. 탭을 열어 여러 문서를 함께 읽을
           수 있습니다.
         </p>
       </div>
+      {modes}
 
       {hasKey === false && (
         <div className="note note-warn ocr-nokey">

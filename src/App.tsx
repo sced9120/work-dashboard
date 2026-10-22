@@ -32,6 +32,7 @@ import { hasUnseenNew, loadCatalog, useCatalog } from './lib/catalog'
 import { openFeedback } from './lib/feedback'
 import { focusSearch } from './pages/Search'
 import { setOcrNotifier, useOcrTabs } from './lib/ocrStore'
+import { setBatchNotifier, useBatch } from './lib/batchStore'
 import { useChats } from './lib/chatStore'
 import { useToast } from './lib/toast'
 
@@ -62,12 +63,17 @@ function Shell(): JSX.Element {
   const cat = useCatalog()
   const toast = useToast()
   // 다른 화면에 있어도 읽는 중 · 답을 받는 중이면 메뉴에 표시한다
-  const ocrBusy = useOcrTabs().tabs.some((t) => t.busy)
+  const batchBusy = useBatch().busy
+  const ocrBusy = useOcrTabs().tabs.some((t) => t.busy) || batchBusy
   const chatBusy = Object.keys(useChats().live).length > 0
   // 스캔 문서 → 엑셀 화면 밖에서 읽기가 끝나면 알린다
   useEffect(() => {
     setOcrNotifier((message, ok) => toast(message, ok ? 'ok' : 'err'))
-    return () => setOcrNotifier(null)
+    setBatchNotifier((message, ok) => toast(message, ok ? 'ok' : 'err'))
+    return () => {
+      setOcrNotifier(null)
+      setBatchNotifier(null)
+    }
   }, [toast])
   // 창에 파일을 떨어뜨려도 프로그램이 그 파일로 넘어가지 않게 (받는 곳은 data-drop 이 붙은 화면만)
   useEffect(() => {
@@ -377,7 +383,7 @@ function Shell(): JSX.Element {
         />
       )}
 
-      <main className="main">
+      <main className={`main ${page === AI_ITEM.id ? 'main-chat' : ''}`}>
         {/* 학습이 도는 동안 어느 화면에 있든 붙어 있는 띠 */}
         <LearnBanner page={page} onGo={setPage} />
 

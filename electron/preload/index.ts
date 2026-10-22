@@ -42,6 +42,7 @@ import type { CatalogResult } from '../../shared/catalog'
 import type { ChatAttachment, ChatDelta, ChatMeta, ChatPreset, ChatRecord, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
 import type { OcrAnswer, OcrFile, OcrProgress, OcrRequest } from '../../shared/ocr'
 import type { MdTable } from '../../shared/mdtable'
+import type { BatchFolder, BatchOptions, BatchProgress, BatchRequest, BatchRow } from '../../shared/batch'
 import type { SchoolTimetable, TtRow } from '../../shared/timetable'
 import type {
   ComposeResult,
@@ -123,6 +124,21 @@ const api = {
       const handler = (_e: unknown, p: OcrProgress & { tab: string }): void => cb(p)
       ipcRenderer.on('ocr:progress', handler)
       return () => ipcRenderer.removeListener('ocr:progress', handler)
+    }
+  },
+  /** 폴더 일괄 분석 — 학생 결과물 폴더를 학생별로 묶어 정리 · 세특 · 채점 */
+  batch: {
+    pick: (): Promise<BatchFolder | null> => ipcRenderer.invoke('batch:pick'),
+    /** 끌어 놓은 폴더 */
+    add: (folderPath: string): Promise<BatchFolder> => ipcRenderer.invoke('batch:add', folderPath),
+    run: (req: BatchRequest): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('batch:run', req),
+    cancel: (job: string): Promise<void> => ipcRenderer.invoke('batch:cancel', job),
+    save: (rows: BatchRow[], options: BatchOptions, title: string, format: 'xlsx' | 'csv'): Promise<{ ok: boolean; message: string }> =>
+      ipcRenderer.invoke('batch:save', rows, options, title, format),
+    onProgress: (cb: (p: BatchProgress) => void): (() => void) => {
+      const handler = (_e: unknown, p: BatchProgress): void => cb(p)
+      ipcRenderer.on('batch:progress', handler)
+      return () => ipcRenderer.removeListener('batch:progress', handler)
     }
   },
   journal: {
