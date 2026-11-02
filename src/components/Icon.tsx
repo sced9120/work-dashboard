@@ -38,7 +38,7 @@ import '../vendor/lucian-icons/utensils.js'
  *
  * Lucian Icons(https://lucianlabs.dev/icons/, MIT)를 쓴다. 단추에 마우스를 올리면 살짝 움직인다(움직임 줄이기 설정이면 멈춤).
  * 아이콘마다 제 색이 있지만 화면에서 튀지 않게 테마의 색 하나(--li-accent)와 옅은 바탕(--li-tint)으로 칠한다 — src/themes.css 14번.
- * 접기 손잡이 · 위로 · 밖으로 열기 같은 작은 화살표만 예전처럼 여기 그린 선을 쓴다.
+ * 접기 손잡이 · 위로 · 밖으로 열기 같은 작은 화살표와 자물쇠(홈 고정)만 여기 그린 선을 쓴다.
  */
 
 export type IconName =
@@ -71,6 +71,8 @@ export type IconName =
   | 'note'
   | 'chat'
   | 'scan'
+  | 'lock'
+  | 'unlock'
   // 홈 위젯 제목
   | 'school'
   | 'meal'
@@ -79,7 +81,7 @@ export type IconName =
   | 'past'
   | 'rocket'
 
-type Drawn = 'chevron' | 'up' | 'out'
+type Drawn = 'chevron' | 'up' | 'out' | 'lock' | 'unlock'
 
 /** 이 앱의 이름 → Lucian 아이콘 */
 const LUCIAN: Record<Exclude<IconName, Drawn>, string> = {
@@ -120,7 +122,9 @@ const LUCIAN: Record<Exclude<IconName, Drawn>, string> = {
 const PATHS: Record<Drawn, JSX.Element> = {
   chevron: <path d="m9.5 6 6 6-6 6" />,
   up: <path d="M12 19V5.5M6.5 11 12 5.5l5.5 5.5" />,
-  out: <path d="M14 4.5h5.5V10M19.5 4.5 11 13M18 14v4.5a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2H11" />
+  out: <path d="M14 4.5h5.5V10M19.5 4.5 11 13M18 14v4.5a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2H11" />,
+  lock: <path d="M7 11V8a5 5 0 0 1 10 0v3M6.5 11h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5v-6A1.5 1.5 0 0 1 6.5 11Z" />,
+  unlock: <path d="M7 11V8a5 5 0 0 1 9.6-2M6.5 11h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5v-6A1.5 1.5 0 0 1 6.5 11Z" />
 }
 
 interface Props {

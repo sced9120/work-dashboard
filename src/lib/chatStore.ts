@@ -145,6 +145,8 @@ export function newChat(mode?: ChatMode): string {
   // 아무것도 안 쓴 새 대화가 이미 열려 있으면 그것을 쓴다
   if (cur && !cur.messages.length && !isSaved(cur.id) && !state.live[cur.id]) {
     if (mode && cur.mode !== mode) putRec({ ...cur, mode })
+    // 처음 열 때 지난 대화로 넘어가지 않게 (initChats 가 이 값을 본다)
+    store.set(CURRENT_KEY, '')
     return cur.id
   }
   const r = draft(mode)

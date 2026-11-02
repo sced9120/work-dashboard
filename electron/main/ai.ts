@@ -1169,6 +1169,10 @@ export function richTurns(history: ChatSendTurn[], provider: Provider): RichTurn
   return merged
 }
 
+/** 엑셀 · 표로 달라고 할 때 — 답의 Markdown 표를 화면의 [엑셀로 저장] 이 그대로 .xlsx 로 만든다 */
+const XLSX_RULE =
+  '엑셀 · 표로 달라고 하면 Markdown 표(첫 줄 머리글, 둘째 줄 |---|)로 답하세요. 답 아래 [엑셀로 저장] 단추가 그 표를 엑셀 파일로 만들어 주므로 "엑셀 파일은 만들 수 없다" 고 하지 마세요. 표가 여럿이면 표마다 바로 위에 ### 제목을 달면 시트 이름이 됩니다. 칸 안에서는 줄을 바꾸지 말고 " / " 로 나눕니다.'
+
 /** 업무 도우미 지침 — 근거를 예산 안에서 담고, 실제로 담긴 것만 출처로 남긴다 */
 export function workSystem(jobTitle: string, mine: string, sources: SourceItem[], today: string, forms: string[]): { system: string; used: string[] } {
   let used = 0
@@ -1202,6 +1206,7 @@ export function workSystem(jobTitle: string, mine: string, sources: SourceItem[]
 - 학생 실명·주민번호·연락처 같은 개인정보를 새로 지어내지 마세요.
 - 도움자료는 파일 이름만 있고 내용은 모릅니다. 파일 내용을 지어내지 말고, 쓸 만한 파일(업무흐름도·계획 예시·서식 등)의 이름을 짚어
   "자료 폴더를 열어 보세요" 라고 안내하세요. 폴더 주소는 답 아래에 버튼으로 따로 나오므로 적지 않아도 됩니다.
+- ${XLSX_RULE}
 - 한국어로, 담당자가 바로 활용할 수 있도록 간결하고 실무적으로 답하세요.
 
 ${actionGuide(today)}
@@ -1224,7 +1229,8 @@ export function freeSystem(instruction: string, today: string): string {
       '- 선생님이 올린 파일은 그 마디 안에 [올린 파일: 이름] 으로 들어 있고, 사진 · 스캔 PDF 는 파일 그대로 함께 보냅니다. 그 내용을 근거로 삼고, 파일에 없는 내용을 지어내지 않습니다.',
       '- 학생 실명 · 연락처 같은 개인정보를 새로 지어내지 않습니다.',
       '- 그림 · 사진을 만들어 달라는 부탁에는 그림은 만들 수 없다고 말하고, 글로 도울 방법을 제안합니다.',
-      '- 표 · 목록이 읽기 좋으면 Markdown 으로 씁니다.'
+      '- 표 · 목록이 읽기 좋으면 Markdown 으로 씁니다.',
+      `- ${XLSX_RULE}`
     ].join('\n')
   ]
     .filter(Boolean)

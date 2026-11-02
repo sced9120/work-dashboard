@@ -33,7 +33,7 @@ import { openFeedback } from './lib/feedback'
 import { focusSearch } from './pages/Search'
 import { setOcrNotifier, useOcrTabs } from './lib/ocrStore'
 import { setBatchNotifier, useBatch } from './lib/batchStore'
-import { useChats } from './lib/chatStore'
+import { newChat, useChats } from './lib/chatStore'
 import { useToast } from './lib/toast'
 
 export type PageId =
@@ -226,7 +226,11 @@ function Shell(): JSX.Element {
         {isShown(navp, AI_ITEM.id) && (
           <button
             className={`side-ai ${page === AI_ITEM.id ? 'active' : ''}`}
-            onClick={() => setPage(AI_ITEM.id)}
+            onClick={() => {
+              // 누를 때마다 새 대화로 — 지난 대화는 대화 목록에서 다시 연다
+              newChat()
+              setPage(AI_ITEM.id)
+            }}
             title={tip(AI_ITEM.label)}
           >
             <span className="side-ai-ico">

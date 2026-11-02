@@ -30,6 +30,61 @@ function nodeHeight(n: WfNode): number {
   return Math.max(46, lines * LINE_H + PAD_Y * 2)
 }
 
+/**
+ * 상자 글을 상자 안에서 바로 고친다 — 따로 뜬 입력칸 없이 보이던 글 그대로, 상자는 글만큼 늘어난다.
+ * Enter 는 줄바꿈, Esc 나 바깥을 누르면 마친다. 글을 React 가 다시 그리면 커서가 튀므로 처음 한 번만 넣는다.
+ */
+function NodeTextEdit({
+  text,
+  selectAll,
+  onChange,
+  onDone
+}: {
+  text: string
+  selectAll: boolean
+  onChange: (text: string) => void
+  onDone: () => void
+}): JSX.Element {
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.textContent = text
+    el.focus()
+    const r = document.createRange()
+    r.selectNodeContents(el)
+    if (!selectAll) r.collapse(false)
+    const s = window.getSelection()
+    s?.removeAllRanges()
+    s?.addRange(r)
+    // 처음 열 때만 — 그 뒤 글은 이 칸이 들고 있다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return (
+    <span
+      ref={ref}
+      className="wf-node-text wf-node-live"
+      contentEditable="plaintext-only"
+      suppressContentEditableWarning
+      role="textbox"
+      aria-multiline="true"
+      aria-label="상자 글"
+      spellCheck={false}
+      onInput={(e) => onChange((e.currentTarget.innerText || '').replace(/\n$/, ''))}
+      onBlur={onDone}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          e.currentTarget.blur()
+        }
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    />
+  )
+}
+
 function uid(prefix: string): string {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 }
@@ -278,6 +333,8 @@ export default function WorkflowEditor({
 
   /** 끌고 있는 상자와, 상자 안에서 붙잡은 지점 */
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null)
+  /** 누른 순간 — 이미 골라 둔 상자였는지, 그 뒤 끌었는지 (끌지 않고 다시 누른 것만 글 고치기로) */
+  const press = useRef<{ id: string; x: number; y: number; was: boolean; moved: boolean } | null>(null)
 
   const byId = useMemo(() => {
     const m = new Map<string, WfNode>()
@@ -353,6 +410,8 @@ export default function WorkflowEditor({
       }
       if (!drag.current) return
       const p = toCanvas(e.clientX, e.clientY)
+      const s = press.current
+      if (s && Math.hypot(e.clientX - s.x, e.clientY - s.y) > 4) s.moved = true
       moveNode(drag.current.id, p.x - drag.current.dx, p.y - drag.current.dy)
     }
 
@@ -385,6 +444,7 @@ export default function WorkflowEditor({
     if (readOnly || editingText === n.id) return
     const p = toCanvas(e.clientX, e.clientY)
     drag.current = { id: n.id, dx: p.x - n.x, dy: p.y - n.y }
+    press.current = { id: n.id, x: e.clientX, y: e.clientY, was: selected === n.id, moved: false }
     setSelected(n.id)
   }
 
@@ -438,6 +498,9 @@ export default function WorkflowEditor({
 
   const clickNode = (n: WfNode): void => {
     if (readOnly) return
+    // 이미 고른 상자를 한 번 더 누르면 그 자리에서 글을 고친다 (두 번 눌러도 된다)
+    const s = press.current
+    if (s && s.id === n.id && s.was && !s.moved) setEditingText(n.id)
     setSelected(n.id)
   }
 
@@ -602,16 +665,11 @@ export default function WorkflowEditor({
               onDoubleClick={() => !readOnly && setEditingText(n.id)}
             >
               {editingText === n.id ? (
-                <textarea
-                  className="wf-node-edit"
-                  value={n.text}
-                  autoFocus
-                  onChange={(e) => setText(n.id, e.target.value)}
-                  onBlur={() => setEditingText(null)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') setEditingText(null)
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
+                <NodeTextEdit
+                  text={n.text}
+                  selectAll={n.text === '새 단계' || n.text === '조건?'}
+                  onChange={(t) => setText(n.id, t)}
+                  onDone={() => setEditingText(null)}
                 />
               ) : (
                 <span className="wf-node-text">{n.text}</span>
@@ -725,7 +783,7 @@ export default function WorkflowEditor({
             </>
           ) : (
             <span className="muted small">
-              상자를 <b>끌어서</b> 옮기고, <b>두 번 눌러</b> 글자를 고칩니다. 상자를 한 번 누르면
+              상자를 <b>끌어서</b> 옮기고, <b>두 번 누르면</b>(고른 상자는 한 번 더 누르면) 상자 안에서 바로 글을 고칩니다. 상자를 한 번 누르면
               네 변에 <b>파란 점</b>이 생기는데, 그것을 <b>끌어다 다른 상자에 놓으면</b> 화살표가
               이어집니다. — {topic}
             </span>

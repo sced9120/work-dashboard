@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatAttachment, ChatMeta, ChatMode } from '../../shared/chat'
 import { CHAT_MODES, chatGroup } from '../../shared/chat'
 import type { HwpForm } from '../../shared/hwpform'
+import { extractTables } from '../../shared/mdtable'
 import type { ModelChoice } from '../../shared/types'
 import type { PageId } from '../App'
 import { queueCommitteeTab, takeChat } from '../lib/chatBridge'
@@ -44,7 +45,8 @@ const SUGGESTIONS = [
   '9월 16일부터 11월 30일까지 매주 목요일 방과후 1-7반으로 넣어 줘',
   '올해 이 업무에서 놓치면 안 되는 기한들을 정리해 줘',
   '이 업무가 접수되면 처리 절차를 순서대로 알려 줘',
-  '이 업무를 처음 맡는 사람에게 3월에 할 일을 알려 줘'
+  '이 업무를 처음 맡는 사람에게 3월에 할 일을 알려 줘',
+  '올해 이 업무의 월별 할 일을 표로 정리해 줘. 엑셀로 받을 거야'
 ]
 
 const FREE_SUGGESTIONS = [
@@ -524,6 +526,15 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
     toast('답을 복사했습니다.', 'ok')
   }
 
+  // 답 안의 Markdown 표를 엑셀로 — 표마다 시트 하나 (스캔 문서 → 엑셀과 같은 모양)
+  const saveXlsx = async (text: string): Promise<void> => {
+    const tables = extractTables(text)
+    if (!tables.length) return
+    const title = rec && isSaved(rec.id) ? rec.title : free ? 'AI_대화_표' : '업무도우미_표'
+    const r = await window.api.ocr.save(tables, title)
+    if (r.message !== '취소했습니다.') toast(r.message, r.ok ? 'ok' : 'err')
+  }
+
   // 끌어 놓기 — 창 어디에 놓아도 이 화면이면 올린다
   const onDrop = (e: React.DragEvent): void => {
     e.preventDefault()
@@ -706,6 +717,14 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
             <button className="chat-act" onClick={() => void copy(m.content)} title="답을 복사합니다">
               📋 복사
             </button>
+            {(() => {
+              const n = extractTables(m.content).length
+              return n > 0 ? (
+                <button className="chat-act chat-act-xlsx" onClick={() => void saveXlsx(m.content)} title={n > 1 ? `답의 표 ${n}개를 시트 ${n}장짜리 엑셀 파일로 저장합니다` : '답의 표를 엑셀 파일로 저장합니다'}>
+                  📥 엑셀로 저장{n > 1 ? ` (표 ${n}개)` : ''}
+                </button>
+              ) : null
+            })()}
             {i === lastAssistant && (
               <button className="chat-act" onClick={() => void regenerate(id, { jobTitle, model }).then(after)} disabled={busy} title="같은 질문으로 답을 다시 받습니다">
                 🔄 다시 받기

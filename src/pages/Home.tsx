@@ -98,6 +98,8 @@ interface HomeMode {
   free: boolean
   /** 자유 배치에서 위젯끼리 겹쳐 놓아도 되는지 */
   overlap: boolean
+  /** 자유 배치를 꾸미기 밖에서는 못 움직이게 고정했는지 (기본은 고정 — 쓰다가 위젯이 끌려가지 않게) */
+  locked: boolean
 }
 
 const HOME_KEY = 'home_widgets'
@@ -130,9 +132,9 @@ function parseLayout(raw: string): WidgetState[] {
 function parseMode(raw: string): HomeMode {
   try {
     const v = JSON.parse(raw || 'null') as Partial<HomeMode> | null
-    return { free: !!v?.free, overlap: !!v?.overlap }
+    return { free: !!v?.free, overlap: !!v?.overlap, locked: v?.locked !== false }
   } catch {
-    return { free: false, overlap: false }
+    return { free: false, overlap: false, locked: true }
   }
 }
 
@@ -178,7 +180,7 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
   const [tasks, setTasks] = useState<Task[]>([])
   const [notices, setNotices] = useState<Notice[]>([])
   const [layout, setLayout] = useState<WidgetState[] | null>(null)
-  const [mode, setMode] = useState<HomeMode>({ free: false, overlap: false })
+  const [mode, setMode] = useState<HomeMode>({ free: false, overlap: false, locked: true })
   const [editing, setEditing] = useState(false)
   const [dragId, setDragId] = useState<WidgetId | null>(null)
   const [noticeAdding, setNoticeAdding] = useState(false)
@@ -308,8 +310,11 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
     saveMode({ ...mode, free: true })
   }
 
+  /** 자유 배치에서 지금 끌어 옮길 수 있는지 — 꾸미는 중이거나 고정을 풀었을 때만 */
+  const movable = mode.free && (editing || !mode.locked)
+
   const begin = (e: ReactPointerEvent, id: WidgetId, kind: Handle): void => {
-    if (!mode.free || !boardW || e.button !== 0) return
+    if (!movable || !boardW || e.button !== 0) return
     if (kind === 'move' && (e.target as HTMLElement).closest('button, a, input, select, textarea')) return
     const w = layout.find((x) => x.id === id)
     if (!w?.box) return
@@ -459,7 +464,7 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
           dropOn(w.id)
         }}
       >
-        <header className="hw-head" onPointerDown={free ? (e) => begin(e, w.id, 'move') : undefined} title={free ? '제목 줄을 끌어 옮기고, 모서리를 끌어 크기를 바꿉니다' : undefined}>
+        <header className="hw-head" onPointerDown={movable ? (e) => begin(e, w.id, 'move') : undefined} title={movable ? '제목 줄을 끌어 옮기고, 모서리를 끌어 크기를 바꿉니다' : undefined}>
           {editing && !free && <span className="hw-grip" title="끌어서 옮기기">⠿</span>}
           <span className="hw-title">
             <Icon name={def.icon} size={16} className="hw-ico" />
@@ -470,34 +475,34 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
           <span className="hw-tools">
             {editing && !free && (
               <>
-                <button className="hw-btn" onClick={() => move(w.id, -1)} disabled={i === 0} title="앞으로">
+                <button className="hw-btn" onClick={() => move(w.id, -1)} disabled={i === 0} title="앞으로" aria-label="앞으로">
                   ↑
                 </button>
-                <button className="hw-btn" onClick={() => move(w.id, 1)} disabled={i === layout.length - 1} title="뒤로">
+                <button className="hw-btn" onClick={() => move(w.id, 1)} disabled={i === layout.length - 1} title="뒤로" aria-label="뒤로">
                   ↓
                 </button>
               </>
             )}
             {def.page && !editing && (
-              <button className="hw-btn" onClick={() => onGo(def.page!)} title={`${def.title} 화면으로`}>
+              <button className="hw-btn" onClick={() => onGo(def.page!)} title={`${def.title} 화면으로`} aria-label={`${def.title} 화면으로`}>
                 ↗
               </button>
             )}
-            <button className="hw-btn" onClick={() => patch(w.id, { folded: !w.folded })} title={w.folded ? '펼치기' : '접기'}>
+            <button className="hw-btn" onClick={() => patch(w.id, { folded: !w.folded })} title={w.folded ? '펼치기' : '접기'} aria-label={w.folded ? '펼치기' : '접기'}>
               {w.folded ? '▸' : '▾'}
             </button>
             {!strip && !free && (
-              <button className="hw-btn" onClick={() => patch(w.id, { wide: !w.wide })} title={w.wide ? '좁게 (반쪽)' : '넓게 (한 줄)'}>
+              <button className="hw-btn" onClick={() => patch(w.id, { wide: !w.wide })} title={w.wide ? '좁게 (반쪽)' : '넓게 (한 줄)'} aria-label={w.wide ? '좁게 (반쪽)' : '넓게 (한 줄)'}>
                 ↔
               </button>
             )}
-            <button className="hw-btn" onClick={() => remove(w.id)} title="닫기 (홈 꾸미기에서 다시 더할 수 있음)">
+            <button className="hw-btn" onClick={() => remove(w.id)} title="닫기 (홈 꾸미기에서 다시 더할 수 있음)" aria-label="닫기 (홈 꾸미기에서 다시 더할 수 있음)">
               ✕
             </button>
           </span>
         </header>
         {!w.folded && !strip && <div className="hw-body">{body(w)}</div>}
-        {free && !w.folded &&
+        {movable && !w.folded &&
           (['nw', 'ne', 'sw', 'se'] as Handle[]).map((h) => (
             <span key={h} className={`hw-corner ${h}`} onPointerDown={(e) => begin(e, w.id, h)} title="끌어서 크기 바꾸기" />
           ))}
@@ -537,7 +542,25 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
               </button>
             </>
           )}
-          <button className={`btn btn-sm ${editing ? 'btn-primary' : ''}`} onClick={() => setEditing((v) => !v)}>
+          {mode.free && !editing && (
+            <button
+              className={`btn btn-sm hw-lock ${mode.locked ? 'on' : ''}`}
+              aria-pressed={mode.locked}
+              onClick={() => saveMode({ ...mode, locked: !mode.locked })}
+              title={mode.locked ? '고정을 풀면 꾸미기를 열지 않고도 위젯을 끌어 옮길 수 있습니다' : '위젯이 끌려가지 않게 지금 자리에 고정합니다'}
+            >
+              <Icon name={mode.locked ? 'lock' : 'unlock'} size={15} />
+              {mode.locked ? '홈 고정됨' : '홈 고정하기'}
+            </button>
+          )}
+          <button
+            className={`btn btn-sm ${editing ? 'btn-primary' : ''}`}
+            onClick={() => {
+              // 자유 배치를 다 꾸미면 그 자리에 고정한다
+              if (editing && mode.free && !mode.locked) saveMode({ ...mode, locked: true })
+              setEditing((v) => !v)
+            }}
+          >
             {editing ? '✓ 꾸미기 끝' : '✏️ 홈 꾸미기'}
           </button>
         </div>
@@ -608,7 +631,7 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
       {mode.free ? (
         <div
           ref={boardRef}
-          className={`hw-board ${editing ? 'editing' : ''} ${live ? 'busy' : ''}`}
+          className={`hw-board ${editing ? 'editing' : ''} ${movable ? 'movable' : 'locked'} ${live ? 'busy' : ''}`}
           style={{ height: boardHeight(freeBoxes) + (live ? 200 : 0) }}
         >
           {layout.map((w, i) => widget(w, i))}

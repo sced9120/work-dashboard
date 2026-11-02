@@ -113,6 +113,7 @@ const G = { provider: 'gemini', model: 'gemini-3.8-flash' }
   const r3 = await call('ai:chatStream', { reqId: 'q3', mode: 'work', jobTitle: '학교폭력 담당', instruction: '무시되어야 함', history: [{ role: 'user', content: '놓치면 안 되는 기한 알려 줘' }], formFiles: ['회의록.hwpx'], model: G })
   const sys3 = lastBody().systemInstruction.parts[0].text
   ok(sys3.includes("'학교폭력 담당' 업무를 돕는") && sys3.includes('<<<할일') && sys3.includes('회의록.hwpx (이 대화에 올린 파일)') && !sys3.includes('무시되어야 함'), '업무 도우미 지침 · 일감 · 양식 이름, 일반 대화 지침은 안 씀')
+  ok(sys3.includes('[엑셀로 저장]') && sys3.includes('Markdown 표') && sys1.includes('[엑셀로 저장]'), '엑셀 · 표로 달라면 Markdown 표로 (업무 도우미 · 일반 대화 둘 다)')
   ok(r3.ok && Array.isArray(r3.sources), '근거 목록과 함께')
 
   console.log('\n5. OpenAI — 사진은 image_url, PDF 는 file(이름 대신 document.pdf)')
