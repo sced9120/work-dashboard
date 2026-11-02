@@ -4111,7 +4111,7 @@ select:focus {
   }
 }
 
-/* ================= 15. 쓰기 편하게 (v3.6) — 키보드 · 글 줄바꿈 · 홈 고정 · 워크플로우 글 고치기 · 표 → 엑셀 ================= */
+/* ================= 15. 쓰기 편하게 (v3.5.1) — 키보드 · 글 줄바꿈 · 홈 고정 · 워크플로우 글 고치기 · 표 → 엑셀 ================= */
 /* 키보드(Tab)로 옮겨 다닐 때만 보이는 테두리 — 마우스로 누를 때는 안 보인다 */
 :root :where(button, a[href], summary, [role='button'], [role='radio'], [role='tab'], [role='switch'], [tabindex]:not([tabindex='-1'])):focus-visible {
   outline: 2px solid var(--accent);
