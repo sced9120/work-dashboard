@@ -1,5 +1,5 @@
 import type { MySlot, MyTimetable, TtPeriod } from '../../shared/timetable'
-import { endOf, lunchOf, periodNow } from '../../shared/timetable'
+import { endOf, lunchOf, periodNow, slotKey } from '../../shared/timetable'
 
 interface Props {
   my: MyTimetable
@@ -47,15 +47,24 @@ export default function TimetableBoard({ my, length, compact, today = -1, now = 
         {my.days.map((_, d) => {
           const s = my.grid[d]?.[i] ?? null
           const isNow = d === today && cur.index === i
-          const off = i + 1 > (my.dayPeriods[d] ?? 99) && !s
-          const cls = `ttb-cell ${s ? `k-${slotKind(s)}` : ''} ${isNow ? (cur.during ? 'now' : 'next') : ''} ${d === today ? 'today' : ''} ${off ? 'off' : ''} ${onCell ? 'editable' : ''}`
-          const inner = s && (
+          // 그 날만 바꾼 칸 — 원래 글(없었으면 '')
+          const was = my.changes?.[slotKey(d, i)]
+          const changed = was !== undefined
+          const off = i + 1 > (my.dayPeriods[d] ?? 99) && !s && !changed
+          const cls = `ttb-cell ${s ? `k-${slotKind(s)}` : ''} ${isNow ? (cur.during ? 'now' : 'next') : ''} ${d === today ? 'today' : ''} ${off ? 'off' : ''} ${
+            changed ? `changed ${s ? '' : 'emptied'}` : ''
+          } ${onCell ? 'editable' : ''}`
+          const inner = (
             <>
-              <span className="ttb-subj">{s.subject}</span>
-              {s.cls && <span className="ttb-cls">{s.cls}</span>}
+              {s && <span className="ttb-subj">{s.subject}</span>}
+              {s?.cls && <span className="ttb-cls">{s.cls}</span>}
+              {changed && !s && was && <s className="ttb-was">{was}</s>}
+              {changed && <span className="ttb-mark">변경</span>}
             </>
           )
-          const title = isNow ? (cur.during ? '지금 수업' : '다음 수업') : undefined
+          const title = [isNow ? (cur.during ? '지금 수업' : '다음 수업') : '', changed ? `이 날만 바뀜 — 원래: ${was || '빈 시간'}` : '']
+            .filter(Boolean)
+            .join(' · ') || undefined
           return onCell ? (
             <button key={d} type="button" className={cls} onClick={() => onCell(d, i)} title={title}>
               {inner}
@@ -83,6 +92,7 @@ export default function TimetableBoard({ my, length, compact, today = -1, now = 
         {my.days.map((dn, d) => (
           <div key={dn} className={`ttb-day ${d === today ? 'today' : ''}`}>
             {dn}
+            {my.dates?.[d] && <small className="ttb-date">{Number(my.dates[d].slice(5, 7))}/{Number(my.dates[d].slice(8, 10))}</small>}
           </div>
         ))}
       </div>

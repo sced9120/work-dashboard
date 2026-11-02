@@ -21,7 +21,7 @@ import {
   TasksWidget
 } from '../components/HomeWidgets'
 import type { Box, PxBox } from '../lib/freeLayout'
-import { MIN_H, MIN_W, boardHeight, clampPx, fromPx, masonry, settle, toPx } from '../lib/freeLayout'
+import { MIN_BODY_H, MIN_H, MIN_W, boardHeight, clampPx, fromPx, masonry, settle, toPx } from '../lib/freeLayout'
 import { useToast } from '../lib/toast'
 
 interface Props {
@@ -66,6 +66,8 @@ interface WidgetDef {
   page?: PageId
   /** 자유 배치에서 처음 높이 (px) */
   h: number
+  /** 자유 배치에서 줄일 수 있는 가장 작은 높이 (없으면 MIN_BODY_H) */
+  minH?: number
 }
 
 export const WIDGETS: Record<WidgetId, WidgetDef> = {
@@ -80,7 +82,8 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
   tasks: { icon: 'guide', title: '이 달 업무', desc: '이번 달 · 수시 업무 체크', wide: false, rank: 7, page: '로드맵', h: 240 },
   help: { icon: 'compass', title: '내 업무 도움자료', desc: '고른 내 업무의 교육청 자료 폴더', wide: false, rank: 8, page: '도움자료', h: 240 },
   lastyear: { icon: 'past', title: '작년 이맘때', desc: '지난 학년도 이맘때 했던 일', wide: true, rank: 9, page: '로드맵', h: 220 },
-  notices: { icon: 'pin', title: '메모 · 공지', desc: '다음 담당자에게 남길 메모', wide: false, rank: 10, h: 300 },
+  // 메모 카드 한 장이 100px 쯤 — 줄여도 두 장은 보이고 나머지는 스크롤
+  notices: { icon: 'pin', title: '메모 · 공지', desc: '다음 담당자에게 남길 메모', wide: false, rank: 10, h: 300, minH: 280 },
   quick: { icon: 'rocket', title: '빠른 이동', desc: '자주 가는 화면 버튼', wide: false, rank: 11, h: 260 }
 }
 
@@ -111,6 +114,8 @@ const MODE_KEY = 'home_mode'
 const DEFAULT_ORDER: WidgetId[] = ['school', 'today', 'schedule', 'calendar', 'tasks', 'lastyear', 'notices']
 /** 이미 홈을 꾸며 쓰던 분께 '오늘' 위젯을 한 번만 끼워 넣었는지 */
 const TODAY_ADDED_KEY = 'home_today_added'
+/** 자유 배치에서 줄일 수 있는 가장 작은 높이 — 학교 정보 띠만 한 줄, 나머지는 두 줄쯤 보이고 스크롤 */
+const minHeight = (id: WidgetId): number => (id === 'school' ? MIN_H : WIDGETS[id].minH ?? MIN_BODY_H)
 const defaults = (): WidgetState[] => DEFAULT_ORDER.map((id) => ({ id, wide: WIDGETS[id].wide, folded: false }))
 
 const okBox = (b: unknown): b is Box =>
@@ -241,6 +246,19 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
   // 자유 배치에서 자리가 없는 위젯(새로 더한 것)은 맨 아래에 놓는다
   useEffect(() => {
     if (!mode.free || !layout || !boardW) return
+    // 예전에 제목 줄만 남게 줄여 둔 위젯은 가장 작은 높이로 늘리고, 겹치면 아래 위젯을 민다
+    const short = layout.filter((w) => w.box && w.box.h < minHeight(w.id))
+    if (short.length) {
+      let next = layout.map((w) => (w.box && w.box.h < minHeight(w.id) ? { ...w, box: { ...w.box, h: minHeight(w.id) } } : w))
+      if (!mode.overlap) {
+        for (const s of short) {
+          const settled = new Map(settle(next.filter((w) => w.box).map((w) => ({ id: w.id, box: toPx(w.box!, boardW) })), s.id).map((x) => [x.id, x.box]))
+          next = next.map((w) => (w.id !== s.id && settled.has(w.id) ? { ...w, box: fromPx(settled.get(w.id)!, boardW) } : w))
+        }
+      }
+      commit(next)
+      return
+    }
     if (layout.every((w) => w.box)) return
     let bottom = layout.reduce((m, w) => (w.box ? Math.max(m, w.box.y + w.box.h) : m), 0)
     const next = layout.map((w) => {
@@ -320,6 +338,7 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
     if (!w?.box) return
     e.preventDefault()
     const orig = toPx(w.box, boardW)
+    const minH = minHeight(id)
     const l: Live = { id, kind, mx: e.clientX, my: e.clientY, orig, cur: orig }
     liveRef.current = l
     setLive(l)
@@ -340,11 +359,11 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
         p = {
           left: west ? o.left + Math.min(dx, o.width - MIN_W) : o.left,
           width: west ? o.width - Math.min(dx, o.width - MIN_W) : o.width + dx,
-          top: north ? o.top + Math.min(dy, o.height - MIN_H) : o.top,
-          height: north ? o.height - Math.min(dy, o.height - MIN_H) : o.height + dy
+          top: north ? o.top + Math.min(dy, o.height - minH) : o.top,
+          height: north ? o.height - Math.min(dy, o.height - minH) : o.height + dy
         }
       }
-      const next = { ...cur, cur: clampPx(p, boardW) }
+      const next = { ...cur, cur: clampPx(p, boardW, minH) }
       liveRef.current = next
       setLive(next)
     }

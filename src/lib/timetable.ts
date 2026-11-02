@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { MyTimetable, SchoolTimetable, TtRules } from '../../shared/timetable'
-import { MY_CLASS_KEY, TT_MANUAL_KEY, TT_ME_KEY, TT_RULES_KEY, TT_TIMES_KEY, myTimetable, withTimes } from '../../shared/timetable'
+import { ymd } from '../../shared/neis'
+import type { DatedChanges, MyTimetable, SchoolTimetable, TtRules } from '../../shared/timetable'
+import {
+  MY_CLASS_KEY,
+  TT_DATED_KEY,
+  TT_MANUAL_KEY,
+  TT_ME_KEY,
+  TT_RULES_KEY,
+  TT_TIMES_KEY,
+  mondayOf,
+  myTimetable,
+  parseDated,
+  withDated,
+  withTimes
+} from '../../shared/timetable'
 import type { PeerPrefs } from '../../shared/ttpeers'
 import { EMPTY_PEERS, TT_PEERS_KEY, parsePeers } from '../../shared/ttpeers'
 
@@ -27,6 +40,8 @@ export interface TimetableState {
   tt: SchoolTimetable | null
   me: string
   manual: Record<string, string>
+  /** 그 날만 바꾼 수업 (날짜 → 교시 → 글) */
+  dated: DatedChanges
   times: TimesSetting
   alias: Record<string, string>
   myClass: string
@@ -34,7 +49,9 @@ export interface TimetableState {
   rules: TtRules | null
   /** 동교과 선생님 명단에서 뺀 분 · 더한 분 */
   peers: PeerPrefs
-  /** 학교 시간표 + 손으로 고친 칸 + 교시 시각 + 과목 이름 바꾸기를 모두 얹은 내 시간표. 아무것도 없으면 null */
+  /** 학교 시간표 + 매주 고친 칸 + 교시 시각 + 과목 이름 바꾸기 — 매주 같은 내 시간표. 아무것도 없으면 null */
+  base: MyTimetable | null
+  /** base 에 이번 주(일요일이면 다음 주) 날짜별 바꿈까지 얹은 것 — 홈 · 오늘 패널이 쓴다 */
   my: MyTimetable | null
   reload: () => Promise<void>
   save: (key: string, value: unknown) => Promise<void>
@@ -46,6 +63,7 @@ export function useTimetable(): TimetableState {
   const [tt, setTt] = useState<SchoolTimetable | null>(null)
   const [me, setMe] = useState('')
   const [manual, setManual] = useState<Record<string, string>>({})
+  const [dated, setDated] = useState<DatedChanges>({})
   const [times, setTimes] = useState<TimesSetting>({ starts: [], length: 50 })
   const [alias, setAlias] = useState<Record<string, string>>({})
   const [myClass, setMyClass] = useState('')
@@ -53,7 +71,7 @@ export function useTimetable(): TimetableState {
   const [peers, setPeers] = useState<PeerPrefs>(EMPTY_PEERS)
 
   const reload = useCallback(async () => {
-    const [t, m, man, tm, al, mc, ru, pe] = await Promise.all([
+    const [t, m, man, tm, al, mc, ru, pe, da] = await Promise.all([
       window.api.tt.get(),
       window.api.setting.get(TT_ME_KEY),
       window.api.setting.get(TT_MANUAL_KEY),
@@ -61,7 +79,8 @@ export function useTimetable(): TimetableState {
       window.api.setting.get(TT_ALIAS_KEY),
       window.api.setting.get(MY_CLASS_KEY),
       window.api.setting.get(TT_RULES_KEY),
-      window.api.setting.get(TT_PEERS_KEY)
+      window.api.setting.get(TT_PEERS_KEY),
+      window.api.setting.get(TT_DATED_KEY)
     ])
     setTt(t)
     setMe(m)
@@ -73,6 +92,7 @@ export function useTimetable(): TimetableState {
     const r = parse<TtRules | null>(ru, null)
     setRules(r && Array.isArray(r.blocks) && r.cce && typeof r.cce === 'object' ? r : null)
     setPeers(parsePeers(pe))
+    setDated(parseDated(da))
     setLoaded(true)
   }, [])
 
@@ -88,17 +108,21 @@ export function useTimetable(): TimetableState {
     [reload]
   )
 
-  const my = useMemo(() => {
+  const base = useMemo(() => {
     if (!(tt && me) && !Object.keys(manual).length) return null
-    const base = myTimetable(tt, me, manual)
+    const raw = myTimetable(tt, me, manual)
     return {
-      ...base,
-      periods: withTimes(base.periods, times.starts),
-      grid: base.grid.map((col) => col.map((s) => (s && !s.manual && alias[s.subject] ? { ...s, subject: alias[s.subject] } : s)))
+      ...raw,
+      periods: withTimes(raw.periods, times.starts),
+      grid: raw.grid.map((col) => col.map((s) => (s && !s.manual && alias[s.subject] ? { ...s, subject: alias[s.subject] } : s)))
     }
   }, [tt, me, manual, times, alias])
 
-  return { loaded, tt, me, manual, times, alias, myClass, rules, peers, my, reload, save }
+  // 날짜가 바뀌면(자정을 넘겨 켜 둔 경우) 다음 그리기에서 새 주로
+  const monday = mondayOf(ymd(new Date()))
+  const my = useMemo(() => (base ? withDated(base, monday, dated) : null), [base, monday, dated])
+
+  return { loaded, tt, me, manual, dated, times, alias, myClass, rules, peers, base, my, reload, save }
 }
 
 /** 오늘 요일 칸(월=0, 주말은 -1)과 지금 시각 HH:MM */

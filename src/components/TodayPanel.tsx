@@ -4,7 +4,7 @@ import type { CalEvent, Deadline } from '../../shared/types'
 import type { NeisMealDay, NeisSchool } from '../../shared/neis'
 import { NEIS_MARK, NEIS_SCHOOL_KEY, addDays, ymd } from '../../shared/neis'
 import type { MySlot } from '../../shared/timetable'
-import { endOf, hoursOf, lunchOf, periodNow, slotText } from '../../shared/timetable'
+import { endOf, hoursOf, lunchOf, periodNow, slotKey, slotText } from '../../shared/timetable'
 import type { PageId } from '../App'
 import { queueChat } from '../lib/chatBridge'
 import { nowInfo, useTimetable } from '../lib/timetable'
@@ -56,6 +56,8 @@ interface TrackItem {
   slot: MySlot | null
   state: 'done' | 'now' | 'up'
   lunchAfter: boolean
+  /** 오늘만 바뀐 시간이면 원래 글 */
+  was?: string
 }
 
 function Hero({ onGo }: { onGo: Go }): JSX.Element {
@@ -132,7 +134,8 @@ function Hero({ onGo }: { onGo: Go }): JSX.Element {
         start: p.start,
         slot: row[i] ?? null,
         state: !timed ? 'up' : i < cur.index ? 'done' : i === cur.index && cur.during ? 'now' : 'up',
-        lunchAfter: lunch?.after === i
+        lunchAfter: lunch?.after === i,
+        was: my.changes?.[slotKey(now.day, i)]
       }))
     }
   }
@@ -165,10 +168,15 @@ function Hero({ onGo }: { onGo: Go }): JSX.Element {
         <ol className="td-track" style={{ gridTemplateColumns: cols }} aria-label="오늘 교시">
           {track.flatMap((t, i) => {
             const cell = (
-              <li key={i} className={`td-per ${t.state} ${t.slot ? '' : 'free'}`}>
+              <li
+                key={i}
+                className={`td-per ${t.state} ${t.slot ? '' : 'free'} ${t.was !== undefined ? 'changed' : ''}`}
+                title={t.was !== undefined ? `오늘만 바뀜 — 원래: ${t.was || '빈 시간'}` : undefined}
+              >
                 <span className="td-per-n">
                   {t.label}
                   {t.state === 'now' ? ' · 지금' : ''}
+                  {t.was !== undefined && <em className="ttb-mark">변경</em>}
                 </span>
                 <span className="td-per-b">
                   {t.slot ? (

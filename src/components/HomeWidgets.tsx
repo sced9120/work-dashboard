@@ -185,7 +185,8 @@ export function MyTtWidget({ onGo, wide }: { onGo: (p: PageId) => void; wide: bo
     <div>
       <div className="mytt-line small">
         {line}
-        <span className="muted"> · 한 주 {hoursOf(my)}시간</span>
+        {now.day >= 0 && Object.keys(my.changes ?? {}).some((k) => k.startsWith(`${now.day}-`)) && <b className="mytt-changed"> · 오늘 바뀐 수업 있음</b>}
+        <span className="muted"> · 한 주 {hoursOf(T.base ?? my)}시간</span>
       </div>
       <TimetableBoard my={my} length={T.times.length} compact={!wide} today={now.day} now={now.hhmm} />
     </div>

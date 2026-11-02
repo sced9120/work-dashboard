@@ -26,6 +26,11 @@ export const GAP = 14
 export const SNAP = 10
 export const MIN_W = 220
 export const MIN_H = 40
+/**
+ * 내용이 있는 위젯은 이만큼보다 작게 줄이지 않는다 — 제목 줄 + 두 줄쯤 보이고 나머지는 위젯 안에서 스크롤.
+ * (40px 까지 줄면 제목 줄만 남아 접은 것처럼 보였다.) 한 줄짜리 학교 정보 띠만 MIN_H.
+ */
+export const MIN_BODY_H = 140
 
 const snap = (v: number): number => Math.round(v / SNAP) * SNAP
 
@@ -34,9 +39,9 @@ export function toPx(b: Box, W: number): PxBox {
 }
 
 /** 판 안에 들어오게 · 최소 크기 */
-export function clampPx(p: PxBox, W: number): PxBox {
+export function clampPx(p: PxBox, W: number, minH = MIN_H): PxBox {
   const width = Math.min(W, Math.max(Math.min(MIN_W, W), p.width))
-  const height = Math.max(MIN_H, p.height)
+  const height = Math.max(minH, p.height)
   const left = Math.min(Math.max(0, p.left), Math.max(0, W - width))
   const top = Math.max(0, p.top)
   return { left, top, width, height }

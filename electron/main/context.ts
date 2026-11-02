@@ -6,7 +6,20 @@
 import type { NeisDay } from '../../shared/neis'
 import { NEIS_MARK, addDays, scheduleToEvents } from '../../shared/neis'
 import type { MyTimetable } from '../../shared/timetable'
-import { MY_CLASS_KEY, TT_MANUAL_KEY, TT_ME_KEY, TT_TIMES_KEY, endOf, myTimetable, slotText, withTimes } from '../../shared/timetable'
+import {
+  MY_CLASS_KEY,
+  TT_DATED_KEY,
+  TT_MANUAL_KEY,
+  TT_ME_KEY,
+  TT_TIMES_KEY,
+  endOf,
+  mondayOf,
+  myTimetable,
+  parseDated,
+  slotText,
+  withDated,
+  withTimes
+} from '../../shared/timetable'
 import * as db from './db'
 import { hasNeisKey, linkedSchool, mealsBetween, scheduleCached } from './neis'
 import { loadTimetable } from './timetable'
@@ -145,9 +158,19 @@ export async function schoolContext(question: string, today: string): Promise<Co
     }
     const length = times.length || 50
     if ((tt && me) || Object.keys(manual).length) {
-      const my = myTimetable(tt, me, manual)
-      my.periods = withTimes(my.periods, times.starts ?? [])
-      out.push({ label: '내 시간표', text: `요일별 내 수업 (반 과목)\n${timetableText(my, length)}`, room: 2500 })
+      const base = myTimetable(tt, me, manual)
+      base.periods = withTimes(base.periods, times.starts ?? [])
+      // 이번 주에 그 날만 바꾼 수업이 있으면 얹고 따로 밝힌다
+      const my = withDated(base, mondayOf(today), parseDated(db.getSetting(TT_DATED_KEY, '')))
+      const changed = Object.entries(my.changes ?? {}).map(([k, was]) => {
+        const [d, p] = k.split('-').map(Number)
+        return `${md(my.dates![d])} ${p + 1}교시: ${was || '빈 시간'} → ${slotText(my.grid[d][p]) || '수업 없음'}`
+      })
+      out.push({
+        label: '내 시간표',
+        text: `이번 주 요일별 내 수업 (반 과목)\n${timetableText(my, length)}${changed.length ? `\n이번 주에만 바뀐 수업:\n${changed.join('\n')}` : ''}`,
+        room: 2500
+      })
     }
     const mine = db.getSetting(MY_CLASS_KEY, '')
     const cls = tt?.classes.find((c) => c.id === mine)

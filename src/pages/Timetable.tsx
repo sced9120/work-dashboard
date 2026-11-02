@@ -4,6 +4,7 @@ import { ymd } from '../../shared/neis'
 import type { ChangePlan, SchoolTimetable } from '../../shared/timetable'
 import {
   MY_CLASS_KEY,
+  TT_DATED_KEY,
   TT_MANUAL_KEY,
   TT_ME_KEY,
   TT_RULES_KEY,
@@ -13,13 +14,16 @@ import {
   hoursOf,
   isFree,
   lockAt,
+  mondayOf,
   myTimetable,
   planChange,
   rulesReady,
+  setDated,
   slotKey,
   slotText,
   stampOf,
-  weekDate
+  weekDate,
+  withDated
 } from '../../shared/timetable'
 import type { PageId } from '../App'
 import TimetableSetup, { rulesSummary } from '../components/TimetableSetup'
@@ -222,12 +226,38 @@ function MyTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Element {
   const [aliasFrom, setAliasFrom] = useState('')
   const [aliasTo, setAliasTo] = useState('')
   const now = nowInfo()
-  const my = T.my ?? myTimetable(T.tt, '', {})
+  const today = ymd(new Date())
+  const thisMonday = mondayOf(today)
+  /** 보고 있는 주의 월요일 — 그 주의 날짜별 바꿈을 얹어 보여 준다 */
+  const [monday, setMonday] = useState(thisMonday)
+  const base = T.base ?? myTimetable(T.tt, '', {})
+  const my = withDated(base, monday, T.dated)
+  const goWeek = (m: string): void => {
+    setMonday(m)
+    setCell(null)
+  }
+  /** 다가오는 날짜별 바꿈 (오늘부터) */
+  const upcoming = Object.entries(T.dated)
+    .filter(([day]) => day >= today)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([day, row]) =>
+      Object.entries(row)
+        .map(([p, text]) => ({ day, p: Number(p), text }))
+        .sort((a, b) => a.p - b.p)
+    )
 
   const subjects = useMemo(() => {
     if (!T.tt || !T.me) return []
     return [...new Set(myTimetable(T.tt, T.me, {}).grid.flat().filter(Boolean).map((s) => s!.subject))]
   }, [T.tt, T.me])
+
+  /** 그 날만 바꾸기(text) · 되돌리기(null) — 매주 시간표는 그대로 둔다 */
+  const saveDated = async (day: string, p: number, text: string | null): Promise<void> => {
+    const d = dayIndex(day)
+    const original = d >= 0 ? slotText(base.grid[d]?.[p] ?? null) : ''
+    await T.save(TT_DATED_KEY, setDated(T.dated, day, p, text, original, today))
+    setCell(null)
+  }
 
   const saveCell = async (): Promise<void> => {
     if (!cell) return
@@ -240,8 +270,10 @@ function MyTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Element {
   }
 
   const savePng = async (): Promise<void> => {
-    if (!T.my) return
-    const data = drawTimetable(T.my, T.times.length, T.me ? `${T.me} 선생님 시간표` : '내 시간표')
+    if (!T.base) return
+    // 보고 있는 주에 바뀐 수업이 있으면 그 주 그대로, 없으면 매주 시간표
+    const week = my.changes ? ` (${md(monday)} 주)` : ''
+    const data = drawTimetable(my.changes ? my : T.base, T.times.length, `${T.me ? `${T.me} 선생님 시간표` : '내 시간표'}${week}`)
     const r = await window.api.image.savePng({ name: `${T.me || '내'} 시간표`, dataUrl: data })
     if (r.message !== '취소했습니다.') toast(r.message, r.ok ? 'ok' : 'err')
   }
@@ -251,7 +283,7 @@ function MyTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Element {
       <div className="card">
         <div className="card-title">
           <span>👤 나는</span>
-          {T.my && <span className="badge badge-accent">한 주 {hoursOf(T.my)}시간</span>}
+          {T.base && <span className="badge badge-accent">한 주 {hoursOf(T.base)}시간</span>}
         </div>
         {T.tt ? (
           <div className="row">
@@ -300,49 +332,108 @@ function MyTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Element {
             <button className={`btn btn-sm ${editing ? 'btn-primary' : ''}`} onClick={() => setEditing((v) => !v)}>
               {editing ? '✓ 고치기 끝' : '✏️ 칸 고치기'}
             </button>
-            <button className="btn btn-sm" onClick={() => void savePng()} disabled={!T.my}>
+            <button className="btn btn-sm" onClick={() => void savePng()} disabled={!T.base}>
               🖼 그림으로 저장
             </button>
           </div>
         </div>
         {editing && (
           <div className="note note-info" style={{ marginBottom: 10 }}>
-            칸을 누르고 <code>1-5 공통수학</code> · <code>창체</code> · <code>동아리</code> 처럼 적으세요. 비우면 그 칸을 지웁니다.
-            학교 시간표에 없는 창체 · 동아리 · 보충 수업을 더하거나, 바뀐 수업을 고칠 때 씁니다.
+            칸을 누르고 <code>1-5 공통수학</code> · <code>창체</code> · <code>동아리</code> 처럼 적으세요. 비우면 그 시간 수업이 없어집니다.
+            <br />
+            <b>[이 날만 바꾸기]</b> 는 그 날짜 하나만(교체 · 보강 · 행사), <b>[매주 바꾸기]</b> 는 매주 같은 칸(창체 · 동아리 · 고정 수업)을
+            고칩니다. 다른 주를 고치려면 아래 ◀ ▶ 로 주를 옮기세요.
           </div>
         )}
+        <div className="row tt-week-nav">
+          <button className="btn btn-sm btn-ghost" onClick={() => goWeek(weekDate(monday, -7))} aria-label="지난 주" title="지난 주">
+            ◀
+          </button>
+          <b className="tt-week-label">
+            {md(monday)} ~ {md(weekDate(monday, my.days.length - 1))}
+          </b>
+          <button className="btn btn-sm btn-ghost" onClick={() => goWeek(weekDate(monday, 7))} aria-label="다음 주" title="다음 주">
+            ▶
+          </button>
+          {monday !== thisMonday && (
+            <button className="btn btn-sm" onClick={() => goWeek(thisMonday)}>
+              이번 주로
+            </button>
+          )}
+          {my.changes && <span className="badge tt-changed-badge">이 주에 바뀐 수업 {Object.keys(my.changes).length}칸</span>}
+        </div>
         <TimetableBoard
           my={my}
           length={T.times.length}
-          today={now.day}
+          today={monday === thisMonday ? now.day : -1}
           now={now.hhmm}
           onCell={editing ? (d, p) => setCell({ d, p, text: slotText(my.grid[d][p]) }) : undefined}
         />
-        {cell && (
-          <div className="row" style={{ marginTop: 10 }}>
-            <span className="small">
-              <b>
-                {my.days[cell.d]} {my.periods[cell.p].label}
-              </b>
-            </span>
-            <input
-              type="text"
-              autoFocus
-              value={cell.text}
-              onChange={(e) => setCell({ ...cell, text: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void saveCell()
-                if (e.key === 'Escape') setCell(null)
-              }}
-              placeholder="예: 1-5 공통수학 · 창체 · 동아리 (비우면 지움)"
-              style={{ flex: 1, minWidth: 200 }}
-            />
-            <button className="btn btn-sm btn-primary" onClick={() => void saveCell()}>
-              저장
-            </button>
-            <button className="btn btn-sm btn-ghost" onClick={() => setCell(null)}>
-              취소
-            </button>
+        {cell &&
+          (() => {
+            const day = weekDate(monday, cell.d)
+            const hasDated = T.dated[day]?.[String(cell.p)] !== undefined
+            return (
+              <div className="row tt-cell-edit" style={{ marginTop: 10 }}>
+                <span className="small">
+                  <b>
+                    {md(day)} {my.periods[cell.p].label}
+                  </b>
+                </span>
+                <input
+                  type="text"
+                  autoFocus
+                  value={cell.text}
+                  onChange={(e) => setCell({ ...cell, text: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveDated(day, cell.p, cell.text)
+                    if (e.key === 'Escape') setCell(null)
+                  }}
+                  aria-label={`${md(day)} ${my.periods[cell.p].label} 수업`}
+                  placeholder="예: 1-5 공통수학 · 창체 · 동아리 (비우면 수업 없음)"
+                  style={{ flex: 1, minWidth: 200 }}
+                />
+                <button className="btn btn-sm btn-primary" onClick={() => void saveDated(day, cell.p, cell.text)} title="이 날짜에만 바꿉니다 (Enter)">
+                  이 날만 바꾸기
+                </button>
+                <button className="btn btn-sm" onClick={() => void saveCell()} title="매주 같은 요일 · 교시를 바꿉니다">
+                  매주 바꾸기
+                </button>
+                {hasDated && (
+                  <button className="btn btn-sm btn-ghost" onClick={() => void saveDated(day, cell.p, null)}>
+                    이 날 원래대로
+                  </button>
+                )}
+                <button className="btn btn-sm btn-ghost" onClick={() => setCell(null)}>
+                  취소
+                </button>
+              </div>
+            )
+          })()}
+        {upcoming.length > 0 && (
+          <div className="tt-dated-list">
+            <div className="small">
+              <b>날짜별로 바꾼 수업</b> <span className="muted">— 그 날은 홈 · 오늘 패널 · 업무 도우미도 바뀐 시간표로 봅니다</span>
+            </div>
+            <ul>
+              {upcoming.map((x) => {
+                const d = dayIndex(x.day)
+                const was = d >= 0 ? slotText(base.grid[d]?.[x.p] ?? null) : ''
+                return (
+                  <li key={`${x.day}-${x.p}`}>
+                    <button className="link" onClick={() => goWeek(mondayOf(x.day))} title="그 주 시간표 보기">
+                      {md(x.day)} {base.periods[x.p]?.label ?? `${x.p + 1}교시`}
+                    </button>
+                    <span className="tt-dated-change">
+                      {was ? <s className="muted">{was}</s> : <span className="muted">빈 시간</span>} → <b>{x.text || '수업 없음'}</b>
+                    </span>
+                    <button className="btn btn-sm btn-ghost" onClick={() => void saveDated(x.day, x.p, null)} aria-label={`${md(x.day)} ${x.p + 1}교시 원래대로`}>
+                      원래대로
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
           </div>
         )}
         {Object.keys(T.manual).length > 0 && (

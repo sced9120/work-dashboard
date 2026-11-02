@@ -19,6 +19,7 @@ node -r ./tests/hook.cjs ./tests/run_memo.cjs
 node tests/t_mdtable.cjs
 node tests/t_markdown.cjs
 node tests/t_catalog.cjs
+node tests/t_ttdated.cjs
 node scripts/check-catalog.mjs
 ```
 

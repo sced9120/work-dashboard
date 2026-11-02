@@ -4190,3 +4190,92 @@ select:focus {
   border-color: var(--accent);
   color: var(--accent-strong);
 }
+
+/* ================= 16. 시간표 — 그 날만 바꾼 수업 표시 ================= */
+/* 시간표 그림은 테마와 상관없이 정해진 색이라, 표시도 그림 위에서 눈에 띄는 주황 점선 + '변경' 꼬리표 */
+.ttb-cell.changed {
+  position: relative;
+  outline: 2px dashed #f97316;
+  outline-offset: 1px;
+}
+.ttb-cell.changed.emptied {
+  background: #fff3e6;
+  color: #9a3412;
+}
+.ttb-was {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.ttb-mark {
+  position: absolute;
+  top: -7px;
+  right: -4px;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: #f97316;
+  color: #fff;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 15px;
+  pointer-events: none;
+}
+.ttb-date {
+  margin-left: 4px;
+  font-size: 10.5px;
+  font-weight: 500;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+.ttb-compact .ttb-date {
+  display: none;
+}
+.tt-week-nav {
+  margin-bottom: 8px;
+  gap: 6px;
+}
+.tt-week-label {
+  min-width: 170px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+:root .tt-changed-badge {
+  background: #fff3e6;
+  color: #9a3412;
+}
+.tt-dated-list {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px dashed #f97316;
+  border-radius: 10px;
+}
+.tt-dated-list ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tt-dated-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.tt-dated-change {
+  flex: 1;
+  min-width: 0;
+}
+/* 홈 '오늘' 패널 교시 띠 */
+.td-per.changed .td-per-b {
+  outline: 2px dashed var(--warn);
+  outline-offset: 1px;
+}
+.td-per .ttb-mark {
+  position: static;
+  margin-left: 4px;
+  background: var(--warn);
+}
+.mytt-changed {
+  color: var(--warn);
+}

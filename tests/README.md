@@ -16,6 +16,7 @@ node -r ./tests/hook.cjs ./tests/run_memo.cjs      # 자유 메모장
 node tests/t_mdtable.cjs                           # 답에서 표 뽑기 · 이어 붙이기 · 수식 (빌드 없이)
 node tests/t_markdown.cjs                          # AI 답의 Markdown 그리기 (빌드 없이)
 node tests/t_catalog.cjs                           # remote/catalog.json 규칙 (빌드 없이)
+node tests/t_ttdated.cjs                           # 시간표 — 그 날만 바꾼 수업 (빌드 없이)
 ```
 
 Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron/dist/electron -r ./tests/hook.cjs ./tests/run_ocr.cjs`
@@ -30,4 +31,5 @@ Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron
 | `run_memo.cjs` | 메모 · 자유 워크플로우 · 검색 · '넘기기' 켠 것만 인수인계 |
 | `t_mdtable.cjs` | `\|` · 코드 안의 \| · 코드 울타리 · ```markdown 으로 감싼 표 · 덜 나온 행 빼기 · 머리글 같은 표 잇기 · 수식(LaTeX) 안의 `\\` 지키기와 글자로 바꾸기(행렬 · 분수 · 첨자 · 기호, `$5` 같은 돈은 그대로) · `<br>` |
 | `t_markdown.cjs` | 굵게 · 기울임 · 코드 · 지움 · 스크립트는 글자로 · 링크는 http(s) 만 · 겹친 목록 · 칸 수가 다른 표 · 닫히지 않은 코드 · 수식 · 오래 걸리지 않음 |
+| `t_ttdated.cjs` | 주 고르기(일요일은 다음 주) · 그 날만 바꾸기 · 되돌리기 · 원래 글이면 안 바꿈 · 60일 지난 것 지우기 · 그 주에만 얹기 · 바뀐 칸에 원래 글 · 깨진 값 |
 | `t_catalog.cjs` | https 만 · 테마 토큰만 · 의견 설문지 · OCR 지침/모델(Gemini · OpenAI) · 실제 `remote/catalog.json` |

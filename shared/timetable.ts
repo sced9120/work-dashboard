@@ -120,6 +120,10 @@ export interface MyTimetable {
   grid: (MySlot | null)[][]
   /** 학교 파일에서 뽑았는지, 손으로만 적었는지 */
   from: '학교 시간표' | '직접 적음'
+  /** 어느 주를 보여 주는지 — 요일마다 날짜 (withDated 가 채움) */
+  dates?: string[]
+  /** 그 날만 바꾼 칸 { "요일-교시": 원래 글 } (원래 비어 있었으면 '') */
+  changes?: Record<string, string>
 }
 
 /** 수업 한 칸 (누가 · 언제 · 어느 반 · 무슨 과목) */
@@ -648,6 +652,76 @@ export function myTimetable(tt: SchoolTimetable | null, name: string, manual: Re
     return n
   })
   return { days: base.days, periods: base.periods, dayPeriods, grid, from: tt && name ? '학교 시간표' : '직접 적음' }
+}
+
+/* ---------- 날짜별로 바꾼 수업 ---------- */
+
+/**
+ * 그 날만 바꾼 수업 { '2026-11-05': { '2': '1-5 공통수학', '4': '' } } — 교시는 0부터, 빈 글은 그 시간 수업 없음.
+ * 매주 같은 칸을 고치는 timetable_manual 과 따로 둔다. 이름 · 반이 들어 있어 인수인계 파일에는 넣지 않는다.
+ */
+export const TT_DATED_KEY = 'timetable_dated'
+export type DatedChanges = Record<string, Record<string, string>>
+
+/** 지난 바꿈은 이만큼(일) 지나면 저장할 때 지운다 */
+const DATED_KEEP_DAYS = 60
+
+export function parseDated(raw: string): DatedChanges {
+  try {
+    const v = JSON.parse(raw || '{}') as unknown
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
+    const out: DatedChanges = {}
+    for (const [day, ch] of Object.entries(v as Record<string, unknown>)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !ch || typeof ch !== 'object' || Array.isArray(ch)) continue
+      const row: Record<string, string> = {}
+      for (const [p, t] of Object.entries(ch as Record<string, unknown>)) if (/^\d+$/.test(p) && typeof t === 'string') row[p] = t
+      if (Object.keys(row).length) out[day] = row
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+/** 한 칸을 그 날만 바꾸거나(text) 되돌린다(null). 학교 시간표와 같은 글이면 바꾼 것으로 치지 않는다. 오래된 날은 지운다 */
+export function setDated(dated: DatedChanges, day: string, period: number, text: string | null, original: string, today: string): DatedChanges {
+  const next: DatedChanges = {}
+  const cut = new Date(`${today}T00:00:00`)
+  cut.setDate(cut.getDate() - DATED_KEEP_DAYS)
+  const p2 = (n: number): string => String(n).padStart(2, '0')
+  const from = `${cut.getFullYear()}-${p2(cut.getMonth() + 1)}-${p2(cut.getDate())}`
+  for (const [d, row] of Object.entries(dated)) if (d >= from) next[d] = { ...row }
+  const row = { ...(next[day] ?? {}) }
+  const t = text === null ? null : text.trim()
+  if (t === null || t === original.trim()) delete row[String(period)]
+  else row[String(period)] = t
+  if (Object.keys(row).length) next[day] = row
+  else delete next[day]
+  return next
+}
+
+/** 그 날이 든 주의 월요일. 일요일이면 다음 주 (주말에 보면 다가오는 주가 궁금하다) */
+export function mondayOf(day: string): string {
+  return new Date(`${day}T00:00:00`).getDay() === 0 ? weekDate(day, 7) : weekDate(day, 0)
+}
+
+/** 그 주(월요일)의 날짜별 바꿈을 얹는다. 바뀐 칸은 changes 에 원래 글을 남겨 화면이 표시한다 */
+export function withDated(my: MyTimetable, monday: string, dated: DatedChanges): MyTimetable {
+  const grid = my.grid.map((col) => [...col])
+  const dates = my.days.map((_, d) => weekDate(monday, d))
+  const changes: Record<string, string> = {}
+  dates.forEach((day, d) => {
+    for (const [k, v] of Object.entries(dated[day] ?? {})) {
+      const p = Number(k)
+      if (!(p >= 0 && p < my.periods.length)) continue
+      const was = slotText(grid[d][p])
+      if (v.trim() === was) continue
+      changes[slotKey(d, p)] = was
+      grid[d][p] = v.trim() ? slotFromText(v) : null
+    }
+  })
+  const dayPeriods = my.dayPeriods.map((n, d) => Math.max(n, ...grid[d].map((s, p) => (s ? p + 1 : 0))))
+  return { ...my, grid, dayPeriods, dates, ...(Object.keys(changes).length ? { changes } : {}) }
 }
 
 /** 시간표 파일이 없을 때의 빈 틀 (월~금 · 7교시) */
