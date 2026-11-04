@@ -21,6 +21,7 @@ node tests/t_markdown.cjs
 node tests/t_catalog.cjs
 node tests/t_ttdated.cjs
 node tests/t_widgetgrid.cjs
+node tests/t_hwpfit.cjs
 node scripts/check-catalog.mjs
 ```
 

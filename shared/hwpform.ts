@@ -133,6 +133,18 @@ export type DocItem =
   | { kind: 'p'; sample: string; text: string }
   | { kind: 't'; sample: string; rows: string[][] }
 
+/** 검사관이 양식과 맞춰 본 결과 */
+export interface ComposeReview {
+  /** 검사관이 찾아 고친 것 */
+  fixed: string[]
+  /** 담당자에게 물을 것 — 질문과 지금 문서에 둔 값 */
+  ask: { q: string; hint: string }[]
+  /** 고친 뒤에도 프로그램 대조에 남은 것 */
+  remain: string[]
+  /** 검사를 못 한 까닭 */
+  skipped?: string
+}
+
 export interface ComposeResult {
   ok: boolean
   items: DocItem[]
@@ -140,6 +152,7 @@ export interface ComposeResult {
   note: string
   sentToAi: string
   error?: string
+  review?: ComposeReview
 }
 
 /** 표 한 줄을 칸으로 나눈다. `\|` 는 글자 | 로 둔다. */

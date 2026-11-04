@@ -15,7 +15,8 @@ import type {
 } from '../../shared/types'
 import { findIdNumbers, findNameCandidates, leakCheck, maskText, scrubPersonal, unmaskText } from './anonymize'
 import { actionGuide, docGuide } from '../../shared/agent'
-import type { ComposeResult, DocItem } from '../../shared/hwpform'
+import type { ComposeResult, ComposeReview, DocItem } from '../../shared/hwpform'
+import { checkAgainstForm, findingLine, findingsText, parseInspection, type FormPara } from '../../shared/hwpfit'
 import { parseComposed } from '../../shared/hwpform'
 import { frameOutline, readFrame } from './hwpgen'
 import type { Deck } from '../../shared/slides'
@@ -908,6 +909,10 @@ function parseJson(raw: string): unknown {
  * 글꼴·문단 모양은 이 PC 에서 그 번호의 양식 문단을 복제해 입힌다(hwpgen.ts).
  * 양식의 칸을 하나하나 채우는 것이 아니라서, 모르는 자리를 "(   )" 로 비워 둘 일이 없다.
  *
+ * 쓴 다음에는 검사관을 한 번 더 부른다(shared/hwpfit.ts). 프로그램이 양식과 기계적으로 맞춰 본 결과
+ * (빠진 문장·항목 줄, 번호 건너뜀, 지어 붙인 문단, 제목, 받는 사람 빈칸)와 함께 양식·새 문서를 주면
+ * 검사관이 고친 문서와 담당자에게 물을 것을 돌려준다. 고친 뒤에도 남은 문제는 화면에 알린다.
+ *
  * 개인정보: 넣을 내용은 화면에서 정한 가명으로 바꿔 보내고, 받은 뒤 되돌린다.
  * 양식에 지난번 학생 이름이 남아 있을 수 있어 양식 쪽은 ○○○ 로 싹 가려 보낸다.
  */
@@ -949,8 +954,9 @@ export async function composeFromForm(
 학교명은 '${schoolName}' 입니다.` : ''}${args.schoolInfo ? `
 ${args.schoolInfo}` : ''}
 
-[양식]은 학교에서 쓰는 한글 문서 '${formName}' 의 모습입니다. 이 양식의 구성과 문단 모양을 본떠
-[넣을 내용]으로 **새 문서를 처음부터 끝까지** 써 주세요. 글꼴·문단 모양은 프로그램이 양식대로 입힙니다.
+[양식]은 학교에서 실제로 쓰는 한글 문서 '${formName}' 입니다. 담당자는 이 양식을 해마다 고쳐 쓰듯이,
+**양식의 문장과 구성은 그대로 두고 이번 일에 맞춰야 할 곳만 바꾼** 새 문서를 원합니다.
+[넣을 내용]으로 새 문서를 처음부터 끝까지 써 주세요. 글꼴·문단 모양은 프로그램이 양식대로 입힙니다.
 ${guide ? `
 [문서 종류]는 담당자가 고른 문서와 그 문서를 쓰는 법입니다. 구성은 양식을 따르고, 말투와 빠뜨리면 안 되는 것만 참고하세요.
 ` : ''}
@@ -961,19 +967,30 @@ ${guide ? `
 
 쓰는 법
 - 한 줄에 한 문단씩 쓰고, 줄 맨 앞에 그 문단이 본뜰 양식 번호를 붙이세요. 예) [P3] ○ 일시: 2026. 10. 7.(수) 16:30
-- 같은 모양의 문단이 여러 개 필요하면 같은 번호를 여러 번 쓰세요. 항목 수는 양식과 달라도 됩니다.
-- 필요 없는 문단은 빼고, 순서도 내용에 맞게 바꿔도 됩니다. 빈 줄은 쓰지 마세요. 문단 사이 간격은 양식대로 맞춰집니다.
-- 줄머리 번호·기호(1. 가. □ ○ - ※)와 띄어쓰기 습관은 양식을 따르세요.
+- **양식의 문단을 위에서부터 차례로 하나씩 옮겨 쓰세요.** 문단을 빼거나 순서를 바꾸지 마세요. 빈 줄은 쓰지 마세요.
+- 같은 모양이 여러 번 필요한 것(안건 목록, 참석자, 학생별 장)만 같은 번호를 여러 번 써서 늘리거나 줄이세요.
 - 표는 [T0] 한 줄을 쓴 다음 행마다 | 칸 | 칸 | 으로 쓰세요. 행마다 칸 수는 양식의 그 행과 같게 합니다.
   "일시", "성명" 같은 항목 이름 칸은 그대로 두고 내용 칸만 새로 씁니다. 행이 더 필요하면 같은 모양으로 더 쓰세요.
   칸 안의 [T5] 줄은 지우지 말고 그대로 두세요.
 - 글상자는 [B0] 으로 시작해 씁니다.
 
-내용 채우기
-- 인사말·안내 문구·법령 안내처럼 늘 같은 글은 양식 그대로 살려 쓰고, 날짜·대상·사안처럼 이번 일에 맞춰야 할 것만 [넣을 내용]으로 바꾸세요.
-- 양식에 적힌 지난 문서의 구체적인 내용(날짜·이름·사안·숫자)은 새 문서에 남기지 마세요. ○○○ 로 가려진 것은 지난 문서의 이름입니다.
-- [넣을 내용]에 없는 사실·날짜·숫자는 지어내지 마세요. 모르는 것을 "(   )", "○○○", "추후 안내" 같은 빈자리로 채우지 말고
-  그 문단이나 그 부분을 빼세요. 표의 내용 칸이면 비워 두세요.
+바꾸지 말 것
+- 제목, 인사말, 안내·요청 문장("이에 … 참석하여 주십시오" 같은 것), 법령·규정 안내, 학교장 이름 줄은 **글자 하나 바꾸지 말고** 양식 그대로 쓰세요.
+  [넣을 내용]이 제목을 바꾸라고 하지 않았으면 제목에 회차·날짜를 붙이지 마세요.
+- 번호 매긴 항목 줄(1. 2. 3. 가. 나.)과 "이름:" 항목 줄(일 시:, 장 소:)은 하나도 빼지 마세요.
+- 문장의 틀은 양식을 따르세요. 예) 양식이 『조항 + 조항 내용』 이면 새 문서도 『조항 + 조항 내용』, 양식이 "제2부제5조" 처럼 붙여 썼으면 붙여 씁니다.
+- 받는 사람이 손으로 채우는 자리(괄호 빈칸 "(      )", "년 월 일", "(인)", 밑줄 빈 줄, 회신란)는 양식 그대로 비워 두세요.
+  "성명:", "학번:" 처럼 항목 이름 뒤가 빈 자리는 [넣을 내용]으로 채웁니다.
+
+바꿀 것
+- 날짜·대상·사안·조항처럼 이번 일에 맞춰야 할 곳만 [넣을 내용]으로 바꾸세요.
+- 양식에 적힌 지난 일의 이름·사안은 새 문서에 남기지 마세요. ○○○ 로 가려진 것은 지난 문서의 이름입니다.
+- 장소·시각·참석대상처럼 늘 같을 수 있는 값이 [넣을 내용]에 없으면 양식의 값을 그대로 두고, 맨 끝 메모에 "양식 값을 그대로 둔 것: 장소, 시각" 처럼 알리세요.
+
+지어내지 말 것
+- 양식에 없던 문단·문장(사유 설명, 규정 풀이, 처분 기준, 덧붙이는 당부)을 새로 만들지 마세요.
+- [넣을 내용]과 양식 어디에도 없는 사실·날짜·숫자·규정 내용을 지어내지 마세요.
+  새로 "(   )", "○○○", "추후 안내" 같은 빈자리를 만들지 마세요. 표의 내용 칸이면 비워 두세요.
 - '학생A', '위원B' 처럼 가명으로 적힌 이름은 그대로 쓰세요. 실제 이름을 만들어 넣지 마세요.
 - 양식에 같은 구성이 여러 번 되풀이되어 있으면(학생별로 여러 장 등) [넣을 내용]에 필요한 만큼만 쓰세요.
 
@@ -991,12 +1008,79 @@ ${masked.slice(0, 20000)}`
   const leaked = leakCheck(prompt, aliases)
   if (leaked.length) return fail(`가명처리가 끝나지 않아 보내지 않았습니다. 남아 있는 이름: ${leaked.join(', ')}`)
 
+  // 프로그램이 하는 대조는 가린 글끼리 한다 — 검사관에게 그대로 보낼 수 있게
+  const formParas: FormPara[] = layout.blocks.map((b) => ({ id: b.id, text: hide(b.text), kind: b.kind }))
+
   try {
     const raw = await callModel(settings, 'scenario', override, prompt, false)
     const parsed = parseComposed(raw)
     if (!parsed.items.some((it) => /^[PTB]\d+$/.test(it.sample))) {
       return fail('AI 가 양식에 맞춘 글을 보내지 않았습니다. 다시 해 보거나 넣을 내용을 더 자세히 적어 주세요.', prompt)
     }
+
+    // 검사관: 양식과 새 문서를 맞춰 보고 고친 문서를 다시 쓴다. 답하지 못하면 쓴 그대로 둔다.
+    const first = checkAgainstForm(formParas, parsed.items)
+    let final = parsed
+    let review: ComposeReview = { fixed: [], ask: [], remain: [] }
+    let sent = prompt
+    const docText = raw
+      .replace(/\r\n?/g, '\n')
+      .split('\n')
+      .filter((l) => !/^\s*메모\s*[:：]/.test(l))
+      .join('\n')
+      .trim()
+    const inspect = `당신은 학교 문서를 결재 전에 검토하는 검사관입니다. 담당자가 실제로 쓰는 [양식]과,
+다른 교사가 그 양식으로 새로 쓴 [새 문서]를 한 문단씩 맞춰 보고 고쳐 주세요.
+담당자는 양식의 문장과 구성은 그대로 두고 이번 일에 맞춰야 할 곳만 바꾼 문서를 원합니다.
+
+볼 것
+1. 양식의 제목·인사말·안내·요청 문장·규정 안내가 빠지거나 바뀌었는가 → 양식 그대로 되살린다.
+   ([넣을 내용]이 바꾸라고 한 것은 바꾼 그대로 둔다)
+2. 양식의 번호 매긴 항목 줄, "이름:" 항목 줄이 빠졌거나 번호가 건너뛰는가 → 그 줄을 되살린다.
+   [넣을 내용]에 값이 없으면 양식의 값을 그대로 두고 '물을 것'에 적는다.
+3. 양식에 없던 문단·문장(사유 설명, 규정 풀이, 처분 기준, 당부)을 지어 넣었는가 → 뺀다.
+4. [넣을 내용]과 양식 어디에도 없는 사실·날짜·숫자·규정 내용이 있는가 → 빼고 '물을 것'에 적는다.
+5. 문장 틀(괄호 안에 쓰는 방식, 붙여 쓰기·띄어쓰기, 날짜 쓰는 꼴)이 양식과 다른가 → 양식처럼 고친다.
+6. 받는 사람이 손으로 쓰는 빈칸(괄호 빈칸, 년 월 일, 인, 밑줄 줄)을 채웠는가 → 양식처럼 비운다.
+7. [넣을 내용]의 사실이 빠졌는가 → 양식의 알맞은 자리에 넣는다. 자리가 없으면 넣지 말고 '검사'에 적는다.
+[프로그램 대조]는 프로그램이 기계적으로 찾은 것입니다. 참고하되, 맞는지는 당신이 판단하세요.
+
+답 모양 — 아래 세 머리 줄을 그대로 쓰고, 다른 말은 쓰지 마세요.
+## 검사
+- [P4] 무엇이 문제였고 어떻게 고쳤는지 한 줄씩 (고칠 것이 없으면 "- 없음")
+## 물을 것
+- 담당자에게 물을 것 | 지금 문서에 둔 값 (없으면 "- 없음")
+## 고친 문서
+(고친 문서 전체. [새 문서]와 같은 쓰는 법: 한 줄에 한 문단, 줄 맨 앞에 [P3] 같은 양식 번호, 표는 [T0] 다음 | 칸 | 줄.
+ '학생A' 같은 가명은 그대로. 고칠 것이 없으면 "그대로" 한 단어만)
+
+--- 양식 ---
+${outline}
+
+--- 넣을 내용 ---
+${masked.slice(0, 12000)}
+
+--- 새 문서 ---
+${docText.slice(0, 20000)}
+
+--- 프로그램 대조 ---
+${findingsText(first)}`
+    if (!leakCheck(inspect, aliases).length) {
+      sent = `${prompt}\n\n===== 검사관에게 보낸 글 =====\n\n${inspect}`
+      try {
+        const answer = parseInspection(await callModel(settings, 'scenario', override, inspect, false))
+        const fixedDoc = answer.doc ? parseComposed(answer.doc) : null
+        if (fixedDoc && fixedDoc.items.some((it) => /^[PTB]\d+$/.test(it.sample))) {
+          final = { items: fixedDoc.items, note: [parsed.note, fixedDoc.note].filter(Boolean).join(' ') }
+        }
+        review = { fixed: answer.fixed, ask: answer.ask, remain: [] }
+      } catch (e) {
+        review = { fixed: [], ask: [], remain: [], skipped: `검사관이 답하지 못해 쓴 그대로 보여 줍니다 (${e instanceof Error ? e.message : String(e)})` }
+      }
+    } else {
+      review = { fixed: [], ask: [], remain: [], skipped: '검사관에게 보낼 글에 가리지 못한 이름이 있어 검사를 건너뛰었습니다.' }
+    }
+    review.remain = checkAgainstForm(formParas, final.items).map(findingLine)
 
     // 가린 채로 돌려받은 양식 글(전화번호 등이 가려진 안내 문구)은 원래 글로 되돌린다.
     // 지난 학생 이름이 든 글은 되돌리지 않는다 — 옛 이름이 새 문서에 다시 들어가면 안 된다.
@@ -1009,10 +1093,17 @@ ${masked.slice(0, 20000)}`
     layout.boxes.forEach((b) => b.text.split('\n').forEach(remember))
     layout.tables.forEach((t) => t.rows.forEach((r) => r.forEach(remember)))
     const back = (t: string): string => original.get(t.replace(/\s+/g, ' ').trim()) ?? unmaskText(t, aliases)
-    const items: DocItem[] = parsed.items.map((it) =>
+    const items: DocItem[] = final.items.map((it) =>
       it.kind === 'p' ? { ...it, text: back(it.text) } : { ...it, rows: it.rows.map((r) => r.map(back)) }
     )
-    return { ok: true, items, note: unmaskText(parsed.note, aliases), sentToAi: prompt }
+    const un = (s: string): string => unmaskText(s, aliases)
+    review = {
+      ...review,
+      fixed: review.fixed.map(un),
+      ask: review.ask.map((a) => ({ q: un(a.q), hint: un(a.hint) })),
+      remain: review.remain.map(un)
+    }
+    return { ok: true, items, note: unmaskText(final.note, aliases), sentToAi: sent, review }
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e), prompt)
   }

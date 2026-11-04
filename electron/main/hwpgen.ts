@@ -3,6 +3,7 @@ import { strFromU8, strToU8, unzipSync } from 'fflate'
 import type { DocItem, FrameBlock, FrameBox, FrameLayout, FrameTable, HwpKind } from '../../shared/hwpform'
 import { BLANK_PNG, kindOf, rezip } from './hwpdoc'
 import { oleFind, readOle, writeOle, type OleNode } from './ole'
+import { alignLike, bracketShapes } from '../../shared/hwpfit'
 
 /**
  * 양식을 "틀"로 새 한글 문서 만들기.
@@ -166,7 +167,7 @@ export function mapShapes<T>(sample: string, shapes: T[], text: string, fallback
     pt = a.t + a.n
   }
   fill(pt, text.length, ps, sample.length)
-  return out.map((v) => (v === undefined ? dom : v))
+  return bracketShapes(sample, shapes, text, out.map((v) => (v === undefined ? dom : v)), dom)
 }
 
 /** 새 줄마다 본뜰 문단을 고른다. 같은 본은 처음 한 번만 딸린 그림을 가져간다. */
@@ -1089,7 +1090,7 @@ class HwpFrame implements Frame {
       const info = this.blocks[e.block]
       let p: HPara
       if (e.op === 'text' && squash(e.text) !== info.text) {
-        p = hClone(src, withLead(info.lead, e.text), hObjects(src))
+        p = hClone(src, withLead(info.lead, alignLike(hText(src).text, e.text)), hObjects(src))
       } else p = copyPara(src)
       // 쪽 설정·머리말은 양식 첫 문단의 것을 새 문서 첫 문단에 둔다.
       // 중간 문단의 쪽 번호 감추기·새 번호 같은 부호는 그 문단에 그대로 둔다.
@@ -1599,7 +1600,7 @@ class HwpxFrame implements Frame {
       const objXml = this.objXml(mergeOv(global, e.op === 'copy' ? e.ov : undefined))
       if (e.op === 'text' && squash(e.text) !== info.text) {
         const keep = xObjects(src)
-        out.push(xWrite(src, xClone(src, withLead(info.lead, e.text), first ? [...secItems, ...keep] : keep), pageBreak, objXml))
+        out.push(xWrite(src, xClone(src, withLead(info.lead, alignLike(xText(src).text, e.text)), first ? [...secItems, ...keep] : keep), pageBreak, objXml))
         return
       }
       const edits: { start: number; end: number; text: string }[] = []

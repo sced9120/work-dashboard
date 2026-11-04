@@ -57,6 +57,10 @@ export default function FormFillCard({
   const [name, setName] = useState(fileName)
   const [showSent, setShowSent] = useState(false)
   const [saved, setSaved] = useState<Saved | null>(null)
+  /** 검사관이 물은 것에 담당자가 적은 답 */
+  const [answers, setAnswers] = useState<Record<number, string>>({})
+  /** 앞서 답한 것 — 다시 쓸 때 넣을 내용 뒤에 붙인다 */
+  const extra = useRef('')
   const started = useRef(false)
 
   const run = useCallback(async () => {
@@ -67,11 +71,13 @@ export default function FormFillCard({
       const layout = await window.api.hwp.frame(form)
       if (!layout.ok) throw new Error(layout.error ?? '양식을 읽지 못했습니다.')
       setFrame(layout)
-      const pairs = await aliasesFor(content, aliases ?? [])
-      const r = await window.api.hwp.compose({ ref: form, content, aliases: pairs, guide, model: model ?? undefined })
+      const full = extra.current ? `${content}\n\n[담당자가 더 알려 준 것]\n${extra.current}` : content
+      const pairs = await aliasesFor(full, aliases ?? [])
+      const r = await window.api.hwp.compose({ ref: form, content: full, aliases: pairs, guide, model: model ?? undefined })
       setRes(r)
       if (!r.ok) throw new Error(r.error ?? 'AI 가 문서를 쓰지 못했습니다.')
       setItems(r.items)
+      setAnswers({})
       setStage('확인')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -106,6 +112,21 @@ export default function FormFillCard({
     } finally {
       setStage('확인')
     }
+  }
+
+  /** 검사관이 물은 것에 답한 것을 넣을 내용에 더해 다시 쓴다 */
+  const answerAndRun = (): void => {
+    const asks = res?.review?.ask ?? []
+    const lines = asks
+      .map((a, i) => ({ q: a.q, v: (answers[i] ?? '').trim() }))
+      .filter((x) => x.v)
+      .map((x) => `- ${x.q}: ${x.v}`)
+    if (!lines.length) {
+      toast('답을 하나 이상 적어 주세요.', 'err')
+      return
+    }
+    extra.current = [extra.current, ...lines].filter(Boolean).join('\n')
+    void run()
   }
 
   const patch = (i: number, next: DocItem | null, insert?: DocItem): void =>
@@ -224,7 +245,9 @@ export default function FormFillCard({
         {stage !== '쓰는 중' && stage !== '실패' && <span className="badge badge-accent">문단 {items.length}개</span>}
       </div>
 
-      {stage === '쓰는 중' && <div className="muted small">양식의 구성과 모양을 따라 새 문서를 쓰는 중…</div>}
+      {stage === '쓰는 중' && (
+        <div className="muted small">양식의 구성과 모양을 따라 새 문서를 쓰고, 검사관이 양식과 한 문단씩 맞춰 보는 중… (AI 에게 두 번 묻습니다)</div>
+      )}
 
       {stage === '실패' && (
         <div className="note note-warn">
@@ -247,6 +270,61 @@ export default function FormFillCard({
             {items.map((it, i) => (it.kind === 'p' ? paraRow(it, i) : tableRow(it, i)))}
           </div>
 
+          {res?.review && (
+            <div className="note fit-review" style={{ marginTop: 8 }}>
+              <b>🔍 검사관</b>
+              {res.review.skipped ? (
+                <div className="small">{res.review.skipped}</div>
+              ) : res.review.fixed.length ? (
+                <>
+                  <div className="small muted">양식과 맞춰 보고 고친 것</div>
+                  <ul className="fit-list">
+                    {res.review.fixed.map((f, i) => (
+                      <li key={i}>{f}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <div className="small">양식과 맞춰 보았고 고칠 것이 없었습니다.</div>
+              )}
+              {res.review.remain.length > 0 && (
+                <>
+                  <div className="small" style={{ marginTop: 6 }}>
+                    <b>⚠ 아직 양식과 다른 곳</b> — 저장하기 전에 위에서 확인해 주세요.
+                  </div>
+                  <ul className="fit-list warn">
+                    {res.review.remain.map((f, i) => (
+                      <li key={i}>{f}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {res.review.ask.length > 0 && (
+                <div className="fit-ask">
+                  <div className="small" style={{ marginTop: 6 }}>
+                    <b>❓ 확인해 주세요</b> — 넣을 내용에 없어서 양식 값을 그대로 두었거나 비워 둔 것입니다. 답을 적고 다시 쓰게 하면 넣어 씁니다.
+                  </div>
+                  {res.review.ask.map((a, i) => (
+                    <div className="field fit-q" key={i}>
+                      <label>{a.q}</label>
+                      <input
+                        type="text"
+                        value={answers[i] ?? ''}
+                        placeholder={a.hint ? `지금: ${a.hint}` : '답'}
+                        onChange={(e) => setAnswers((v) => ({ ...v, [i]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.nativeEvent.isComposing) answerAndRun()
+                        }}
+                      />
+                    </div>
+                  ))}
+                  <button className="btn btn-sm btn-primary" onClick={answerAndRun} disabled={stage === '저장 중'}>
+                    답 넣고 다시 쓰기
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {res?.note.trim() && (
             <div className="note" style={{ marginTop: 8 }}>
               <b>AI 메모:</b> {res.note}
