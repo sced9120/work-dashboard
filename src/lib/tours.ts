@@ -1,5 +1,6 @@
 import type { PageId } from '../App'
 import { navLabel } from './nav'
+import { getUiPrefs } from './theme'
 
 /**
  * 따라 배우기 — 메뉴마다 실제 화면 위에서 한 단계씩 짚어 주는 안내.
@@ -265,10 +266,22 @@ export const TOURS: Record<PageId, Tour> = {
 }
 
 /** 처음부터 차례로 배울 때의 순서 */
+/** 새 화면의 '오늘' 판 */
+const NEW_HOME: TourStep[] = [
+  { sel: '.ns-tabs', title: '위 탭 셋', body: '오늘 · 이번 주(시간표 · 달력) · 내 업무(연간 업무 · 기한 · 가이드 · 인수인계)로 나눴습니다. 탭 안의 화면은 탭 아래 작은 단추로 고릅니다.' },
+  { sel: '.ns-make', title: '＋ 만들기', body: '문서로 업무 만들기 · 학교 문서 · 발표자료 · 문서 스캔 · 도구 모음, 그리고 메모장 · 업무 일지가 여기 모여 있습니다.' },
+  { sel: '.tb-board .tw', title: '위젯', body: '위젯을 길게 누르면 편집이 열립니다. 누른 채로 끌면 옮겨지고, 다른 위젯은 비켜 갑니다. 오른쪽 단추를 눌러도 됩니다.', optional: true },
+  { sel: '.main button', text: '편집', exact: true, click: true, title: '편집을 눌러 보세요', body: '위젯을 누르면 테두리 손잡이가 생깁니다. 손잡이를 끌면 칸 단위로 크기가 바뀝니다.' },
+  { sel: '.tb-editbar', title: '편집 막대', body: '[＋ 위젯]으로 위젯을 고르고 크기를 정해 넣습니다. 위젯을 고른 뒤 [위젯 설정]에서 배경 · 투명도 · 제목 줄을 바꿉니다.', optional: true },
+  { sel: '.tb-editbar button', text: '완료', click: true, title: '완료를 눌러 마치세요', body: '바꾼 배치는 바로 저장됩니다.', optional: true },
+  { sel: '.ns-ask', title: '물어보기 바', body: '적고 Enter를 누르면 업무 도우미, 돋보기를 누르면 통합 검색입니다. 어디서든 Ctrl+K로 커서가 옵니다.' }
+]
+
 export const TOUR_ORDER: PageId[] = ['홈', '달력', '시간표', '기한', '일지', '메모장', '로드맵', '워크플로우', '검색', '도우미', '가이드', '도움자료', '학습', '위원회', '발표', 'OCR', '도구', '데이터', '설정']
 
 /** 왼쪽 메뉴에서 그 화면 단추 (도우미는 맨 위 ✦, 설정은 맨 아래 내 이름 칸) */
 function navSel(page: PageId): string {
+  if (getUiPrefs().shell === 'new') return page === '도우미' ? '.ns-ask' : `.nshell [data-page="${page}"]`
   if (page === '도우미') return '.sidebar .side-ai'
   if (page === '설정') return '.sidebar .side-me'
   return `.sidebar .nav-btn[data-page="${page}"]`
@@ -281,6 +294,21 @@ function navSel(page: PageId): string {
 export function tourSteps(page: PageId): TourStep[] {
   const t = TOURS[page]
   const label = navLabel(page)
+  if (getUiPrefs().shell === 'new') {
+    if (page === '홈') return NEW_HOME
+    return [
+      {
+        sel: navSel(page),
+        title: page === '도우미' ? '아래 물어보기 바' : `「${label}」`,
+        body:
+          page === '도우미'
+            ? `화면 아래 물어보기 바에 적고 Enter를 누르면 업무 도우미가 열립니다. ${t.intro}.`
+            : `위 탭이나 [＋ 만들기]에서 「${label}」을(를) 누르면 이 화면이 열립니다. ${t.intro}.`,
+        optional: true
+      },
+      ...t.steps.filter((s) => !s.sel?.startsWith('.side'))
+    ]
+  }
   return [
     {
       sel: navSel(page),

@@ -5,6 +5,7 @@ import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
 import ModelPicker from '../components/ModelPicker'
 import { requestMemo } from '../lib/memos'
+import { takeSearch } from '../lib/chatBridge'
 
 interface Props {
   jobTitle: string
@@ -56,6 +57,15 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
     return () => window.removeEventListener('wd:focus-search', focus)
   }, [])
 
+  // 새 화면의 물어보기 바에서 [찾기] 로 넘어오면 그 낱말로 바로 찾는다
+  useEffect(() => {
+    const q = takeSearch()
+    if (!q) return
+    setQuery(q)
+    void run(q)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     void (async () => {
       await refreshCount()
@@ -64,8 +74,8 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
     })()
   }, [refreshCount])
 
-  const run = async (): Promise<void> => {
-    const q = query.trim()
+  const run = async (text = query): Promise<void> => {
+    const q = text.trim()
     if (!q) return
     setSearching(true)
     setAnswer('')

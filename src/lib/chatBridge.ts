@@ -28,3 +28,16 @@ export function takeCommitteeTab(): string {
   committeeTab = ''
   return t
 }
+
+/** 새 화면의 물어보기 바에서 [찾기] — 통합 검색이 열리면 이 낱말로 바로 찾는다 */
+let searchDraft = ''
+
+export function queueSearch(text: string): void {
+  searchDraft = text
+}
+
+export function takeSearch(): string {
+  const t = searchDraft
+  searchDraft = ''
+  return t
+}

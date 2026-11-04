@@ -23,7 +23,11 @@ export interface UiPrefs {
   navCollapsed: boolean
   /** 받은 테마 id. 빈칸이면 theme 그대로 */
   preset: string
+  /** 화면 구성 — 예전 화면(왼쪽 메뉴) · 새 화면(위 탭 셋 · 만들기 · 물어보기 바, 미리 써 보기) */
+  shell: ShellId
 }
+
+export type ShellId = 'classic' | 'new'
 
 export const THEMES: { id: ThemeId; name: string; desc: string; prefer?: 'light' | 'dark' }[] = [
   { id: 'bento', name: '회색 벤토', desc: '회색 타일을 촘촘히 붙인 모양. 강조할 것은 바탕과 반대 밝기로' },
@@ -42,7 +46,7 @@ export const MODES: { id: ModePref; label: string }[] = [
 
 const KEY = 'wd_ui'
 const PRESET_KEY = 'wd_ui_preset'
-const DEFAULTS: UiPrefs = { theme: 'bento', mode: 'system', navCollapsed: false, preset: '' }
+const DEFAULTS: UiPrefs = { theme: 'bento', mode: 'system', navCollapsed: false, preset: '', shell: 'classic' }
 
 function read(): UiPrefs {
   try {
@@ -51,7 +55,8 @@ function read(): UiPrefs {
       theme: THEMES.some((t) => t.id === v?.theme) ? (v!.theme as ThemeId) : DEFAULTS.theme,
       mode: MODES.some((m) => m.id === v?.mode) ? (v!.mode as ModePref) : DEFAULTS.mode,
       navCollapsed: typeof v?.navCollapsed === 'boolean' ? v.navCollapsed : DEFAULTS.navCollapsed,
-      preset: typeof v?.preset === 'string' ? v.preset : ''
+      preset: typeof v?.preset === 'string' ? v.preset : '',
+      shell: v?.shell === 'new' ? 'new' : 'classic'
     }
   } catch {
     return { ...DEFAULTS }
@@ -97,6 +102,7 @@ export function applyTheme(): void {
   const p = prefs.preset && preset?.id === prefs.preset ? preset : null
   root.dataset.theme = p ? p.base : prefs.theme
   root.dataset.mode = mode
+  root.dataset.shell = prefs.shell
   if (p) root.dataset.preset = p.id
   else delete root.dataset.preset
   root.style.colorScheme = mode

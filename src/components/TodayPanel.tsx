@@ -60,7 +60,8 @@ interface TrackItem {
   was?: string
 }
 
-function Hero({ onGo }: { onGo: Go }): JSX.Element {
+/** 새 화면 '오늘' 판에서는 이 칸만 따로 '지금 · 오늘 수업' 위젯으로 쓴다 */
+export function Hero({ onGo }: { onGo: Go }): JSX.Element {
   const T = useTimetable()
   const [events, setEvents] = useState<CalEvent[] | null>(null)
   const [tick, setTick] = useState(0)

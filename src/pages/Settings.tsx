@@ -10,6 +10,7 @@ import {
 import { LEVEL_KEY, SCHOOL_LEVELS } from '../../shared/helpdocs'
 import NeisSettings from '../components/NeisSettings'
 import ThemeSettings from '../components/ThemeSettings'
+import ShellSettings from '../components/ShellSettings'
 import MenuSettings from '../components/MenuSettings'
 import FeedbackCard from '../components/FeedbackCard'
 import { useToast } from '../lib/toast'
@@ -240,9 +241,10 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     <>
       <div className="page-head">
         <h1>설정</h1>
-        <p>화면 테마 · 왼쪽 메뉴, 담당 업무 정보, AI 연결을 관리합니다.</p>
+        <p>화면 구성 · 테마 · 메뉴, 담당 업무 정보, AI 연결을 관리합니다.</p>
       </div>
 
+      <ShellSettings />
       <ThemeSettings />
       <MenuSettings />
       <FeedbackCard />

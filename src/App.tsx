@@ -26,6 +26,8 @@ import Memos from './pages/Memos'
 import Ocr from './pages/Ocr'
 import Icon from './components/Icon'
 import TourHost from './components/Tour'
+import NewShell, { focusAsk } from './components/NewShell'
+import TodayBoard from './components/TodayBoard'
 import { AI_ITEM, DATA_ITEM, isShown, requestMenuEdit, sidebarNav, useNavPrefs } from './lib/nav'
 import { setUiPrefs, useUiPrefs } from './lib/theme'
 import { hasUnseenNew, loadCatalog, useCatalog } from './lib/catalog'
@@ -191,6 +193,11 @@ function Shell(): JSX.Element {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
+        // 새 화면에서는 아래 물어보기 바로 (도우미 · 검색 화면에는 바가 없으니 검색으로)
+        if (ui.shell === 'new' && page !== '도우미' && page !== '검색') {
+          focusAsk()
+          return
+        }
         setPage('검색')
         // 이미 검색 화면이어도 찾을 낱말 칸으로 커서를 옮긴다
         window.setTimeout(focusSearch, 0)
@@ -202,7 +209,7 @@ function Shell(): JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [page])
+  }, [page, ui.shell])
 
   if (!loaded) return <div className="onboard muted">불러오는 중…</div>
 
@@ -219,6 +226,163 @@ function Shell(): JSX.Element {
     const t = l.tool ? cat.catalog.tools.find((x) => x.id === l.tool) : undefined
     return t ? { ...l, name: t.name, url: t.url, icon: t.icon || l.icon } : l
   })
+
+  const banners = (
+    <>
+      {/* 학습이 도는 동안 어느 화면에 있든 붙어 있는 띠 */}
+      <LearnBanner page={page} onGo={setPage} />
+
+      {update && !updateHidden && (
+        <div className="update-bar">
+          <span className="update-dot" />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <b>새 버전 {update.latest} 이 나왔습니다.</b>{' '}
+            <span className="muted small">지금 쓰는 버전은 {update.current} 입니다.</span>
+            <div className="small muted" style={{ marginTop: 2 }}>
+              업데이트해도 정리해 둔 업무·공문·기한은 그대로 남습니다.
+              {!update.canAutoInstall && ' 무설치(Portable)로 쓰고 계셔서 직접 받아 바꿔야 합니다.'}
+            </div>
+          </div>
+          {/* 받아 놓은 뒤 */}
+          {phaseOf(dlProgress) === '다 받음' && (
+            <>
+              <span className="small muted">끌 때 설치됩니다</span>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => void window.api.update.install()}
+              >
+                다시 시작하고 설치
+              </button>
+            </>
+          )}
+
+          {/* 받는 중 · 확인 중 */}
+          {(phaseOf(dlProgress) === '받는 중' || phaseOf(dlProgress) === '확인 중') && (
+            <div className="update-bar-progress">
+              <span className="small">
+                {phaseOf(dlProgress) === '받는 중'
+                  ? `받는 중… ${dlProgress as number}%`
+                  : '받은 파일 확인 중…'}
+              </span>
+              <div className="progress">
+                <div style={{ width: `${Math.min(100, dlProgress as number)}%` }} />
+              </div>
+            </div>
+          )}
+
+          {/* 아직 시작 안 함 */}
+          {dlProgress === null && (
+            <>
+              {update.canAutoInstall && (
+                <button className="btn btn-sm btn-primary" onClick={() => void startDownload()}>
+                  지금 받아서 설치
+                </button>
+              )}
+              <button
+                className={`btn btn-sm ${update.canAutoInstall ? '' : 'btn-primary'}`}
+                onClick={() => void window.api.shell.open(update.url)}
+              >
+                받으러 가기
+              </button>
+              <button className="btn btn-sm btn-ghost" onClick={() => setUpdatePopup(true)}>
+                무엇이 달라졌나
+              </button>
+              <button className="btn btn-sm btn-ghost" onClick={() => setUpdateHidden(true)}>
+                나중에
+              </button>
+            </>
+          )}
+
+          {dlError && (
+            <div className="small" style={{ flexBasis: '100%', color: 'var(--danger)' }}>
+              {dlError} — [받으러 가기]로 직접 내려받아 설치해 주세요.
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+
+  const pages = (
+    <>
+      {page === '홈' && (ui.shell === 'new' ? <TodayBoard jobTitle={jobTitle} onGo={setPage} /> : <Home jobTitle={jobTitle} onGo={setPage} />)}
+      {page === '달력' && <CalendarPage onGo={setPage} />}
+      {page === '시간표' && <Timetable onGo={setPage} />}
+      {page === '로드맵' && <Roadmap />}
+      {page === '워크플로우' && <Workflows onGo={setPage} />}
+      {page === '가이드' && <Guide />}
+      {page === '도움자료' && <HelpDocs onGo={setPage} />}
+      {page === '검색' && <Search jobTitle={jobTitle} onGo={setPage} />}
+      {page === '도우미' && <Chat jobTitle={jobTitle} onGo={setPage} />}
+      {page === '학습' && <Learn jobTitle={jobTitle} onGo={setPage} />}
+      {page === '위원회' && <Committee onGo={setPage} />}
+      {page === '발표' && <Slides onGo={setPage} />}
+      {page === '기한' && <Deadlines />}
+      {page === '일지' && <Journal />}
+      {page === '데이터' && <Data onChanged={reloadProfile} />}
+      {page === '설정' && <Settings onProfileChanged={reloadProfile} />}
+      {page === '도구' && <Tools />}
+      {page === '메모장' && <Memos />}
+      {page === 'OCR' && <Ocr onGo={setPage} />}
+    </>
+  )
+
+  const overlays = (
+    <>
+      <TourHost
+        page={page}
+        onGo={setPage}
+        hub={learnHub}
+        onHub={setLearnHub}
+        running={learning}
+        onRun={setLearning}
+      />
+
+      {/* 새 버전이 나오면 무엇이 달라졌는지 먼저 보여 준다 */}
+      {update && updatePopup && (
+        <UpdateNotice
+          info={update}
+          progress={dlProgress}
+          error={dlError}
+          onDownload={() => void startDownload()}
+          onInstall={() => void window.api.update.install()}
+          onOpenPage={() => void window.api.shell.open(update.url)}
+          onLater={() => {
+            markSeen(update.latest)
+            setUpdatePopup(false)
+          }}
+          onClose={() => {
+            markSeen(update.latest)
+            setUpdatePopup(false)
+          }}
+        />
+      )}
+    </>
+  )
+
+  if (ui.shell === 'new') {
+    return (
+      <>
+        <NewShell
+          page={page}
+          onGo={setPage}
+          jobTitle={jobTitle}
+          schoolName={schoolName}
+          navp={navp}
+          ocrBusy={ocrBusy}
+          chatBusy={chatBusy}
+          newTools={newTools}
+          feedback={cat.catalog.feedback ?? ''}
+          onLearn={() => setLearnHub(true)}
+          onFeedback={() => void openFeedback(cat.catalog.feedback)}
+        >
+          {banners}
+          {pages}
+        </NewShell>
+        {overlays}
+      </>
+    )
+  }
 
   return (
     <div className={`shell ${collapsed ? 'nav-collapsed' : ''}`}>
@@ -358,127 +522,11 @@ function Shell(): JSX.Element {
         <Icon name="chevron" size={16} />
       </button>
 
-      <TourHost
-        page={page}
-        onGo={setPage}
-        hub={learnHub}
-        onHub={setLearnHub}
-        running={learning}
-        onRun={setLearning}
-      />
-
-      {/* 새 버전이 나오면 무엇이 달라졌는지 먼저 보여 준다 */}
-      {update && updatePopup && (
-        <UpdateNotice
-          info={update}
-          progress={dlProgress}
-          error={dlError}
-          onDownload={() => void startDownload()}
-          onInstall={() => void window.api.update.install()}
-          onOpenPage={() => void window.api.shell.open(update.url)}
-          onLater={() => {
-            markSeen(update.latest)
-            setUpdatePopup(false)
-          }}
-          onClose={() => {
-            markSeen(update.latest)
-            setUpdatePopup(false)
-          }}
-        />
-      )}
+      {overlays}
 
       <main className={`main ${page === AI_ITEM.id ? 'main-chat' : ''}`}>
-        {/* 학습이 도는 동안 어느 화면에 있든 붙어 있는 띠 */}
-        <LearnBanner page={page} onGo={setPage} />
-
-        {update && !updateHidden && (
-          <div className="update-bar">
-            <span className="update-dot" />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <b>새 버전 {update.latest} 이 나왔습니다.</b>{' '}
-              <span className="muted small">지금 쓰는 버전은 {update.current} 입니다.</span>
-              <div className="small muted" style={{ marginTop: 2 }}>
-                업데이트해도 정리해 둔 업무·공문·기한은 그대로 남습니다.
-                {!update.canAutoInstall && ' 무설치(Portable)로 쓰고 계셔서 직접 받아 바꿔야 합니다.'}
-              </div>
-            </div>
-            {/* 받아 놓은 뒤 */}
-            {phaseOf(dlProgress) === '다 받음' && (
-              <>
-                <span className="small muted">끌 때 설치됩니다</span>
-                <button
-                  className="btn btn-sm btn-primary"
-                  onClick={() => void window.api.update.install()}
-                >
-                  다시 시작하고 설치
-                </button>
-              </>
-            )}
-
-            {/* 받는 중 · 확인 중 */}
-            {(phaseOf(dlProgress) === '받는 중' || phaseOf(dlProgress) === '확인 중') && (
-              <div className="update-bar-progress">
-                <span className="small">
-                  {phaseOf(dlProgress) === '받는 중'
-                    ? `받는 중… ${dlProgress as number}%`
-                    : '받은 파일 확인 중…'}
-                </span>
-                <div className="progress">
-                  <div style={{ width: `${Math.min(100, dlProgress as number)}%` }} />
-                </div>
-              </div>
-            )}
-
-            {/* 아직 시작 안 함 */}
-            {dlProgress === null && (
-              <>
-                {update.canAutoInstall && (
-                  <button className="btn btn-sm btn-primary" onClick={() => void startDownload()}>
-                    지금 받아서 설치
-                  </button>
-                )}
-                <button
-                  className={`btn btn-sm ${update.canAutoInstall ? '' : 'btn-primary'}`}
-                  onClick={() => void window.api.shell.open(update.url)}
-                >
-                  받으러 가기
-                </button>
-                <button className="btn btn-sm btn-ghost" onClick={() => setUpdatePopup(true)}>
-                  무엇이 달라졌나
-                </button>
-                <button className="btn btn-sm btn-ghost" onClick={() => setUpdateHidden(true)}>
-                  나중에
-                </button>
-              </>
-            )}
-
-            {dlError && (
-              <div className="small" style={{ flexBasis: '100%', color: 'var(--danger)' }}>
-                {dlError} — [받으러 가기]로 직접 내려받아 설치해 주세요.
-              </div>
-            )}
-          </div>
-        )}
-
-        {page === '홈' && <Home jobTitle={jobTitle} onGo={setPage} />}
-        {page === '달력' && <CalendarPage onGo={setPage} />}
-        {page === '시간표' && <Timetable onGo={setPage} />}
-        {page === '로드맵' && <Roadmap />}
-        {page === '워크플로우' && <Workflows onGo={setPage} />}
-        {page === '가이드' && <Guide />}
-        {page === '도움자료' && <HelpDocs onGo={setPage} />}
-        {page === '검색' && <Search jobTitle={jobTitle} onGo={setPage} />}
-        {page === '도우미' && <Chat jobTitle={jobTitle} onGo={setPage} />}
-        {page === '학습' && <Learn jobTitle={jobTitle} onGo={setPage} />}
-        {page === '위원회' && <Committee onGo={setPage} />}
-        {page === '발표' && <Slides onGo={setPage} />}
-        {page === '기한' && <Deadlines />}
-        {page === '일지' && <Journal />}
-        {page === '데이터' && <Data onChanged={reloadProfile} />}
-        {page === '설정' && <Settings onProfileChanged={reloadProfile} />}
-        {page === '도구' && <Tools />}
-        {page === '메모장' && <Memos />}
-        {page === 'OCR' && <Ocr onGo={setPage} />}
+        {banners}
+        {pages}
       </main>
     </div>
   )

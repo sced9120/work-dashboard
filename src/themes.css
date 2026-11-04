@@ -4279,3 +4279,1106 @@ select:focus {
 .mytt-changed {
   color: var(--warn);
 }
+
+/* ================= 17. 새 화면 (미리 써 보기) — 위 탭 · 만들기 · 물어보기 바 · 오늘 위젯 판 ================= */
+/* 설정 → 화면 구성 → 새 화면. 바깥 틀만 바뀌고 안쪽 화면(.main 안)은 예전 그대로. */
+
+.nshell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+:root[data-theme='lavender'] .nshell {
+  padding: 0 14px 14px;
+}
+:root[data-theme='lavender'] .nshell > .main {
+  margin-top: 10px;
+}
+
+.ns-top {
+  position: relative;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  border-bottom: 1px solid var(--border);
+}
+:root[data-theme='lavender'] .ns-top {
+  margin: 0 -14px;
+}
+.ns-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.ns-logo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+}
+.ns-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.ns-brand-text b,
+.ns-brand-text small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ns-brand-text b {
+  font-size: 13.5px;
+  letter-spacing: -0.01em;
+}
+.ns-brand-text small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.ns-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.ns-tabs button {
+  min-height: 36px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 160ms ease, box-shadow 160ms ease, transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ns-tabs button:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.ns-tabs button.on {
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.05);
+  font-weight: 700;
+}
+.ns-tabs button:active,
+.ns-make:active,
+.ns-icon:active,
+.ns-subs button:active,
+.ns-back:active,
+.ns-pop-item:active,
+.ns-ask-go:active,
+.tb-size:active {
+  transform: scale(0.97);
+  transition-duration: 60ms;
+}
+
+.ns-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.ns-make {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  margin-right: 6px;
+  padding: 0 14px 0 11px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 160ms ease, transform 120ms ease;
+}
+.ns-make:hover,
+.ns-make.on {
+  filter: brightness(1.08);
+}
+/* 강조색 단추 안의 아이콘은 글자색 한 가지로 (라벤더에서 아이콘 칠이 단추 보라와 같아 사라졌다) */
+.ns-make,
+.ns-ask-go,
+.ns-logo {
+  --li-accent: currentColor;
+  --li-tint: 0.2;
+}
+.ns-make .nav-busy,
+.ns-make .nav-new {
+  top: -3px;
+  right: -3px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.ns-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, transform 120ms ease;
+}
+.ns-icon:hover,
+.ns-icon.on {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  color: var(--text);
+}
+
+/* ＋ 만들기 팝업 — 단추에서 자라 나온다 */
+.ns-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 20px;
+  width: min(560px, calc(100vw - 32px));
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform-origin: top right;
+  animation: ns-pop-in 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes ns-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ns-pop-group + .ns-pop-group {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.ns-pop-title {
+  margin: 0 6px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.ns-pop-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+.ns-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease, transform 120ms ease;
+}
+.ns-pop-item:hover,
+.ns-pop-item:focus-visible,
+.ns-pop-item.on {
+  background: var(--accent-soft);
+}
+.ns-pop-ico {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ns-pop-item:hover .ns-pop-ico,
+.ns-pop-item.on .ns-pop-ico {
+  background: var(--surface);
+}
+.ns-pop-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
+}
+.ns-pop-text b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.ns-pop-text small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 탭 안의 화면 고르기 · 탭 밖 화면의 돌아가기 */
+.ns-subs,
+.ns-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 32px 0;
+}
+.ns-subs button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, transform 120ms ease;
+}
+.ns-subs button:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+}
+.ns-subs button.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+.ns-crumb {
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.ns-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 12px 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ns-back svg {
+  transform: rotate(180deg);
+}
+.ns-back:hover {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.nshell > .ns-main {
+  flex: 1;
+  min-height: 0;
+  padding-top: 18px;
+}
+.nshell > .ns-main.has-ask {
+  padding-bottom: 110px;
+}
+
+/* 아래 떠 있는 물어보기 바 */
+.ns-ask {
+  position: absolute;
+  z-index: 35;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: min(680px, calc(100% - 32px));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 200ms ease, border-color 200ms ease;
+}
+.ns-ask:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16), 0 0 0 3px var(--accent-soft);
+}
+.ns-ask-ico {
+  display: grid;
+  color: var(--accent);
+}
+.ns-ask .ns-ask-busy {
+  position: static;
+  flex: none;
+}
+.ns-ask input[type='text'] {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14.5px;
+}
+.ns-ask-find,
+.ns-ask-go {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 140ms ease, transform 120ms ease;
+}
+.ns-ask-find {
+  background: transparent;
+  color: var(--muted);
+}
+.ns-ask-find:hover {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  color: var(--text);
+}
+.ns-ask-go {
+  background: var(--accent);
+  color: #fff;
+}
+.nshell:has(.tb-editbar) .ns-ask {
+  display: none;
+}
+
+/* 설정 → 화면 구성 미리보기 */
+.shell-prev {
+  position: relative;
+  display: block;
+  align-self: stretch;
+  width: 100%;
+  height: 74px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+}
+.shell-prev i {
+  position: absolute;
+  display: block;
+  border-radius: 5px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.shell-prev.classic .sp-bar {
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 22%;
+  background: var(--accent);
+  box-shadow: none;
+  opacity: 0.85;
+}
+.shell-prev.classic .sp-a {
+  left: 30%;
+  right: 6px;
+  top: 6px;
+  height: 26px;
+}
+.shell-prev.classic .sp-b {
+  left: 30%;
+  width: 31%;
+  top: 38px;
+  bottom: 6px;
+}
+.shell-prev.classic .sp-c {
+  right: 6px;
+  width: 31%;
+  top: 38px;
+  bottom: 6px;
+}
+.shell-prev.classic .sp-pill {
+  display: none;
+}
+.shell-prev.new .sp-bar {
+  left: 6px;
+  right: 6px;
+  top: 6px;
+  height: 11px;
+}
+.shell-prev.new .sp-a {
+  left: 6px;
+  width: 58%;
+  top: 23px;
+  bottom: 6px;
+}
+.shell-prev.new .sp-b {
+  right: 6px;
+  width: calc(42% - 18px);
+  top: 23px;
+  height: 18px;
+}
+.shell-prev.new .sp-c {
+  right: 6px;
+  width: calc(42% - 18px);
+  top: 47px;
+  bottom: 6px;
+}
+.shell-prev.new .sp-pill {
+  left: 30%;
+  right: 30%;
+  bottom: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: none;
+}
+
+/* ---------- 오늘 위젯 판 ---------- */
+
+.tb-board {
+  position: relative;
+}
+.tb-board.stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tb-narrow {
+  margin: -8px 0 12px;
+}
+.tb-editing .tb-board {
+  margin-bottom: 120px;
+}
+
+.tw {
+  --tw-base: var(--surface);
+}
+.tw.look-light {
+  --tw-base: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f6f7f9;
+  --text: #1b1f24;
+  --muted: #5f6670;
+  --border: #e3e6ea;
+  --border-strong: #cfd4da;
+  color: var(--text);
+}
+.tw.look-dark {
+  --tw-base: #1f2024;
+  --surface: #2a2b30;
+  --surface-2: #303137;
+  --text: #f2f2f4;
+  --muted: #a8a9b0;
+  --border: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --accent: #7aa7ff;
+  --accent-soft: rgba(122, 167, 255, 0.16);
+  color: var(--text);
+}
+:root .tb-board .hw.tw {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--tw-base) var(--tw-op, 100%), transparent);
+  transition:
+    transform 340ms cubic-bezier(0.32, 0.72, 0, 1),
+    width 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 200ms ease,
+    scale 200ms ease;
+}
+:root .tb-board .hw.tw.stacked {
+  position: relative;
+  transform: none;
+}
+.tw .tw-body {
+  flex: 1;
+  min-height: 0;
+  margin-top: 8px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.tw.notitle .tw-body {
+  margin-top: 0;
+}
+.tw[data-bid='school'] {
+  justify-content: center;
+}
+.tw[data-bid='school'] .tw-body {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* '지금 · 오늘 수업' — 예전 홈의 큰 칸을 위젯 안에 그대로 쓰되, 카드 틀은 위젯 것 하나만 */
+:root .tw .td-hero {
+  padding: 2px 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* 날짜 · 시각 — 위젯 크기에 맞춰 글자가 커진다 */
+.tw-clock {
+  container-type: size;
+  height: 100%;
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+.tw-clock b {
+  font-size: clamp(24px, 44cqh, 72px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.tw-clock span {
+  font-size: clamp(12px, 13cqh, 16px);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* 편집 */
+.tw-cell {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+:root .tb-board .hw.tw.edit {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  box-shadow: 0 0 0 1px var(--border-strong), var(--shadow);
+}
+.tw.edit .tw-body {
+  pointer-events: none;
+}
+:root .tb-board .hw.tw.edit:hover {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow);
+}
+:root .tb-board .hw.tw.sel {
+  overflow: visible;
+  box-shadow: 0 0 0 2px var(--accent), 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+:root .tb-board .hw.tw.sel:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 6px var(--accent-soft), 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+:root .tb-board .hw.tw.dragging {
+  box-shadow: 0 0 0 2px var(--accent), 0 24px 50px rgba(0, 0, 0, 0.22);
+}
+:root .tb-board .hw.tw.moving {
+  transition: box-shadow 200ms ease, scale 200ms ease;
+  scale: 1.02;
+  cursor: grabbing;
+  opacity: 0.96;
+}
+.tw-ghost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: -2px;
+  pointer-events: none;
+  transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.tw-handle {
+  position: absolute;
+  z-index: 3;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  touch-action: none;
+}
+.tw-handle::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+.tw-handle.n,
+.tw-handle.s {
+  left: 50%;
+  width: 36px;
+  height: 12px;
+  margin-left: -18px;
+  cursor: ns-resize;
+}
+.tw-handle.n {
+  top: -7px;
+}
+.tw-handle.s {
+  bottom: -7px;
+}
+.tw-handle.e,
+.tw-handle.w {
+  top: 50%;
+  width: 12px;
+  height: 36px;
+  margin-top: -18px;
+  cursor: ew-resize;
+}
+.tw-handle.e {
+  right: -7px;
+}
+.tw-handle.w {
+  left: -7px;
+}
+.tw-handle.se {
+  right: -8px;
+  bottom: -8px;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+}
+
+.tw-bubble {
+  position: absolute;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+  white-space: nowrap;
+  cursor: default;
+  transform: translate(-50%, -100%);
+  transform-origin: bottom center;
+  animation: tw-bubble-in 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.tw-bubble.below {
+  transform: translate(-50%, 0);
+  transform-origin: top center;
+  animation-name: tw-bubble-in-below;
+}
+@keyframes tw-bubble-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) scale(0.92);
+  }
+}
+@keyframes tw-bubble-in-below {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.92);
+  }
+}
+.tw-bubble button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.tw-bubble button:hover {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+.tw-bubble button.danger {
+  color: var(--danger);
+}
+.tw-size {
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tw-size-live {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tb-editbar {
+  position: fixed;
+  z-index: 45;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: min(760px, calc(100% - 32px));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.18);
+  animation: tb-bar-in 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes tb-bar-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+.tb-editbar-hint {
+  flex-basis: 100%;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tb-editbar .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 위젯 목록 */
+.tb-picker-back {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.28);
+  animation: tb-fade 200ms ease;
+}
+@keyframes tb-fade {
+  from {
+    opacity: 0;
+  }
+}
+.tb-picker {
+  width: min(720px, 100%);
+  max-height: min(78vh, 760px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+  animation: tb-sheet-in 380ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes tb-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tb-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.tb-picker-head b {
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+.tb-picker-head input {
+  flex: 1;
+  min-width: 0;
+}
+.tb-picker-body {
+  overflow: auto;
+  padding: 4px 18px 18px;
+}
+.tb-picker-gname {
+  margin: 14px 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.tb-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tb-pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.tb-pick.on {
+  opacity: 0.6;
+}
+.tb-pick-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tb-pick-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+.tb-pick-text b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.tb-pick-text small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.tb-pick-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.tb-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, transform 120ms ease;
+}
+.tb-size:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tb-size i {
+  display: block;
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0.35;
+}
+
+/* 위젯 설정 — 판을 가리지 않게 옆에 떠 있고, 바꾸는 대로 위젯에 바로 보인다 */
+.tb-look {
+  position: fixed;
+  z-index: 50;
+  right: 20px;
+  top: 76px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 95%, transparent);
+  -webkit-backdrop-filter: blur(28px);
+  backdrop-filter: blur(28px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+  animation: tb-look-in 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes tb-look-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tb-look-head {
+  display: flex;
+  flex-direction: column;
+}
+.tb-look-head b {
+  font-size: 15px;
+}
+.tb-look-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tb-look-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.tb-look-label b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.tb-seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.tb-seg button {
+  flex: 1;
+  min-height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tb-seg button.on {
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  font-weight: 700;
+}
+.tb-look input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.tb-look-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+@media (max-width: 760px) {
+  .ns-top {
+    padding: 8px 12px;
+  }
+  .ns-brand-text {
+    display: none;
+  }
+  .ns-tabs button {
+    padding: 0 12px;
+  }
+  .ns-subs,
+  .ns-crumb {
+    padding: 10px 16px 0;
+  }
+  .ns-pop-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root .tb-board .hw.tw,
+  .tw-ghost {
+    transition: none;
+  }
+  :root .tb-board .hw.tw.moving {
+    scale: none;
+  }
+  .ns-pop,
+  .tw-bubble,
+  .tb-editbar,
+  .tb-picker,
+  .tb-picker-back,
+  .tb-look {
+    animation: tb-fade 160ms ease;
+  }
+  .ns-tabs button:active,
+  .ns-make:active,
+  .ns-icon:active,
+  .ns-subs button:active,
+  .ns-back:active,
+  .ns-pop-item:active,
+  .ns-ask-go:active,
+  .tb-size:active {
+    transform: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .ns-top,
+  .ns-pop,
+  .ns-ask,
+  .tw-bubble,
+  .tb-editbar,
+  .tb-look {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--surface);
+  }
+}
