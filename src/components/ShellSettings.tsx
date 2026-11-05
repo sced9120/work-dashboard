@@ -2,12 +2,12 @@ import type { ShellId } from '../lib/theme'
 import { setUiPrefs, useUiPrefs } from '../lib/theme'
 
 const SHELLS: { id: ShellId; name: string; desc: string }[] = [
-  { id: 'classic', name: '지금 화면', desc: '왼쪽 메뉴에서 화면을 고릅니다. 홈은 위젯 판 (격자 · 자유 배치).' },
   {
     id: 'new',
-    name: '새 화면 · 미리 써 보기',
+    name: '새 화면 (기본)',
     desc: '위 탭 셋(오늘 · 이번 주 · 내 업무), [＋ 만들기], 아래 물어보기 바. 오늘 판은 휴대폰 홈 화면처럼 위젯을 길게 눌러 옮기고 크기를 바꿉니다.'
-  }
+  },
+  { id: 'classic', name: '옛 버전 화면', desc: '3.6.3 까지의 왼쪽 메뉴 화면. 홈은 위젯 판 (격자 · 자유 배치).' }
 ]
 
 /**

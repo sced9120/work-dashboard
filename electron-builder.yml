@@ -1,5 +1,5 @@
 appId: kr.school.work-dashboard
-productName: 업무 인수인계 대시보드
+productName: 업무데스크 오르빗
 copyright: © 2026 정현서
 
 directories:
@@ -14,6 +14,11 @@ files:
   - '!**/*.map'
 
 asar: true
+
+# 앱에 넣은 글꼴의 사용 허락(SIL OFL) — 글꼴과 함께 나누어야 한다
+extraResources:
+  - from: src/assets/fonts/keris/OFL.txt
+    to: licenses/KERIS-school-fonts-OFL.txt
 
 # electron-updater 가 새 버전을 찾아볼 곳. 이 설정이 있어야 빌드할 때
 # latest.yml 이 함께 만들어지고, 앱 안에 app-update.yml 이 들어간다.
@@ -40,7 +45,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: 업무 인수인계 대시보드
+  shortcutName: 업무데스크 오르빗
   installerLanguages:
     - ko-KR
   language: '1042'

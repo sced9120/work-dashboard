@@ -806,7 +806,7 @@ const cleanFile = (s: string): string => s.replace(/[\\/*?:"<>|]/g, '').replace(
 /** 표들을 엑셀 통합 문서로 — 표마다 시트 하나, 모든 칸은 글자 그대로(학번 앞의 0 · 날짜 · 수식 모양을 지킨다) */
 export async function tablesToXlsx(tables: MdTable[]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook()
-  wb.creator = '업무 인수인계 대시보드'
+  wb.creator = '업무데스크 오르빗'
   const used = new Set<string>()
   const line = { style: 'thin' as const, color: { argb: 'FFE5E7EB' } }
   const border = { top: line, left: line, bottom: line, right: line }

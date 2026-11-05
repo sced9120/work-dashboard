@@ -5075,11 +5075,11 @@ select:focus {
  * 모양은 회색 벤토 규칙을 함께 쓰고(선택자에 orbit 을 덧붙임), 여기서 색 · 글꼴 · 선을 다시 잡는다.
  *  - 강조는 먹색(채운 단추 · 고른 메뉴). 주황은 '지금'을 가리킬 때만 아껴 쓴다(지금 교시 · D-Day · 고른 탭 점 · 포커스).
  *  - 그림자 · 그러데이션 · 유리 대신 얇은 선(hairline)과 종이 바탕.
- *  - 제목 · 큰 숫자는 Gowun Dodum, 나머지 글은 Pretendard, 영문 이름은 Nunito.
+ *  - 제목 · 큰 숫자는 학교안심 산뜻돋움, 나머지 글은 케리스 배움체(둘 다 KERIS 학교 안심폰트, 3.6.4~), 영문 이름은 Nunito.
  */
 :root {
-  --font-ui: 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif;
-  --font-display: 'Gowun Dodum', var(--font-ui);
+  --font-ui: 'KERIS Baeum', 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif;
+  --font-display: 'Hakgyoansim Santteut', var(--font-ui);
   --font-brand: Nunito, var(--font-ui);
   --hand: #e07a3f;
   --hand-ink: #a9501f;
@@ -5687,3 +5687,92 @@ body {
 .att-chip.bad { background: var(--hand-soft, #f7e3d5); color: var(--hand-ink, #a9501f); }
 
 .msg-grid > .card + .card { margin-top: 0; }
+:root[data-theme] .msg-grid > .card + .card, :root .msg-grid > .card + .card { margin-top: 0; }
+
+/* ================= 23. 새 화면 기본 · 들어오는 움직임 · 떠오르기 · 이번 주 (v3.6.4) ================= */
+/* 탭을 누르면 화면의 판들이 왼쪽 위에서 차례로 펼쳐지며 들어온다 (오늘 판 위젯이 제 자리로 퍼지는 움직임과 같은 결) */
+@keyframes ns-rise {
+  from { opacity: 0; transform: translate(-14px, -10px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+.ns-enter > * > * {
+  transform-origin: top left;
+  animation: ns-rise 520ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.ns-enter > * > :nth-child(2) { animation-delay: 60ms; }
+.ns-enter > * > :nth-child(3) { animation-delay: 120ms; }
+.ns-enter > * > :nth-child(4) { animation-delay: 180ms; }
+.ns-enter > * > :nth-child(5) { animation-delay: 240ms; }
+.ns-enter > * > :nth-child(n + 6) { animation-delay: 300ms; }
+
+/* 아래로 내리면 물 위로 떠오르듯 */
+.surf:not(.surfaced) { opacity: 0; translate: 0 28px; filter: blur(6px); }
+.surf.surfaced {
+  transition: opacity 700ms ease, translate 760ms cubic-bezier(0.22, 1, 0.36, 1), filter 700ms ease;
+}
+:root .tb-board .hw.tw.surf.surfaced {
+  transition:
+    transform 340ms cubic-bezier(0.32, 0.72, 0, 1),
+    width 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 200ms ease,
+    scale 200ms ease,
+    opacity 700ms ease,
+    translate 760ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 700ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ns-enter > * > * { animation: none; }
+  .surf:not(.surfaced) { opacity: 1; translate: none; filter: none; }
+}
+
+/* 이번 주 */
+.wk-page .card + .card { margin-top: 0; }
+.wk-cal { margin-bottom: var(--home-gap, 14px); }
+.wk-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--home-gap, 14px); align-items: start; }
+@media (max-width: 1000px) { .wk-grid { grid-template-columns: 1fr; } }
+.wk-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.wk-att {
+  display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 10px; padding: 10px 12px;
+  border: 0; border-radius: 12px; background: var(--hand-soft, #f7e3d5); color: var(--hand-ink, #a9501f);
+  font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.wk-day { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.wk-day-label { display: flex; flex-direction: column; line-height: 1.3; }
+.wk-day-label b { font-family: var(--font-display, inherit); font-weight: 400; font-size: 16px; }
+.wk-day-label small { color: var(--muted); font-size: 11.5px; }
+.wk-day.today .wk-day-label b { color: var(--hand, #e07a3f); }
+.wk-day-items { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wk-item {
+  display: flex; align-items: center; gap: 8px; min-width: 0; padding: 5px 6px; margin: 0 -6px;
+  border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;
+}
+.wk-item:hover { background: var(--surface-2); }
+.wk-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.wk-tag { flex: none; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--surface-3); color: var(--text-2); }
+.wk-tag.k-기한 { background: var(--hand-soft, #f7e3d5); color: var(--hand-ink, #a9501f); }
+.wk-tag.k-학사 { background: none; box-shadow: inset 0 0 0 1px var(--border); color: var(--muted); }
+.wk-tag.k-dday { background: none; color: var(--hand, #e07a3f); box-shadow: inset 0 0 0 1px currentColor; }
+.wk-tag.late { background: var(--danger-soft); color: var(--danger); }
+
+/* 작은 한 주 시간표 */
+.mtt { width: 100%; border-collapse: separate; border-spacing: 3px; table-layout: fixed; font-size: 12px; }
+.mtt th { font-weight: 600; color: var(--muted); font-size: 11.5px; padding: 2px 0; }
+.mtt thead th small, .mtt tbody th small { display: block; font-weight: 400; font-size: 10px; opacity: 0.8; }
+.mtt tbody th { width: 34px; text-align: center; }
+.mtt thead th.today { color: var(--hand-ink, #a9501f); }
+.mtt td {
+  height: 38px; padding: 3px 4px; border-radius: 8px; text-align: center; vertical-align: middle;
+  line-height: 1.2; overflow: hidden; background: transparent;
+}
+.mtt td.has { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); }
+.mtt td span { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mtt td small { display: block; font-size: 10.5px; color: var(--muted); }
+.mtt td.today { background: color-mix(in srgb, var(--hand, #e07a3f) 9%, transparent); }
+.mtt td.today.has { background: color-mix(in srgb, var(--hand, #e07a3f) 14%, var(--surface)); }
+.mtt td.past { opacity: 0.5; }
+.mtt td.now { background: var(--raise); color: var(--on-raise); box-shadow: none; opacity: 1; }
+.mtt td.now small { color: inherit; opacity: 0.8; }
+.mtt td.changed { box-shadow: inset 0 0 0 1.5px var(--hand, #e07a3f); }
+:root[data-theme] .wk-grid > .card + .card, :root .wk-grid > .card + .card { margin-top: 0; }

@@ -329,7 +329,7 @@ export function toIcs(events: IcsOut[], calName: string, now = new Date()): stri
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//work-dashboard//업무 인수인계 대시보드//KO',
+    'PRODID:-//work-dashboard//업무데스크 오르빗//KO',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${esc(calName)}`,

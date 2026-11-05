@@ -127,9 +127,9 @@ export default function Onboarding({ onDone }: Props): JSX.Element {
   return (
     <div className="onboard">
       <div className="onboard-inner">
-        <h1>업무 인수인계 대시보드</h1>
+        <h1>업무데스크 오르빗</h1>
         <p className="lead">
-          담당 업무를 정리해 두고, 다음 담당자에게 파일 하나로 넘겨주기 위한 프로그램입니다.
+          선생님의 하루가 도는 곳 — 일정 · 기한 · 시간표 · 학교 문서 · 메신저 정리를 한곳에 모아 둡니다. 다음 담당자에게는 파일 하나로 넘겨줄 수 있습니다.
         </p>
 
         <div className="card">

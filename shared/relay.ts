@@ -20,9 +20,9 @@ export function newRelayKey(rand: (n: number) => Uint8Array): string {
 export function relayScript(key: string): string {
   if (!/^[A-Za-z0-9]{16,64}$/.test(key)) throw new Error('열쇠 모양이 맞지 않습니다.')
   return `/**
- * 업무 대시보드 — 폰에서 보내기 (v${RELAY_VERSION})
- * 선생님 구글 계정에만 있는 우편함입니다. 폰에서 보낸 글을 PC 의 업무 대시보드가 가져가면 바로 지웁니다.
- * 아래 KEY 는 업무 대시보드가 만든 열쇠입니다. 남에게 주소를 알려 주지 마세요.
+ * 오르빗 — 폰에서 보내기 (v${RELAY_VERSION})
+ * 선생님 구글 계정에만 있는 우편함입니다. 폰에서 보낸 글을 PC 의 오르빗이 가져가면 바로 지웁니다.
+ * 아래 KEY 는 오르빗이 만든 열쇠입니다. 남에게 주소를 알려 주지 마세요.
  */
 var KEY = '${key}';
 var KEEP_DAYS = 14;
@@ -34,7 +34,7 @@ function doGet(e) {
   if (p.op === 'ack') { ack_(String(p.ids || '').split(',')); return out_({ ok: true }); }
   if (p.op === 'ping') return out_({ ok: true, v: ${RELAY_VERSION}, n: list_().length });
   return HtmlService.createHtmlOutput(PAGE.replace('__KEY__', KEY))
-    .setTitle('업무 대시보드로 보내기')
+    .setTitle('오르빗으로 보내기')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
@@ -81,7 +81,7 @@ var PAGE = '<!doctype html><html><head><meta charset="utf-8"><style>' +
   '.row{display:flex;gap:8px;margin-top:12px}button{flex:1;padding:14px;border-radius:999px;border:1px solid #E2E0D8;background:#fff;font:inherit;font-weight:600;color:#353532}' +
   'button.go{background:#353532;border-color:#353532;color:#F4F3EE}#msg{margin-top:12px;font-size:14px;color:#A9501F;min-height:20px}' +
   'i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#E07A3F;margin-right:8px;vertical-align:1px}</style></head><body><main>' +
-  '<h1><i></i>업무 대시보드로 보내기</h1><p>메신저 · 카톡 글을 길게 눌러 복사해 붙여 넣고 보내면, PC 의 [메신저 정리] 로 갑니다.</p>' +
+  '<h1><i></i>오르빗으로 보내기</h1><p>메신저 · 카톡 글을 길게 눌러 복사해 붙여 넣고 보내면, PC 의 [메신저 정리] 로 갑니다.</p>' +
   '<textarea id="t" placeholder="여기에 붙여 넣기"></textarea>' +
   '<div class="row"><button type="button" id="p">붙여 넣기</button><button type="button" class="go" id="s">보내기</button></div><div id="msg"></div>' +
   '<script>var K="__KEY__",t=document.getElementById("t"),m=document.getElementById("msg");' +

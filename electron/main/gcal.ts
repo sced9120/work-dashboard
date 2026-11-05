@@ -108,6 +108,6 @@ export async function exportIcs(
     filters: [{ name: 'iCalendar', extensions: ['ics'] }]
   })
   if (res.canceled || !res.filePath) return { ok: false, message: '취소했습니다.' }
-  fs.writeFileSync(res.filePath, toIcs(out, '업무 대시보드'), 'utf8')
+  fs.writeFileSync(res.filePath, toIcs(out, '오르빗'), 'utf8')
   return { ok: true, message: `일정 ${out.length}건을 저장했습니다: ${res.filePath}`, count: out.length, path: res.filePath }
 }

@@ -123,7 +123,7 @@ function createTray(): void {
     if (img.isEmpty()) return
 
     tray = new Tray(img.resize({ width: 16, height: 16 }))
-    tray.setToolTip('업무 인수인계 대시보드')
+    tray.setToolTip('업무데스크 오르빗')
     tray.setContextMenu(
       Menu.buildFromTemplate([
         { label: '창 열기', click: () => showWindow() },
@@ -163,7 +163,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 640,
     show: false,
-    title: '업무 인수인계 대시보드',
+    title: '업무데스크 오르빗',
     autoHideMenuBar: true,
     backgroundColor: '#f6f7f9',
     webPreferences: {
@@ -220,7 +220,7 @@ function readmeText(job: string): string {
    한글에서 열어 인쇄하셔도 됩니다.
 
 2. 인수인계 파일 (.db)
-   업무 대시보드 프로그램에서 여는 파일입니다.
+   업무데스크 오르빗(옛 이름 업무 인수인계 대시보드) 프로그램에서 여는 파일입니다.
    공문 원문, 업무 목록, 워크플로우, 서식이 모두 들어 있어
    검색하고 이어서 쓸 수 있습니다.
 

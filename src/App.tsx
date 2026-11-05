@@ -29,6 +29,7 @@ import TourHost from './components/Tour'
 import NewShell, { focusAsk } from './components/NewShell'
 import Messenger from './pages/Messenger'
 import Attendance from './pages/Attendance'
+import Week from './pages/Week'
 import { OrbitMark } from './components/Brand'
 import TodayBoard from './components/TodayBoard'
 import { AI_ITEM, DATA_ITEM, isShown, requestMenuEdit, sidebarNav, useNavPrefs } from './lib/nav'
@@ -63,6 +64,7 @@ export type PageId =
   | 'OCR'
   | '메신저'
   | '출결'
+  | '이번주'
 
 function Shell(): JSX.Element {
   const ui = useUiPrefs()
@@ -331,6 +333,7 @@ function Shell(): JSX.Element {
       {page === 'OCR' && <Ocr onGo={setPage} />}
       {page === '메신저' && <Messenger onGo={setPage} />}
       {page === '출결' && <Attendance onGo={setPage} />}
+      {page === '이번주' && <Week onGo={setPage} />}
     </>
   )
 
@@ -397,7 +400,7 @@ function Shell(): JSX.Element {
         <div className="side-brand">
           <OrbitMark size={26} />
           <span className="side-label side-brand-text">
-            <b>업무 대시보드</b>
+            <b>업무데스크 오르빗</b>
             <small>HSOrbit</small>
           </span>
         </div>
@@ -517,7 +520,7 @@ function Shell(): JSX.Element {
               <span className="side-av">{jobTitle.trim().slice(0, 1) || '나'}</span>
               <span className="side-label side-me-text">
                 <b>{jobTitle}</b>
-                <small>{schoolName || '업무 인수인계 대시보드'}</small>
+                <small>{schoolName || '업무데스크 오르빗'}</small>
               </span>
               <span className="side-label side-me-gear">
                 <Icon name="sliders" size={16} />

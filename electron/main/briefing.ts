@@ -239,7 +239,7 @@ export function buildBriefing(input: BriefingInput): string {
   out.push('  (   )')
   out.push('')
   out.push(line(70))
-  out.push('  이 문서는 업무 인수인계 대시보드가 자동으로 엮은 초안입니다.')
+  out.push('  이 문서는 오르빗이 자동으로 엮은 초안입니다.')
   out.push('  빈칸을 채우고 손봐서 넘겨주세요.')
   out.push(line(70))
 

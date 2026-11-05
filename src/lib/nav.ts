@@ -17,6 +17,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
     section: '오늘',
     items: [
       { id: '홈', icon: 'home', label: '홈' },
+      { id: '이번주', icon: 'event', label: '이번 주 한눈에' },
       { id: '달력', icon: 'calendar', label: '달력' },
       { id: '시간표', icon: 'clock', label: '시간표' },
       { id: '기한', icon: 'hourglass', label: '절차 기한' },

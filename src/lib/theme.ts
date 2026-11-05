@@ -46,9 +46,11 @@ export const MODES: { id: ModePref; label: string }[] = [
 
 const KEY = 'wd_ui'
 const PRESET_KEY = 'wd_ui_preset'
+/** 새 화면을 기본으로 한 번 바꿨는지 (3.6.4) — 그 뒤에는 고른 화면 구성을 그대로 둔다 */
+const NEWSHELL_KEY = 'wd_ui_newshell'
 /** 새 디자인(HSOrbit, 3.6.2)으로 한 번 바꿨는지 — 그 뒤에는 고른 테마를 그대로 둔다 */
 const ORBIT_KEY = 'wd_ui_orbit'
-const DEFAULTS: UiPrefs = { theme: 'orbit', mode: 'system', navCollapsed: false, preset: '', shell: 'classic' }
+const DEFAULTS: UiPrefs = { theme: 'orbit', mode: 'system', navCollapsed: false, preset: '', shell: 'new' }
 
 function read(): UiPrefs {
   try {
@@ -58,7 +60,7 @@ function read(): UiPrefs {
       mode: MODES.some((m) => m.id === v?.mode) ? (v!.mode as ModePref) : DEFAULTS.mode,
       navCollapsed: typeof v?.navCollapsed === 'boolean' ? v.navCollapsed : DEFAULTS.navCollapsed,
       preset: typeof v?.preset === 'string' ? v.preset : '',
-      shell: v?.shell === 'new' ? 'new' : 'classic'
+      shell: v?.shell === 'classic' ? 'classic' : 'new'
     }
   } catch {
     return { ...DEFAULTS }
@@ -100,6 +102,19 @@ try {
   }
 } catch {
   // 저장이 막혀 있으면 고른 모양 그대로
+}
+
+// 3.6.4: 새 화면(위 탭 셋)을 기본으로 — 왼쪽 메뉴 화면은 '옛 버전 화면' 으로 설정에 남는다
+try {
+  if (window.localStorage.getItem(NEWSHELL_KEY) !== '1') {
+    window.localStorage.setItem(NEWSHELL_KEY, '1')
+    if (prefs.shell !== 'new') {
+      prefs = { ...prefs, shell: 'new' }
+      window.localStorage.setItem(KEY, JSON.stringify(prefs))
+    }
+  }
+} catch {
+  // 저장이 막혀 있으면 고른 화면 그대로
 }
 /** 받은 테마로 덮어쓴 토큰 — 다른 것을 고르면 지운다 */
 let applied: string[] = []

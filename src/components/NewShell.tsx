@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import type { PageId } from '../App'
 import type { NavPrefs } from '../lib/nav'
@@ -30,6 +31,7 @@ const TABS: { id: TabId; label: string; subs: Sub[] }[] = [
     id: 'week',
     label: '이번 주',
     subs: [
+      { page: '이번주', label: '한눈에' },
       { page: '시간표', label: '시간표' },
       { page: '달력', label: '달력' },
       { page: '출결', label: '출결 기록' }
@@ -103,12 +105,55 @@ interface Props {
   children: ReactNode
 }
 
+/**
+ * 아래로 내리면 아래 내용이 물 위로 떠오르듯 나타난다 — 처음 화면 밖에 있던 판(.card · 위젯)만.
+ * 처음부터 보이는 것은 그대로 두고, 화면에 들어오면 아래에서 떠오르며 흐림이 걷힌다. 움직임 줄이기를 켠 PC 는 끈다.
+ */
+const SURF = '.card, .hw, .wk-day'
+
+function useSurface(ref: RefObject<HTMLElement>, page: PageId): void {
+  useEffect(() => {
+    const root = ref.current
+    if (!root || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue
+          e.target.classList.add('surfaced')
+          io.unobserve(e.target)
+        }
+      },
+      { root, rootMargin: '0px 0px -6% 0px', threshold: 0.06 }
+    )
+    const scan = (): void => {
+      const bottom = root.getBoundingClientRect().bottom
+      root.querySelectorAll<HTMLElement>(SURF).forEach((el) => {
+        if (el.classList.contains('surf') || el.parentElement?.closest('.surf')) return
+        // 끌어 옮기는 판 · 편집 중인 위젯은 건드리지 않는다
+        if (el.closest('.tb-board.editing')) return
+        el.classList.add('surf')
+        if (el.getBoundingClientRect().top < bottom - 8) el.classList.add('surfaced')
+        else io.observe(el)
+      })
+    }
+    scan()
+    const mo = new MutationObserver(() => scan())
+    mo.observe(root, { childList: true, subtree: true })
+    return () => {
+      io.disconnect()
+      mo.disconnect()
+    }
+  }, [ref, page])
+}
+
 export default function NewShell(props: Props): JSX.Element {
   const { page, onGo, navp } = props
   const tab = tabOf(page)
   const [makeOpen, setMakeOpen] = useState(false)
   const [q, setQ] = useState('')
   const askRef = useRef<HTMLInputElement>(null)
+  const mainRef = useRef<HTMLElement>(null)
+  useSurface(mainRef, page)
   const makeRef = useRef<HTMLDivElement>(null)
   const makeBtn = useRef<HTMLButtonElement>(null)
   /** 탭마다 마지막에 본 칸 · 탭 밖 화면에서 돌아갈 곳 */
@@ -189,7 +234,7 @@ export default function NewShell(props: Props): JSX.Element {
             <OrbitMark size={30} />
           </span>
           <span className="ns-brand-text">
-            <b>{props.schoolName || '업무 대시보드'}</b>
+            <b>{props.schoolName || '업무데스크 오르빗'}</b>
             <small>{props.jobTitle}</small>
           </span>
         </div>
@@ -289,7 +334,12 @@ export default function NewShell(props: Props): JSX.Element {
         </div>
       )}
 
-      <main className={`main ns-main ${page === '도우미' ? 'main-chat' : ''} ${showAsk ? 'has-ask' : ''}`}>{props.children}</main>
+      <main ref={mainRef} className={`main ns-main ${page === '도우미' ? 'main-chat' : ''} ${showAsk ? 'has-ask' : ''}`}>
+        {/* 화면이 바뀔 때마다 새로 그려 들어오는 움직임을 다시 튼다 (오늘 판은 위젯이 제 자리로 펼쳐지는 움직임이 따로 있다) */}
+        <div key={page} className={`ns-page ${page === '홈' || page === '도우미' ? '' : 'ns-enter'}`}>
+          {props.children}
+        </div>
+      </main>
 
       {showAsk && (
         <form className="ns-ask" onSubmit={ask}>

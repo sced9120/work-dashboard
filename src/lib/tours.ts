@@ -102,6 +102,15 @@ export const TOURS: Record<PageId, Tour> = {
       { sel: '.main .relay-card', title: '폰에서 보내기', body: '선생님 구글 계정에 작은 우편함을 만들어 두면 폰에서 보낸 글이 몇 분 안에 여기로 옵니다.', optional: true }
     ]
   },
+  이번주: {
+    page: '이번주',
+    intro: '이번 주 달력 · 다가올 일 · 내 시간표',
+    steps: [
+      { sel: H1, title: '이번 주 한눈에', body: '이번 주 달력이 맨 위에, 그 아래에 앞으로 2주의 기한 · 일정 · 학사일정 · D-Day 와 작게 줄인 내 시간표가 있습니다.' },
+      { sel: '.main .wk-up', title: '다가올 일', body: '날짜별로 모아 보여 줍니다. 누르면 그 일이 있는 화면으로 갑니다. 지난 기한은 오늘 칸에 \'지남\' 으로 남습니다.', optional: true },
+      { sel: '.main .wk-tt', title: '내 시간표', body: '오늘 줄은 주황 바탕, 지금 교시는 먹색 칸입니다.', optional: true }
+    ]
+  },
   출결: {
     page: '출결',
     intro: '결석 · 지각 · 조퇴 · 결과 모아 두기',

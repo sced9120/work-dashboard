@@ -1,0 +1,50 @@
+/*
+ * 학교 안심폰트 (KERIS 교육저작권지원센터, https://copyright.keris.or.kr/wft/fntDwnld) — SIL OFL 1.1, 이 폴더의 OFL.txt
+ *  - 케리스 배움체 (KERIS BAEUM, © 2025 KERIS, 제작 투게더그룹) — 화면 글 · 본문
+ *  - 학교안심 산뜻돋움 (Hakgyoansim Santteutdotum, © KERIS) — 제목 · 큰 숫자
+ * 안내 페이지 미리보기에 쓰는 원본 woff 그대로이고 고치지 않았다. 한글 11,172자 모두 들어 있다.
+ *
+ * 굵기: 배움체는 L 이 보통 글자(400) 굵기에 맞아 L=400 · R=500~600 · B=700 · EB=800~900 으로 놓는다.
+ */
+@font-face {
+  font-family: 'KERIS Baeum';
+  src: url('./KERISBAEUM_L.woff') format('woff');
+  font-weight: 100 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'KERIS Baeum';
+  src: url('./KERISBAEUM_R.woff') format('woff');
+  font-weight: 500 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'KERIS Baeum';
+  src: url('./KERISBAEUM_B.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'KERIS Baeum';
+  src: url('./KERISBAEUM_EB.woff') format('woff');
+  font-weight: 800 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Hakgyoansim Santteut';
+  src: url('./HakgyoansimSantteutdotumL.woff') format('woff');
+  font-weight: 100 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Hakgyoansim Santteut';
+  src: url('./HakgyoansimSantteutdotumM.woff') format('woff');
+  font-weight: 500 900;
+  font-style: normal;
+  font-display: swap;
+}
