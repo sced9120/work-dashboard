@@ -177,7 +177,7 @@ export default function ModelPicker({
               </optgroup>
             )
           })}
-          <option value="__custom__">✏️ 다른 모델 이름 직접 입력…</option>
+          <option value="__custom__">다른 모델 이름 직접 입력…</option>
         </select>
       </div>
 

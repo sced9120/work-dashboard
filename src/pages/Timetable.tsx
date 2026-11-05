@@ -106,7 +106,7 @@ export default function Timetable({ onGo }: Props): JSX.Element {
   /** AI 로 읽기 — 무엇을 보내는지 먼저 알리고 묻는다 */
   const aiRead = async (which: 'failed' | 'current'): Promise<void> => {
     const ok = await ask({
-      title: '🤖 AI로 시간표를 읽을까요?',
+      title: 'AI로 시간표를 읽을까요?',
       body: (
         <>
           학교마다 다른 시간표 모양을 AI 가 알아보고 표준 자료(교사 · 요일 · 교시 · 반 · 과목 · 블록 · 구분)로 바꿉니다.
@@ -157,20 +157,20 @@ export default function Timetable({ onGo }: Props): JSX.Element {
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => void importFile()} disabled={busy}>
-          {busy ? '읽는 중…' : T.tt ? '📂 시간표 파일 다시 불러오기' : '📂 학교 시간표 엑셀 불러오기'}
+          {busy ? '읽는 중…' : T.tt ? '시간표 파일 다시 불러오기' : '학교 시간표 엑셀 불러오기'}
         </button>
       </div>
 
-      {aiBusy && <div className="note note-info" style={{ marginBottom: 10 }}>🤖 {aiBusy}</div>}
+      {aiBusy && <div className="note note-info" style={{ marginBottom: 10 }}>{aiBusy}</div>}
       {aiOffer && !aiBusy && (
         <div className="note note-warn" style={{ marginBottom: 10 }}>
           {aiOffer}
           <div className="row" style={{ marginTop: 8 }}>
             <button className="btn btn-sm btn-primary" onClick={() => void aiRead('failed')}>
-              🤖 AI로 읽기
+              AI로 읽기
             </button>
             <button className="btn btn-sm" onClick={() => void blankForm()}>
-              📄 빈 표준 양식 받기
+              빈 표준 양식 받기
             </button>
             <button className="btn btn-sm btn-ghost" onClick={() => setAiOffer('')}>
               닫기
@@ -282,7 +282,7 @@ function MyTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Element {
     <>
       <div className="card">
         <div className="card-title">
-          <span>👤 나는</span>
+          <span>나는</span>
           {T.base && <span className="badge badge-accent">한 주 {hoursOf(T.base)}시간</span>}
         </div>
         {T.tt ? (
@@ -318,22 +318,22 @@ function MyTab({ T, onImport }: { T: TT; onImport: () => void }): JSX.Element {
           <div className="note note-info">
             학교 시간표 엑셀을 불러오면 이름만 골라 내 시간표가 바로 만들어집니다.{' '}
             <button className="btn btn-sm btn-primary" onClick={onImport}>
-              📂 불러오기
+              불러오기
             </button>{' '}
-            파일이 없으면 아래 <b>[✏️ 칸 고치기]</b> 로 직접 적으세요.
+            파일이 없으면 아래 <b>[칸 고치기]</b> 로 직접 적으세요.
           </div>
         )}
       </div>
 
       <div className="card">
         <div className="card-title">
-          <span>🕘 내 시간표</span>
+          <span>내 시간표</span>
           <div className="row">
             <button className={`btn btn-sm ${editing ? 'btn-primary' : ''}`} onClick={() => setEditing((v) => !v)}>
-              {editing ? '✓ 고치기 끝' : '✏️ 칸 고치기'}
+              {editing ? '✓ 고치기 끝' : '칸 고치기'}
             </button>
             <button className="btn btn-sm" onClick={() => void savePng()} disabled={!T.base}>
-              🖼 그림으로 저장
+              그림으로 저장
             </button>
           </div>
         </div>
@@ -514,10 +514,10 @@ function ClassTab({ T, onGo }: { T: TT; onGo: (p: PageId) => void }): JSX.Elemen
             <span>학급 고르기</span>
             {pick && pick !== T.myClass && (
               <button className="btn btn-sm" onClick={() => void T.save(MY_CLASS_KEY, pick)}>
-                ⭐ 우리 반으로 정하기
+                우리 반으로 정하기
               </button>
             )}
-            {pick && pick === T.myClass && <span className="badge badge-accent">⭐ 우리 반</span>}
+            {pick && pick === T.myClass && <span className="badge badge-accent">우리 반</span>}
           </div>
           <div className="tt-classpick">
             {T.tt.classes.map((c) => (
@@ -551,7 +551,7 @@ function ClassTab({ T, onGo }: { T: TT; onGo: (p: PageId) => void }): JSX.Elemen
               이번 주 시간표 받기
             </button>
             <button className="btn btn-sm" onClick={() => void T.save(MY_CLASS_KEY, `${grade}-${num}`)}>
-              ⭐ 우리 반으로 정하기
+              우리 반으로 정하기
             </button>
           </div>
           {neis?.error && <div className="note note-warn" style={{ marginTop: 10 }}>{neis.error}</div>}
@@ -679,7 +679,7 @@ function ChangeTab({
       <div className="note note-info">
         수업 바꿀 짝을 찾으려면 학교 전체 시간표가 있어야 합니다.{' '}
         <button className="btn btn-sm btn-primary" onClick={onImport}>
-          📂 학교 시간표 엑셀 불러오기
+          학교 시간표 엑셀 불러오기
         </button>
       </div>
     )
@@ -726,13 +726,13 @@ function ChangeTab({
     <>
       {justReady && (
         <div className="note note-ok" style={{ marginBottom: 10 }}>
-          ✅ 시간표 정리(읽은 자료 · 블록 · 창체 · 동아리)를 마쳤습니다. <b>이제 수업 바꾸기를 쓸 수 있습니다.</b> 아래에서 날짜와 비울
+          시간표 정리(읽은 자료 · 블록 · 창체 · 동아리)를 마쳤습니다. <b>이제 수업 바꾸기를 쓸 수 있습니다.</b> 아래에서 날짜와 비울
           수업을 고르세요.
         </div>
       )}
       <div className="row tt-rules-line">
         <span className="muted small">
-          🧱 {rulesSummary(rules)} 기준으로 찾습니다. 블록 시간의 수업은 한 반만 바꾸지 않고, 블록 시간 · 창체 · 동아리 자리로는 옮기지
+          {rulesSummary(rules)} 기준으로 찾습니다. 블록 시간의 수업은 한 반만 바꾸지 않고, 블록 시간 · 창체 · 동아리 자리로는 옮기지
           않습니다.
         </span>
         <button className="btn btn-sm btn-ghost" onClick={() => setEditRules(true)}>
@@ -770,7 +770,7 @@ function ChangeTab({
                   onClick={() => setSlot(p)}
                   title={lock ? (lock.kind === 'fixed' ? `${lock.fixed} 시간` : '블록 수업 — 한 반만 바꿀 수 없음') : undefined}
                 >
-                  {lock ? (lock.kind === 'fixed' ? '🎒 ' : '🧱 ') : ''}
+                  {lock ? <i className="tt-lock">{lock.kind === 'fixed' ? lock.fixed : '블록'}</i> : ''}
                   {tt.periods[p].label} {slotText(s)}
                 </button>
               )
@@ -874,7 +874,7 @@ function SettingsTab({ T, onImport, onRules }: { T: TT; onImport: () => void; on
     <>
       <div className="card">
         <div className="card-title">
-          <span>📂 학교 시간표 파일</span>
+          <span>학교 시간표 파일</span>
           <div className="row">
             <button className="btn btn-sm btn-primary" onClick={onImport}>
               {T.tt ? '다시 불러오기' : '불러오기'}
@@ -954,7 +954,7 @@ function SettingsTab({ T, onImport, onRules }: { T: TT; onImport: () => void; on
             </li>
           </ol>
           <p className="small" style={{ margin: '0 0 6px' }}>
-            이 모양이 아니면 불러올 때 <b>[🤖 AI로 읽기]</b> 를 권해 드립니다(이름 · 과목 같은 글자는 가려 보냄).
+            이 모양이 아니면 불러올 때 <b>[AI로 읽기]</b> 를 권해 드립니다(이름 · 과목 같은 글자는 가려 보냄).
           </p>
           <p className="small" style={{ margin: '0 0 6px' }}>
             여러 파일을 한꺼번에 골라도 됩니다(예: 시각이 없는 주간 시간표 + 시각이 있는 교사 시간표). 같은 수업은 한 번만 셉니다.
@@ -968,7 +968,7 @@ function SettingsTab({ T, onImport, onRules }: { T: TT; onImport: () => void; on
       {T.tt && (
         <div className="card">
           <div className="card-title">
-            <span>🧱 시간표 정리 (읽은 자료 · 블록 · 창체 · 동아리)</span>
+            <span>시간표 정리 (읽은 자료 · 블록 · 창체 · 동아리)</span>
             <button className="btn btn-sm" onClick={onRules}>
               {rulesReady(T.tt, T.rules) ? '확인 · 고치기' : '확인하기'}
             </button>
@@ -982,7 +982,7 @@ function SettingsTab({ T, onImport, onRules }: { T: TT; onImport: () => void; on
       )}
 
       <div className="card">
-        <div className="card-title">⏰ 교시 시각</div>
+        <div className="card-title">교시 시각</div>
         <p className="hint" style={{ marginTop: 0 }}>
           시각을 알면 홈에서 <b>지금 몇 교시인지</b>, 점심시간이 언제인지 보여 드립니다. 파일에 있으면 처음부터 채워져 있습니다.
         </p>
@@ -1011,7 +1011,7 @@ function SettingsTab({ T, onImport, onRules }: { T: TT; onImport: () => void; on
       </div>
 
       <div className="card">
-        <div className="card-title">⭐ 우리 반 (담임 학급)</div>
+        <div className="card-title">우리 반 (담임 학급)</div>
         <p className="hint" style={{ marginTop: 0 }}>
           정해 두면 홈에 <b>우리 반 시간표</b> 위젯을 얹을 수 있고, 업무 도우미가 우리 반 수업을 알고 답합니다.
         </p>

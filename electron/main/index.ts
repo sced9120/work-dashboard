@@ -46,6 +46,7 @@ import type { TtRow } from '../../shared/timetable'
 import { STD_EXAMPLE, aiReadTimetable, importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
 import { schoolContext } from './context'
 import { schoolPlace, searchPlaces, weatherAt } from './weather'
+import { extractMessages, inboxList, inboxRemove, maskMessages, relayConnect, relayDisconnect, relayInfo, relayNewKey, relayPull, startRelayWatch, stopRelayWatch } from './messenger'
 import { ymd } from '../../shared/neis'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
 import type {
@@ -971,6 +972,17 @@ function registerIpc(): void {
     savedPaths.add(path.resolve(res.filePath))
     return { ok: true, message: `저장했습니다: ${res.filePath}`, path: res.filePath }
   })
+  /* ---------- 메신저 정리 · 폰에서 보내기 ---------- */
+  ipcMain.handle('msg:mask', (_e, text: string) => maskMessages(String(text ?? '').slice(0, 20000)).masked)
+  ipcMain.handle('msg:extract', (_e, text: string, model?: ModelChoice) => extractMessages(String(text ?? ''), model))
+  ipcMain.handle('inbox:list', () => inboxList())
+  ipcMain.handle('inbox:remove', (_e, ids: string[]) => inboxRemove(Array.isArray(ids) ? ids.map(String) : []))
+  ipcMain.handle('relay:info', () => relayInfo())
+  ipcMain.handle('relay:newKey', () => relayNewKey())
+  ipcMain.handle('relay:connect', (_e, url: string) => relayConnect(String(url ?? '')))
+  ipcMain.handle('relay:disconnect', () => relayDisconnect())
+  ipcMain.handle('relay:pull', () => relayPull())
+
   /* ---------- 날씨 (Open-Meteo · Nominatim) ---------- */
   ipcMain.handle('weather:at', (_e, lat: number, lon: number, force: boolean) => weatherAt(Number(lat), Number(lon), force === true))
   ipcMain.handle('weather:search', (_e, q: string) => searchPlaces(String(q ?? '')))
@@ -1066,6 +1078,7 @@ function registerIpc(): void {
     nativeTheme.themeSource = mode === 'light' || mode === 'dark' ? mode : 'system'
   })
   // file:// 로 띄운 창에서는 navigator.clipboard 가 막히므로 메인에서 처리한다.
+  ipcMain.handle('clipboard:read', () => clipboard.readText().slice(0, 20000))
   ipcMain.handle('clipboard:write', (_e, text: string) => clipboard.writeText(text))
   ipcMain.handle('app:version', () => app.getVersion())
   // 의견 보내기 설문지에 미리 채울 윈도우 버전 (예: Windows 10.0.26200 — 22000 이상이면 윈도우 11)
@@ -1110,6 +1123,7 @@ app.whenReady().then(async () => {
   // 자료를 열고 난 뒤에 알림·트레이·자동실행을 설정에 맞춘다.
   syncTray()
   applyLocalSettings()
+  startRelayWatch()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -1119,6 +1133,7 @@ app.whenReady().then(async () => {
 app.on('before-quit', () => {
   quitting = true
   stopDeadlineWatch()
+  stopRelayWatch()
   // OCR 로 Gemini 에 올려 둔 큰 파일이 있으면 지운다 (기다리지는 않는다 — 남아도 이틀 뒤 저절로 지워진다)
   void clearOcr()
 })

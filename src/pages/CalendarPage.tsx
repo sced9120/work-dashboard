@@ -38,12 +38,12 @@ export default function CalendarPage({ onGo }: Props): JSX.Element {
         <div className="row">
           {!google && (
             <button className="btn" onClick={() => setGoogle(true)} title="원할 때만 — 구글 일정 함께 보기 · 이 달력의 일정을 구글로 보내기">
-              🔗 구글 캘린더
+              구글 캘린더
             </button>
           )}
           {!importing && (
             <button className="btn" onClick={() => setImporting(true)}>
-              📥 나이스 학사일정 가져오기
+              나이스 학사일정 가져오기
             </button>
           )}
         </div>

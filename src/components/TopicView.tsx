@@ -105,7 +105,7 @@ function draftFlow(topic: string, list: Task[]): string {
     for (const s of steps.slice(0, 6)) lines.push(`    · ${s}`)
 
     if (t.key_points?.trim()) {
-      lines.push(`    ⚠ ${t.key_points.trim().split(/\r?\n/)[0]}`)
+      lines.push(`    ${t.key_points.trim().split(/\r?\n/)[0]}`)
     }
   }
 
@@ -532,7 +532,7 @@ export default function TopicView({
                 })
               }
             >
-              🗂 한 주제로 묶기
+              한 주제로 묶기
             </button>
           </div>
         )}
@@ -639,18 +639,18 @@ export default function TopicView({
                   title="이 주제와 딸린 업무를 지웁니다 (공문 원문은 남습니다)"
                   onClick={() => void removeTopic()}
                 >
-                  🗑 주제 지우기
+                  주제 지우기
                 </button>
                 <span className="spacer" />
                 <button className="btn btn-sm" onClick={() => setFlowOpen((v) => !v)}>
-                  🗺 글 흐름도
+                  글 흐름도
                 </button>
                 <button
                   className={`btn btn-sm ${wf.nodes.length ? 'btn-primary' : ''}`}
                   onClick={() => setWfOpen((v) => !v)}
                   title="상자와 화살표로 그리는 워크플로우"
                 >
-                  🧩 워크플로우 그리기
+                  워크플로우 그리기
                   {wf.nodes.length > 0 && ` (${wf.nodes.length})`}
                 </button>
               </div>
@@ -659,7 +659,7 @@ export default function TopicView({
                 <div className="flow-panel">
                   {wf.nodes.length === 0 && (
                     <div className="note note-info" style={{ marginBottom: 10 }}>
-                      상자를 놓아 업무 흐름을 그립니다. <b>[✍ 업무로 자동 배치]</b> 를 누르면
+                      상자를 놓아 업무 흐름을 그립니다. <b>[업무로 자동 배치]</b> 를 누르면
                       등록된 업무 {current.tasks.length}건을 시기 순으로 세워 첫 그림을 만들어
                       줍니다. 거기서 옮기고 고치시면 됩니다.
                     </div>
@@ -733,7 +733,7 @@ export default function TopicView({
                         넘어갑니다.
                       </p>
                       <button className="btn btn-primary" onClick={makeDraft}>
-                        ✍ 흐름도 초안 짜기
+                        흐름도 초안 짜기
                       </button>
                     </div>
                   )}

@@ -544,7 +544,7 @@ export default function WorkflowEditor({
                 })()
               }
             >
-              ✍ 업무로 자동 배치
+              업무로 자동 배치
             </button>
           )}
         </div>

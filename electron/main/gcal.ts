@@ -97,7 +97,7 @@ export async function exportIcs(
     // 기한은 제목만 보낸다 — 사안 · 메모에 학생 이름이 들기 쉽다
     for (const d of db.listDeadlines()) {
       if (d.done || !d.due_date || d.due_date < args.from || d.due_date > args.to) continue
-      out.push({ uid: `wd-deadline-${d.id}@work-dashboard`, title: `⏰ ${d.title}`, start: d.due_date, end: d.due_date, time: '' })
+      out.push({ uid: `wd-deadline-${d.id}@work-dashboard`, title: `[기한] ${d.title}`, start: d.due_date, end: d.due_date, time: '' })
     }
   }
   if (!out.length) return { ok: false, message: '이 기간에 보낼 일정이 없습니다.' }

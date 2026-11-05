@@ -39,6 +39,15 @@ import type { HelpCatalog, HelpHit, HelpMatch } from '../../shared/helpdocs'
 import type { NeisDay, NeisLesson, NeisMealDay, NeisResult, NeisSchool } from '../../shared/neis'
 import type { IcsEvent } from '../../shared/ics'
 import type { WeatherPlace, WeatherResult } from '../../shared/weather'
+import type { InboxItem, MsgResult } from '../../shared/messenger'
+
+export interface RelayInfoShape {
+  hasKey: boolean
+  connected: boolean
+  url: string
+  phone: string
+  script: string
+}
 import type { CatalogResult } from '../../shared/catalog'
 import type { ChatAttachment, ChatDelta, ChatMeta, ChatPreset, ChatRecord, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
 import type { OcrAnswer, OcrFile, OcrProgress, OcrRequest } from '../../shared/ocr'
@@ -282,6 +291,31 @@ const api = {
     classTimetable: (grade: number, cls: number, from: string, to: string): Promise<NeisResult<NeisLesson[]>> =>
       ipcRenderer.invoke('neis:classTimetable', grade, cls, from, to)
   },
+  /** 메신저 정리 — 붙여 넣은 글에서 할 일 · 출결 뽑기 (이름은 가려 보냄) */
+  msg: {
+    /** AI 에 보낼 글(가린 것) 미리 보기 */
+    mask: (text: string): Promise<string> => ipcRenderer.invoke('msg:mask', text),
+    extract: (text: string, model?: ModelChoice): Promise<{ ok: boolean; error?: string; result?: MsgResult; masked?: string }> =>
+      ipcRenderer.invoke('msg:extract', text, model)
+  },
+  /** 폰에서 온 글 */
+  inbox: {
+    list: (): Promise<InboxItem[]> => ipcRenderer.invoke('inbox:list'),
+    remove: (ids: string[]): Promise<void> => ipcRenderer.invoke('inbox:remove', ids),
+    onChanged: (cb: (n: number) => void): (() => void) => {
+      const handler = (_e: unknown, n: number): void => cb(n)
+      ipcRenderer.on('inbox:changed', handler)
+      return () => ipcRenderer.removeListener('inbox:changed', handler)
+    }
+  },
+  /** 폰에서 보내기 — 선생님 구글 계정의 Apps Script 우편함 */
+  relay: {
+    info: (): Promise<RelayInfoShape> => ipcRenderer.invoke('relay:info'),
+    newKey: (): Promise<RelayInfoShape> => ipcRenderer.invoke('relay:newKey'),
+    connect: (url: string): Promise<{ ok: boolean; error?: string; info?: RelayInfoShape }> => ipcRenderer.invoke('relay:connect', url),
+    disconnect: (): Promise<RelayInfoShape> => ipcRenderer.invoke('relay:disconnect'),
+    pull: (): Promise<{ ok: boolean; added: number; error?: string }> => ipcRenderer.invoke('relay:pull')
+  },
   /** 날씨 위젯 (Open-Meteo, 키 없음) */
   weather: {
     at: (lat: number, lon: number, force = false): Promise<WeatherResult> => ipcRenderer.invoke('weather:at', lat, lon, force),
@@ -355,6 +389,7 @@ const api = {
     setNativeTheme: (mode: string): Promise<void> => ipcRenderer.invoke('ui:nativeTheme', mode)
   },
   clipboard: {
+    read: (): Promise<string> => ipcRenderer.invoke('clipboard:read'),
     write: (text: string): Promise<void> => ipcRenderer.invoke('clipboard:write', text)
   },
   /** 학교 한글 양식 */

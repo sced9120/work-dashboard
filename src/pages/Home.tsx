@@ -282,7 +282,7 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
   const patch = (id: WidgetId, p: Partial<WidgetState>): void => commit(layout.map((w) => (w.id === id ? { ...w, ...p } : w)))
   const remove = (id: WidgetId): void => {
     commit(layout.filter((w) => w.id !== id))
-    toast(`'${WIDGETS[id].title}' 위젯을 닫았습니다. [✏️ 홈 꾸미기] 에서 다시 더할 수 있습니다.`)
+    toast(`'${WIDGETS[id].title}' 위젯을 닫았습니다. [홈 꾸미기] 에서 다시 더할 수 있습니다.`)
   }
   const move = (id: WidgetId, delta: number): void => {
     const i = layout.findIndex((w) => w.id === id)
@@ -560,7 +560,7 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
                 }}
                 title={mode.free ? '급한 것부터 위로, 두 칸에 빈틈 없이 쌓습니다' : '급한 것부터 위로, 반쪽 위젯끼리 짝지어 빈칸 없이'}
               >
-                🧲 자동 정렬
+                자동 정렬
               </button>
               <button
                 className="btn btn-sm btn-ghost"
@@ -589,7 +589,7 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
               setEditing((v) => !v)
             }}
           >
-            {editing ? '✓ 꾸미기 끝' : '✏️ 홈 꾸미기'}
+            {editing ? '✓ 꾸미기 끝' : '홈 꾸미기'}
           </button>
         </div>
       </div>
@@ -652,7 +652,7 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
 
       {layout.length === 0 && (
         <div className="empty">
-          홈에 위젯이 없습니다. <button className="link" onClick={() => setEditing(true)}>[✏️ 홈 꾸미기]</button> 에서 더해 주세요.
+          홈에 위젯이 없습니다. <button className="link" onClick={() => setEditing(true)}>[홈 꾸미기]</button> 에서 더해 주세요.
         </div>
       )}
 

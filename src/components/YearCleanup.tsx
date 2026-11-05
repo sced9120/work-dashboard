@@ -112,9 +112,9 @@ export default function YearCleanup({ onChanged }: Props): JSX.Element {
   return (
     <div className="card">
       <div className="card-title">
-        <span>🧹 새 학년도 정리</span>
+        <span>새 학년도 정리</span>
         <button className="btn btn-sm" onClick={() => void autoAssign()} disabled={busy}>
-          📅 날짜로 학년도 매기기
+          날짜로 학년도 매기기
         </button>
       </div>
 
@@ -128,7 +128,7 @@ export default function YearCleanup({ onChanged }: Props): JSX.Element {
           <b>학년도를 매기지 않은 자료가 있습니다</b> — 공문 {unassigned.docs}건, 업무{' '}
           {unassigned.tasks}건.
           <div style={{ marginTop: 6 }}>
-            <b>[📅 날짜로 학년도 매기기]</b> 를 누르면 문서에서 찾은 접수일자로 자동으로 매깁니다.
+            <b>[날짜로 학년도 매기기]</b> 를 누르면 문서에서 찾은 접수일자로 자동으로 매깁니다.
             날짜를 못 찾은 것은 그대로 남으니, 아래에서 <b>학년도 미지정</b>을 골라 한꺼번에
             처리하시면 됩니다.
           </div>
@@ -229,7 +229,7 @@ export default function YearCleanup({ onChanged }: Props): JSX.Element {
 
           <div className="row">
             <button className="btn btn-danger" onClick={() => void runCleanup()} disabled={busy}>
-              {busy ? '지우는 중…' : `🗑 ${schoolYearLabel(target)} 자료 지우기`}
+              {busy ? '지우는 중…' : `${schoolYearLabel(target)} 자료 지우기`}
             </button>
             <span className="muted small">지우기 전에 백업을 자동으로 남깁니다</span>
           </div>

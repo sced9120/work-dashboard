@@ -1120,7 +1120,7 @@ export function cleanupYear(plan: CleanupPlan): CleanupResult {
  * 업무가 아니라 지금 담당자 한 사람의 것이라 인수인계 파일에 넣지 않는 설정.
  * 학교 시간표에는 선생님들 이름이 들어 있고, 내 이름 · 내 시간표 · 우리 반은 다음 담당자와 다르다.
  */
-const PERSONAL_SETTINGS = ['timetable_school', 'timetable_me', 'timetable_manual', 'timetable_alias', 'my_class', 'timetable_peers', 'timetable_dated']
+const PERSONAL_SETTINGS = ['timetable_school', 'timetable_me', 'timetable_manual', 'timetable_alias', 'my_class', 'timetable_peers', 'timetable_dated', 'att_roster', 'att_records', 'msg_inbox']
 
 export async function exportTo(targetPath: string, includePersonal = false): Promise<void> {
   if (!SQL) SQL = await initSqlJs({ wasmBinary: loadWasm() })

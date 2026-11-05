@@ -248,7 +248,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
                   onClick={() => void summarize()}
                   disabled={answering || !hasKey}
                 >
-                  {answering ? 'AI가 정리하는 중…' : `🤖 상위 ${helpBase + helpRoom}건으로 내용 정리하기`}
+                  {answering ? 'AI가 정리하는 중…' : `상위 ${helpBase + helpRoom}건으로 내용 정리하기`}
                 </button>
                 {!hasKey && (
                   <span className="muted small">
@@ -367,13 +367,13 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
           {helpHits.length > 0 && (
             <div className="card" style={{ marginTop: 14 }}>
               <div className="card-title">
-                <span>🧭 학교업무 도움자료 {helpHits.length}건</span>
+                <span>학교업무 도움자료 {helpHits.length}건</span>
                 <button className="btn btn-sm btn-ghost" onClick={() => onGo('도움자료')}>
                   도움자료에서 보기
                 </button>
               </div>
               <p className="hint" style={{ marginTop: 0 }}>
-                교육청이 업무마다 엮어 둔 자료 폴더입니다. 파일은 [📂 자료 폴더] 에서 내려받습니다.
+                교육청이 업무마다 엮어 둔 자료 폴더입니다. 파일은 [자료 폴더] 에서 내려받습니다.
               </p>
               <div className="list">
                 {helpHits.map((h, j) => (
@@ -393,7 +393,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
                         </div>
                       </div>
                       <button className="btn btn-sm" onClick={() => void window.api.shell.open(h.url)}>
-                        📂 자료 폴더 ↗
+                        자료 폴더 ↗
                       </button>
                     </div>
                     {h.matched.length > 0 && (

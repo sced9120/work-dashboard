@@ -540,6 +540,11 @@ async function callModel(
   return chatModel(settings, feature, override, '', [{ role: 'user', content: prompt }], json)
 }
 
+/** 메신저 정리(shared/messenger.ts)가 쓰는 한 번 묻기 — 가린 글만 넣어 부른다 */
+export async function askJson(settings: LocalSettings, override: ModelChoice | undefined | null, prompt: string): Promise<string> {
+  return callModel(settings, 'analyze', override, prompt, true)
+}
+
 /** 시간표 AI 읽기(shared/ttai.ts)가 쓰는 한 번 묻기 — 글자를 가린 표만 보낸다 */
 export async function askForTimetable(settings: LocalSettings, prompt: string, json: boolean): Promise<string> {
   return callModel(settings, 'analyze', null, prompt, json)

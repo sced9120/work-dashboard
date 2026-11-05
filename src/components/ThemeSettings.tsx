@@ -30,7 +30,7 @@ export default function ThemeSettings(): JSX.Element {
   return (
     <div className="card theme-card">
       <div className="card-title">
-        <span>🎨 화면 테마</span>
+        <span>화면 테마</span>
         <span className="muted small">이 PC에만 저장됩니다 · 인수인계 파일로 넘어가지 않습니다</span>
       </div>
 

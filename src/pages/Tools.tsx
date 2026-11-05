@@ -1,3 +1,4 @@
+import Mono from '../components/Mono'
 import { useEffect, useMemo, useState } from 'react'
 import type { CatalogTool } from '../../shared/catalog'
 import { isNewTool } from '../../shared/catalog'
@@ -116,7 +117,7 @@ export default function Tools(): JSX.Element {
           {shown.map((t) => (
             <div className="tool-card" key={t.id}>
               <div className="tool-top">
-                <span className="tool-ico">{t.icon || <Icon name="grid" size={22} />}</span>
+                <Mono name={t.name} size={42} className="tool-ico" />
                 <div className="tool-title">
                   <b>{t.name}</b>
                   <span className="small muted">

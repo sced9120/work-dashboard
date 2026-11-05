@@ -36,8 +36,8 @@ type Draft = SetupResult
 type Step = 0 | 1 | 2
 const STEPS = ['① 읽은 자료', '② 블록', '③ 창체 · 동아리']
 const FIXED: { kind: FixedKind; icon: string; cls: string }[] = [
-  { kind: '창체', icon: '🎒', cls: 'cce' },
-  { kind: '동아리', icon: '🎨', cls: 'club' }
+  { kind: '창체', icon: '', cls: 'cce' },
+  { kind: '동아리', icon: '', cls: 'club' }
 ]
 
 /**
@@ -219,7 +219,7 @@ export default function TimetableSetup({ tt, rules, onSave, onCancel, onAiRead }
         {step === 2 &&
           FIXED.map((f) => (
             <button key={f.kind} className={`tt-brush ${f.cls} ${brush === f.kind ? 'active' : ''}`} onClick={() => setBrush(brush === f.kind ? '' : f.kind)}>
-              {f.icon} {f.kind}
+              {f.kind}
             </button>
           ))}
         {step === 2 && grades.length > 1 && (
@@ -290,7 +290,7 @@ export default function TimetableSetup({ tt, rules, onSave, onCancel, onAiRead }
   return (
     <div className="card">
       <div className="card-title">
-        <span>🧱 수업 바꾸기 전에 — 시간표 정리</span>
+        <span>수업 바꾸기 전에 — 시간표 정리</span>
         <div className="tt-steps">
           {STEPS.map((s, i) => (
             <button key={s} className={`tt-step ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`} onClick={() => setStep(i as Step)}>
@@ -328,7 +328,7 @@ export default function TimetableSetup({ tt, rules, onSave, onCancel, onAiRead }
           ))}
           {hours.checked > 0 && hours.diff.length === 0 && (
             <div className="note note-ok" style={{ marginBottom: 8 }}>
-              ✅ 파일에 적힌 선생님별 시수(이름 옆 괄호 숫자)와 읽은 수업 수가 <b>{hours.checked}분 모두 맞습니다.</b>
+              파일에 적힌 선생님별 시수(이름 옆 괄호 숫자)와 읽은 수업 수가 <b>{hours.checked}분 모두 맞습니다.</b>
             </div>
           )}
           {hours.diff.length > 0 && (
@@ -399,17 +399,17 @@ export default function TimetableSetup({ tt, rules, onSave, onCancel, onAiRead }
             </table>
           </div>
           <div className="note note-info" style={{ marginTop: 10 }}>
-            틀린 곳이 있으면 <b>[📤 표준 자료 엑셀로 저장]</b> 해서 엑셀에서 고친 뒤, <b>[시간표 파일 다시 불러오기]</b> 로 그 파일을 고르세요.
+            틀린 곳이 있으면 <b>[표준 자료 엑셀로 저장]</b> 해서 엑셀에서 고친 뒤, <b>[시간표 파일 다시 불러오기]</b> 로 그 파일을 고르세요.
             표준 자료 모양은 학교가 달라도 그대로 읽습니다.
-            {onAiRead ? ' 시간표 모양 자체를 잘못 읽었으면 [🤖 AI로 다시 읽기] 를 써 보세요.' : ''}
+            {onAiRead ? ' 시간표 모양 자체를 잘못 읽었으면 [AI로 다시 읽기] 를 써 보세요.' : ''}
           </div>
           <div className="row" style={{ marginTop: 8 }}>
             <button className="btn btn-sm" onClick={() => void exportStd()}>
-              📤 표준 자료 엑셀로 저장
+              표준 자료 엑셀로 저장
             </button>
             {onAiRead && (
               <button className="btn btn-sm" onClick={onAiRead}>
-                🤖 AI로 다시 읽기
+                AI로 다시 읽기
               </button>
             )}
           </div>
@@ -535,7 +535,7 @@ export default function TimetableSetup({ tt, rules, onSave, onCancel, onAiRead }
           </button>
         ) : (
           <button className="btn btn-primary" onClick={() => void save()} disabled={saving}>
-            {saving ? '저장하는 중…' : '✅ 이대로 정하기'}
+            {saving ? '저장하는 중…' : '이대로 정하기'}
           </button>
         )}
       </div>

@@ -240,7 +240,7 @@ export default function FormFillCard({
   return (
     <div className={`fill-card ${compact ? 'compact' : ''}`}>
       <div className="fill-card-head">
-        <b>📑 {formName}</b>
+        <b>{formName}</b>
         <span className="badge">.{kind}</span>
         {stage !== '쓰는 중' && stage !== '실패' && <span className="badge badge-accent">문단 {items.length}개</span>}
       </div>
@@ -272,7 +272,7 @@ export default function FormFillCard({
 
           {res?.review && (
             <div className="note fit-review" style={{ marginTop: 8 }}>
-              <b>🔍 검사관</b>
+              <b>검사관</b>
               {res.review.skipped ? (
                 <div className="small">{res.review.skipped}</div>
               ) : res.review.fixed.length ? (
@@ -290,7 +290,7 @@ export default function FormFillCard({
               {res.review.remain.length > 0 && (
                 <>
                   <div className="small" style={{ marginTop: 6 }}>
-                    <b>⚠ 아직 양식과 다른 곳</b> — 저장하기 전에 위에서 확인해 주세요.
+                    <b>아직 양식과 다른 곳</b> — 저장하기 전에 위에서 확인해 주세요.
                   </div>
                   <ul className="fit-list warn">
                     {res.review.remain.map((f, i) => (
@@ -302,7 +302,7 @@ export default function FormFillCard({
               {res.review.ask.length > 0 && (
                 <div className="fit-ask">
                   <div className="small" style={{ marginTop: 6 }}>
-                    <b>❓ 확인해 주세요</b> — 넣을 내용에 없어서 양식 값을 그대로 두었거나 비워 둔 것입니다. 답을 적고 다시 쓰게 하면 넣어 씁니다.
+                    <b>확인해 주세요</b> — 넣을 내용에 없어서 양식 값을 그대로 두었거나 비워 둔 것입니다. 답을 적고 다시 쓰게 하면 넣어 씁니다.
                   </div>
                   {res.review.ask.map((a, i) => (
                     <div className="field fit-q" key={i}>
@@ -342,7 +342,7 @@ export default function FormFillCard({
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <button className="btn btn-primary" onClick={() => void save()} disabled={stage === '저장 중'}>
-              {stage === '저장 중' ? '만드는 중…' : `💾 한글 파일로 저장 (.${kind})`}
+              {stage === '저장 중' ? '만드는 중…' : `한글 파일로 저장 (.${kind})`}
             </button>
           </div>
 

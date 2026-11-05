@@ -108,6 +108,9 @@ export interface LocalSettings {
   neis_key: string
   /** 구글 캘린더 "iCal 형식의 비공개 주소". 아는 사람은 누구나 일정을 볼 수 있어 키처럼 이 PC 에만 둔다 */
   gcal_url: string
+  /** 폰에서 보내기 — 선생님 구글 계정의 Apps Script 웹 앱 주소와 열쇠 (shared/relay.ts). 이 PC 에만 둔다 */
+  relay_url: string
+  relay_key: string
 }
 
 export interface ExtractedDoc {

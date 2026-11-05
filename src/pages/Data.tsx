@@ -100,7 +100,7 @@ export default function Data({ onChanged }: Props): JSX.Element {
             disabled={busy}
             onClick={() => void run(() => window.api.data.export(includePersonal))}
           >
-            📤 인수인계 파일 내보내기
+            인수인계 파일 내보내기
           </button>
         </div>
       </div>
@@ -116,7 +116,7 @@ export default function Data({ onChanged }: Props): JSX.Element {
             disabled={busy}
             onClick={() => void run(() => window.api.data.import())}
           >
-            📥 인수인계 파일 불러오기
+            인수인계 파일 불러오기
           </button>
         </div>
       </div>

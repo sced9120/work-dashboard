@@ -9,7 +9,7 @@ export default function FeedbackCard(): JSX.Element | null {
   return (
     <div className="card" id="feedback-card">
       <div className="card-title">
-        <span>💬 의견 · 오류 보내기</span>
+        <span>의견 · 오류 보내기</span>
       </div>
       <p className="small muted" style={{ marginTop: 0 }}>
         불편한 점, 오류, 바라는 기능을 만든이에게 보냅니다. 설문지가 브라우저로 열리고, 어느 버전에서 생긴 일인지 알 수 있게 프로그램 버전과

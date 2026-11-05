@@ -110,7 +110,7 @@ export default function NeisSettings({ schoolName, level, onApplyProfile }: Prop
   return (
     <div className="card">
       <div className="card-title">
-        <span>🏫 나이스 연결 (급식 · 학사일정)</span>
+        <span>나이스 연결 (급식 · 학사일정)</span>
         <button className="btn btn-sm btn-ghost" onClick={() => void window.api.shell.open(NEIS_PORTAL)}>
           교육정보 개방 포털 ↗
         </button>
@@ -150,7 +150,7 @@ export default function NeisSettings({ schoolName, level, onApplyProfile }: Prop
                 style={{ flex: 1, minWidth: 200 }}
               />
               <button className="btn" onClick={() => void search()} disabled={searching || query.trim().length < 2}>
-                {searching ? '찾는 중…' : '🔎 찾기'}
+                {searching ? '찾는 중…' : '찾기'}
               </button>
             </div>
             <div className="hint">인증키 없이도 찾을 수 있습니다(한 번에 5곳까지). 이름을 정확히 적을수록 잘 나옵니다.</div>

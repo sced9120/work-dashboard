@@ -102,7 +102,7 @@ export default function ScheduleImport({ onDone, onClose, onGo }: Props): JSX.El
   return (
     <div className="card">
       <div className="card-title">
-        <span>📥 나이스 학사일정 가져오기</span>
+        <span>나이스 학사일정 가져오기</span>
         <button className="btn btn-sm btn-ghost" onClick={onClose}>
           닫기
         </button>
@@ -150,7 +150,7 @@ export default function ScheduleImport({ onDone, onClose, onGo }: Props): JSX.El
               ))}
             </select>
             <button className="btn btn-primary" onClick={() => void load()} disabled={busy}>
-              {busy && !picks ? '받는 중…' : '🔎 학사일정 불러오기'}
+              {busy && !picks ? '받는 중…' : '학사일정 불러오기'}
             </button>
           </div>
 

@@ -1,3 +1,4 @@
+import Icon from '../components/Icon'
 import { useEffect, useMemo, useState } from 'react'
 import type { Deck, DesignSource, Slide, SlideKind, SlideTheme } from '../../shared/slides'
 import { BUILTIN_DESIGNS, SLIDE_KINDS, bodyText, builtinSource, withBody } from '../../shared/slides'
@@ -358,7 +359,7 @@ export default function Slides({ onGo }: Props): JSX.Element {
           <label className="row" style={{ justifyContent: 'space-between' }}>
             <span>자료 (공문 · 지침 · 메모)</span>
             <button className="btn btn-sm" onClick={() => void addFiles()} disabled={!!busy}>
-              {busy === '읽는 중' ? '읽는 중…' : '📄 파일에서 가져오기'}
+              {busy === '읽는 중' ? '읽는 중…' : '파일에서 가져오기'}
             </button>
           </label>
           <textarea
@@ -409,7 +410,9 @@ export default function Slides({ onGo }: Props): JSX.Element {
             )
           })}
           <button className={`design-tile ${st.design.kind !== 'builtin' ? 'active' : ''}`} onClick={() => void pickDesign()}>
-            <div className="design-swatch design-file">📎</div>
+            <div className="design-swatch design-file">
+              <Icon name="file" size={22} />
+            </div>
             <div className="design-name">
               {st.design.kind !== 'builtin' ? st.design.label : '참고 파일 고르기'}
             </div>
@@ -444,7 +447,7 @@ export default function Slides({ onGo }: Props): JSX.Element {
             <ModelPicker feature="scenario" label="발표자료에 쓸 모델" onReady={setModel} onChange={setModel} />
             <div className="row">
               <button className="btn btn-primary" onClick={() => void draft()} disabled={!!busy || !st.topic.trim()}>
-                {busy === '짜는 중' ? 'AI가 슬라이드를 짜는 중…' : st.slides.length ? '✨ 새로 짜기' : '✨ 슬라이드 내용 만들기'}
+                {busy === '짜는 중' ? 'AI가 슬라이드를 짜는 중…' : st.slides.length ? '새로 짜기' : '슬라이드 내용 만들기'}
               </button>
               <span className="muted small">내용은 AI가, 모양은 프로그램이 입힙니다.</span>
             </div>
@@ -544,7 +547,7 @@ export default function Slides({ onGo }: Props): JSX.Element {
 
           <div className="row" style={{ marginTop: 14 }}>
             <button className="btn btn-primary" onClick={() => void save()} disabled={!!busy}>
-              {busy === '저장 중' ? '만드는 중…' : '💾 PowerPoint 파일로 저장 (.pptx)'}
+              {busy === '저장 중' ? '만드는 중…' : 'PowerPoint 파일로 저장 (.pptx)'}
             </button>
             <span className="muted small">디자인: {st.design.label}</span>
           </div>

@@ -13,12 +13,14 @@ node -r ./tests/hook.cjs ./tests/run_batch.cjs     # 폴더 일괄 분석 (학�
 node -r ./tests/hook.cjs ./tests/run_chat.cjs      # 업무 도우미 · 일반 대화 · 대화 보관
 node -r ./tests/hook.cjs ./tests/run_catalog.cjs   # 도구 모음 목록 받기
 node -r ./tests/hook.cjs ./tests/run_memo.cjs      # 자유 메모장
+node -r ./tests/hook.cjs ./tests/run_messenger.cjs # 메신저 정리 · 폰에서 보내기
 node tests/t_mdtable.cjs                           # 답에서 표 뽑기 · 이어 붙이기 · 수식 (빌드 없이)
 node tests/t_markdown.cjs                          # AI 답의 Markdown 그리기 (빌드 없이)
 node tests/t_catalog.cjs                           # remote/catalog.json 규칙 (빌드 없이)
 node tests/t_ttdated.cjs                           # 시간표 — 그 날만 바꾼 수업 (빌드 없이)
 node tests/t_widgetgrid.cjs                        # 새 화면 오늘 판 — 위젯 칸 놓기 · 밀기 · 크기 (빌드 없이)
 node tests/t_hwpfit.cjs                            # 한글 양식 — 양식과 새 문서 맞춰 보기 · 칸 맞춤 · 『 』 굵게 · 검사관 답 (빌드 없이)
+node tests/t_messenger.cjs                         # 출결 명단 · 기록, 메신저 답 읽기, 폰 우편함 스크립트 (빌드 없이)
 node tests/t_weather.cjs                           # 날씨 · D-Day 위젯 — 학교 주소 → 지역 · 미세먼지 등급 · 날씨 답 읽기 · D-Day 셈 (빌드 없이)
 ```
 
@@ -32,10 +34,12 @@ Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron
 | `run_chat.cjs` | 파일 올리기(글 · 사진 · 스캔 PDF · 막는 것) · 일반 대화(지침 · 보관 자료 없음 · temperature 없음) · 다음 질문에도 앞 파일 · 고르지 않은 경로는 안 읽음 · 업무 도우미 지침 · OpenAI(image_url · file) · Claude(image · document) · HEIC · 받는 대로 · 멈추기 · 오류 · 대화 보관(목록 · 이름 · 지우기 · 이상한 번호) · 지침 모음 · 키 없는 서비스를 골랐으면 키 있는 서비스로 · 인수인계 파일에 안 들어감 |
 | `run_catalog.cjs` | GitHub → jsDelivr · 3시간 두기 · 깨진 파일이면 마지막 것 · 인수인계 파일에 안 들어감 |
 | `run_memo.cjs` | 메모 · 자유 워크플로우 · 검색 · '넘기기' 켠 것만 인수인계 |
+| `run_messenger.cjs` | 가리기(명단 학생 → 학생N · 성 없는 이름 · 다른 사람 → 사람A · 전화번호, 겹치는 이름은 그대로) · AI 에는 가린 글만 · 답의 가명 되돌리기 · 학생N → 명단 번호 · 키 없음 · 폰 우편함(코드 만들기 · 주소 모양 · 잇기 ping · 가져오기 + ack · 같은 글 두 번 안 넣기 · 받은 글 지우기 · HTML 답이면 배포 안내) · 인수인계 파일에 명단 · 출결 · 받은 글 없음 · 열쇠는 AI 키와 같은 칸 |
 | `t_mdtable.cjs` | `\|` · 코드 안의 \| · 코드 울타리 · ```markdown 으로 감싼 표 · 덜 나온 행 빼기 · 머리글 같은 표 잇기 · 수식(LaTeX) 안의 `\\` 지키기와 글자로 바꾸기(행렬 · 분수 · 첨자 · 기호, `$5` 같은 돈은 그대로) · `<br>` |
 | `t_markdown.cjs` | 굵게 · 기울임 · 코드 · 지움 · 스크립트는 글자로 · 링크는 http(s) 만 · 겹친 목록 · 칸 수가 다른 표 · 닫히지 않은 코드 · 수식 · 오래 걸리지 않음 |
 | `t_ttdated.cjs` | 주 고르기(일요일은 다음 주) · 그 날만 바꾸기 · 되돌리기 · 원래 글이면 안 바꿈 · 60일 지난 것 지우기 · 그 주에만 얹기 · 바뀐 칸에 원래 글 · 깨진 값 |
 | `t_widgetgrid.cjs` | 놓으면 겹친 위젯을 아래로(연쇄) · 끄는 동안 처음 자리에서 다시 계산 · 빈칸 메우기 · 첫 빈자리 · 깨진 판 풀기 · 판 · 크기 한도 · 손잡이별 크기 · 좁은 창 차례 |
 | `t_hwpfit.cjs` | 칸 맞춤 빈칸 되살리기(":" 없는 빈칸 · 쉼표 뒤는 그대로) · 『 』 안 굵게(바탕 모양이면 그대로) · 빠진 문단 · 빠진 문장 · 빠진 항목 줄 · 번호 건너뜀 · 지어 붙인 문단 · 제목 · 받는 사람 빈칸 · 학생 두 벌 · 둘째 벌에서만 빠진 줄 · 검사관 답(고친 것 · 물을 것 · 고친 문서 · 없음 · 그대로 · 모양 틀림) |
+| `t_messenger.cjs` | 명단 읽기(번호 · 학번 · 탭 · 번호 없음 · 겹친 번호) · 출결 합치기(같은 날 · 학생 · 종류) · 합계 · 표 복사 · 서류 기본값 · 프롬프트 날짜 · AI 답 읽기(틀린 날짜 · 시각 · 종류, 학생N → 번호) · 우편함 열쇠 · 웹 앱 주소 · 생성한 Apps Script 를 가짜 구글로 돌리기(열쇠 확인 · 쌓기 · 가져오기 · 지우기 · 폰 화면 스크립트 문법) |
 | `t_weather.cjs` | 학교 주소에서 시 · 군 · 구만(도 · 광역시 · 특별자치시) · 짧은 이름 · 날씨 코드 말(밤엔 달) · 미세먼지 등급(환경부 기준, 나쁜 쪽) · Open-Meteo 답(지금 · 오늘 · 내일 · 지금 시부터 12시간 · 미세먼지 못 받아도) · 우산 · 지금 비 · 미세먼지 알림 · D-Day(D-Day · D+ · 해 넘김) · 틀린 D-Day 빼기 · 다가오는 것 먼저 |
 | `t_catalog.cjs` | https 만 · 테마 토큰만 · 의견 설문지 · OCR 지침/모델(Gemini · OpenAI) · 실제 `remote/catalog.json` |

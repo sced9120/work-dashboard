@@ -92,6 +92,25 @@ export const TOURS: Record<PageId, Tour> = {
       { sel: '.main label', text: '처리한 것도 보기', title: '처리한 것도 보기', body: '처리 표시한 기한은 숨겨집니다. 다시 보려면 이것을 켜세요.', optional: true }
     ]
   },
+  메신저: {
+    page: '메신저',
+    intro: '메신저 · 카톡 글에서 할 일 · 출결 뽑기',
+    steps: [
+      { sel: H1, title: '메신저 정리', body: '쿨메신저 · 업무 메신저 · 카톡 글을 붙여 넣으면 AI 가 할 일과 출결 연락을 뽑아 줍니다. 넣기 전에 고치거나 뺄 수 있습니다.' },
+      { sel: '.main .msg-text', title: '붙여 넣기', body: '여러 메시지를 한꺼번에 넣어도 됩니다. 학생 이름은 학생7 처럼 번호로, 다른 이름은 사람A 로 가려서 보냅니다.' },
+      { sel: '.main .msg-privacy', title: 'AI 에 갈 글 보기', body: '무엇이 어떻게 가려져 나가는지 보내기 전에 확인할 수 있습니다.', optional: true },
+      { sel: '.main .relay-card', title: '폰에서 보내기', body: '선생님 구글 계정에 작은 우편함을 만들어 두면 폰에서 보낸 글이 몇 분 안에 여기로 옵니다.', optional: true }
+    ]
+  },
+  출결: {
+    page: '출결',
+    intro: '결석 · 지각 · 조퇴 · 결과 모아 두기',
+    steps: [
+      { sel: H1, title: '출결 기록', body: '우리 반 명단을 넣고 결석 · 지각 · 조퇴 · 결과를 모아 둡니다. 나이스에는 선생님이 직접 넣고, 여기서는 서류와 나이스 입력을 챙깁니다.' },
+      { sel: '.main .att-table', title: '한 달 표', body: '칸을 누르면 그 날 그 학생의 기록을 넣거나 고칩니다. 미인정은 주황으로 보입니다.', optional: true },
+      { sel: '.main .att-todo', title: '챙길 것', body: '서류를 아직 안 받았거나 나이스에 넣지 않은 기록이 모입니다.', optional: true }
+    ]
+  },
   일지: {
     page: '일지',
     intro: '오늘 한 일 한두 줄 남기기',
@@ -149,12 +168,12 @@ export const TOURS: Record<PageId, Tour> = {
     intro: '묻고, 넣어 달라고 하고, 문서를 만들어 달라고 하기',
     steps: [
       { sel: H1, title: '업무 도우미', body: '맡은 업무에 대해 묻고, 일정 · 업무를 넣어 달라고 하거나 학교 양식으로 문서를 만들어 달라고 할 수 있습니다. 지침을 주고 그냥 대화할 수도 있습니다.' },
-      { sel: '.main .chat-side', title: '대화 목록', body: '보낸 대화는 여기에 남습니다. [＋ 새 채팅] 으로 새로 시작하고, 마우스를 올리면 ✏️ 이름 바꾸기 · 🗑 지우기가 나옵니다. 대화는 이 PC 에만 두고 인수인계 파일에는 넣지 않습니다.', optional: true },
-      { sel: '.main .chat-modes', title: '두 가지 모드', body: '📚 업무 도우미는 보관한 공문 · 업무 · 일지 · 시간표를 근거로 답합니다. 💬 일반 대화는 보관 자료 없이, 위에 적은 지침(예: 세특 쓰기)을 따라 대화합니다.', optional: true },
+      { sel: '.main .chat-side', title: '대화 목록', body: '보낸 대화는 여기에 남습니다. [＋ 새 채팅] 으로 새로 시작하고, 마우스를 올리면 이름 바꾸기 · 지우기가 나옵니다. 대화는 이 PC 에만 두고 인수인계 파일에는 넣지 않습니다.', optional: true },
+      { sel: '.main .chat-modes', title: '두 가지 모드', body: '업무 도우미는 보관한 공문 · 업무 · 일지 · 시간표를 근거로 답합니다. 일반 대화는 보관 자료 없이, 위에 적은 지침(예: 세특 쓰기)을 따라 대화합니다.', optional: true },
       { sel: '.main label', text: '이 대화에 쓸 모델', up: 'div', title: '모델 고르기', body: '이 대화에 쓸 AI를 고릅니다. 비워 두면 설정의 기본값을 씁니다.', optional: true },
       { sel: '.main button', text: '놓치면 안 되는 기한', title: '예시 질문', body: '눌러서 바로 물어볼 수 있는 예시입니다. 내 업무에 맞게 고쳐 쓰세요.', optional: true },
-      { sel: '.main button', text: '📎 파일', exact: true, title: '파일 올리기', body: '공문 · 한글 · 사진 · 스캔 PDF 를 올립니다. 창 위로 끌어 놓아도 됩니다. 사진 · 스캔본은 AI 가 그림으로 읽습니다.', optional: true },
-      { sel: '.main textarea.chat-input', title: '묻기', body: 'Enter로 보내고 Shift+Enter로 줄을 바꿉니다. 답은 받는 대로 보이고, [⏹ 멈추기] 로 멈출 수 있습니다. 다른 화면으로 가도 받던 답은 이 대화에 남습니다.' }
+      { sel: '.main button', text: '파일', exact: true, title: '파일 올리기', body: '공문 · 한글 · 사진 · 스캔 PDF 를 올립니다. 창 위로 끌어 놓아도 됩니다. 사진 · 스캔본은 AI 가 그림으로 읽습니다.', optional: true },
+      { sel: '.main textarea.chat-input', title: '묻기', body: 'Enter로 보내고 Shift+Enter로 줄을 바꿉니다. 답은 받는 대로 보이고, [멈추기] 로 멈출 수 있습니다. 다른 화면으로 가도 받던 답은 이 대화에 남습니다.' }
     ]
   },
   가이드: {
@@ -231,7 +250,7 @@ export const TOURS: Record<PageId, Tour> = {
     page: 'OCR',
     intro: '스캔한 PDF · 사진을 글자 그대로 표로 읽어 엑셀로 (내 Gemini · OpenAI 키)',
     steps: [
-      { sel: H1, title: '문서 스캔 · 정리', body: '[📄 파일을 표로 옮기기] 는 스캔한 PDF · 사진을 AI 가 글자 그대로 읽어 표로 만들고 엑셀로 저장합니다. 요약하지 않고, 취소선으로 지운 글은 뺍니다. 설정에 넣은 내 Gemini 키를 쓰고, OpenAI 키만 있으면 OpenAI 의 싼 등급(gpt-6-luna)으로 읽습니다. [📁 폴더째 학생별 정리] 는 학생 결과물 폴더를 골라 학생마다 항목 정리 · 세특 · 채점을 받습니다.' },
+      { sel: H1, title: '문서 스캔 · 정리', body: '[파일을 표로 옮기기] 는 스캔한 PDF · 사진을 AI 가 글자 그대로 읽어 표로 만들고 엑셀로 저장합니다. 요약하지 않고, 취소선으로 지운 글은 뺍니다. 설정에 넣은 내 Gemini 키를 쓰고, OpenAI 키만 있으면 OpenAI 의 싼 등급(gpt-6-luna)으로 읽습니다. [폴더째 학생별 정리] 는 학생 결과물 폴더를 골라 학생마다 항목 정리 · 세특 · 채점을 받습니다.' },
       { sel: '.main .ocr-tabs', title: '탭', body: '탭마다 따로 읽습니다(5개까지). 다른 화면으로 가도 읽던 것은 계속 읽고, 다 읽으면 알려 드립니다.', optional: true },
       { sel: '.main button', text: '파일 고르기', title: '파일 고르기', body: 'PDF · 사진을 여러 개 고를 수 있고, 끌어 놓아도 됩니다. 이름 차례로 한 표에 모아 읽습니다.' },
       { sel: '.main textarea', title: '추가 요청', body: '“학번 순으로”, “영어 본문만”처럼 더 바라는 것을 적습니다. 비워 두면 문서 전체를 원문 그대로 표로 옮깁니다.' },

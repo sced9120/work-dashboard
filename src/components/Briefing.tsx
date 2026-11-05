@@ -60,7 +60,7 @@ export default function Briefing({ includePersonal }: Props): JSX.Element {
   return (
     <div className="card">
       <div className="card-title">
-        <span>📦 인수인계 꾸러미 만들기</span>
+        <span>인수인계 꾸러미 만들기</span>
         {text && <span className="badge badge-accent">{text.length.toLocaleString()}자</span>}
       </div>
 
@@ -92,7 +92,7 @@ export default function Briefing({ includePersonal }: Props): JSX.Element {
 
       <div className="row" style={{ marginBottom: 12 }}>
         <button className="btn btn-primary" onClick={() => void build()} disabled={busy}>
-          {busy ? '엮는 중…' : '✍ 인수인계서 초안 엮기'}
+          {busy ? '엮는 중…' : '인수인계서 초안 엮기'}
         </button>
         {text && (
           <>
@@ -105,10 +105,10 @@ export default function Briefing({ includePersonal }: Props): JSX.Element {
                 })()
               }
             >
-              📋 복사
+              복사
             </button>
             <button className="btn btn-primary" onClick={() => void savePackage()} disabled={busy}>
-              📦 꾸러미로 저장
+              꾸러미로 저장
             </button>
           </>
         )}
@@ -135,7 +135,7 @@ export default function Briefing({ includePersonal }: Props): JSX.Element {
           />
 
           <p className="hint" style={{ marginBottom: 0 }}>
-            <b>[📦 꾸러미로 저장]</b> 은 폴더 하나에 세 가지를 함께 담습니다 — 인수인계서(.txt),
+            <b>[꾸러미로 저장]</b> 은 폴더 하나에 세 가지를 함께 담습니다 — 인수인계서(.txt),
             인수인계 파일(.db), 그리고 받는 사람을 위한 안내문. 폴더째 넘겨주시면 됩니다.
           </p>
         </>

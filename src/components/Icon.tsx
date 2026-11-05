@@ -82,8 +82,14 @@ export type IconName =
   | 'rocket'
   | 'weather'
   | 'dday'
+  | 'edit'
+  | 'trash'
+  | 'file'
+  | 'image'
+  | 'folder'
+  | 'book'
 
-type Drawn = 'chevron' | 'up' | 'out' | 'lock' | 'unlock' | 'weather' | 'dday'
+type Drawn = 'chevron' | 'up' | 'out' | 'lock' | 'unlock' | 'weather' | 'dday' | 'edit' | 'trash' | 'file' | 'image' | 'folder' | 'book'
 
 /** 이 앱의 이름 → Lucian 아이콘 */
 const LUCIAN: Record<Exclude<IconName, Drawn>, string> = {
@@ -129,6 +135,12 @@ const PATHS: Record<Drawn, JSX.Element> = {
   unlock: <path d="M7 11V8a5 5 0 0 1 9.6-2M6.5 11h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5v-6A1.5 1.5 0 0 1 6.5 11Z" />,
   // 해와 구름
   weather: <path d="M9 3.5v1.5M3.5 9H5M5.1 5.1l1 1M12.9 5.1l-1 1M6.3 11.2A3.5 3.5 0 1 1 12.4 7.6M8 20h9.5a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6 1.2A3 3 0 0 0 8 20Z" />,
+  edit: <path d="M5 19h3.5L18.2 9.3a2.1 2.1 0 0 0-3-3L5.5 16v3ZM13.5 8l3 3" />,
+  trash: <path d="M5 7h14M10 7V5h4v2M7 7l.8 12h8.4L17 7M10.5 11v5M13.5 11v5" />,
+  file: <path d="M7 3.5h6.5L18 8v12.5H7V3.5ZM13 3.5V8.5h5M9.5 13h6M9.5 16.5h4" />,
+  image: <path d="M4.5 5.5h15v13h-15v-13ZM4.5 15.5l4-4 3.5 3.5 2.5-2.5 5 4.5M15.5 9.5h.01" />,
+  folder: <path d="M3.5 7a1.5 1.5 0 0 1 1.5-1.5h4.5l2 2H19A1.5 1.5 0 0 1 20.5 9v8.5A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5V7Z" />,
+  book: <path d="M5 5.5A1.5 1.5 0 0 1 6.5 4H19v13.5H6.5A1.5 1.5 0 0 0 5 19V5.5ZM5 19a1.5 1.5 0 0 0 1.5 1.5H19M9 8h6" />,
   // 동그라미 친 달력
   dday: <path d="M7 3.5v3M17 3.5v3M4.5 9.5h15M6 5h12a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 18 20H6a1.5 1.5 0 0 1-1.5-1.5v-12A1.5 1.5 0 0 1 6 5ZM12 17.5a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5Z" />
 }

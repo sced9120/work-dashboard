@@ -52,7 +52,7 @@ export default function PeerPanel({ tt, me, alias, prefs, save }: Props): JSX.El
   return (
     <div className={`card tt-peers ${confirmed ? '' : 'unconfirmed'}`}>
       <div className="card-title">
-        <span>👥 동교과 선생님 — 교체 · 보강 때 먼저 찾습니다</span>
+        <span>동교과 선생님 — 교체 · 보강 때 먼저 찾습니다</span>
         <span className="badge">{list.length}분</span>
         <span className="spacer" />
         <button className="btn btn-sm btn-ghost" onClick={() => setOpen(!open)}>

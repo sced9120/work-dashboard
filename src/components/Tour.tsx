@@ -251,7 +251,7 @@ function Coach({ tour, onGo, onExit }: { tour: Tour; onGo: (p: PageId) => void; 
         <h3 id="tour-title">{step.title}</h3>
         <p>{step.body}</p>
         {missing && <p className="tour-miss">지금 화면에는 이 부분이 보이지 않습니다. 자료가 생기면 나타납니다.</p>}
-        {acting && <p className="tour-do">👆 밝게 표시된 곳을 직접 눌러 보세요</p>}
+        {acting && <p className="tour-do">밝게 표시된 곳을 직접 눌러 보세요</p>}
         <div className="tour-btns">
           <button className="btn btn-sm btn-ghost" onClick={() => onExit(false)}>
             그만하기

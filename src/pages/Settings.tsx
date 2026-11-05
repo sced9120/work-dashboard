@@ -36,7 +36,9 @@ const DEFAULT_LOCAL: LocalSettings = {
   open_at_login: false,
   start_hidden: false,
   neis_key: '',
-  gcal_url: ''
+  gcal_url: '',
+  relay_url: '',
+  relay_key: ''
 }
 
 /** 서비스별 이름·키 발급처·키 생김새 · 모델 목록 · 가격 문서 */
@@ -135,7 +137,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     // Settings 는 feature_models 를 다루지 않는다. 다른 화면(ModelPicker)이
     // 그 사이 저장했을 값을 덮어쓰지 않도록, 직전 값을 그대로 다시 실어 보낸다.
     const latest = await window.api.local.load()
-    await window.api.local.save({ ...local, feature_models: latest.feature_models, neis_key: latest.neis_key, gcal_url: latest.gcal_url })
+    await window.api.local.save({ ...local, feature_models: latest.feature_models, neis_key: latest.neis_key, gcal_url: latest.gcal_url, relay_url: latest.relay_url, relay_key: latest.relay_key })
     toast('저장했습니다.', 'ok')
   }
 
@@ -145,7 +147,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     // Settings 는 feature_models 를 다루지 않는다. 다른 화면(ModelPicker)이
     // 그 사이 저장했을 값을 덮어쓰지 않도록, 직전 값을 그대로 다시 실어 보낸다.
     const latest = await window.api.local.load()
-    await window.api.local.save({ ...local, feature_models: latest.feature_models, neis_key: latest.neis_key, gcal_url: latest.gcal_url })
+    await window.api.local.save({ ...local, feature_models: latest.feature_models, neis_key: latest.neis_key, gcal_url: latest.gcal_url, relay_url: latest.relay_url, relay_key: latest.relay_key })
     setTestMsg(await window.api.ai.test())
     setTesting(false)
   }
@@ -201,7 +203,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
 
     setLocal(next)
     const latest = await window.api.local.load()
-    await window.api.local.save({ ...next, feature_models: latest.feature_models, neis_key: latest.neis_key, gcal_url: latest.gcal_url })
+    await window.api.local.save({ ...next, feature_models: latest.feature_models, neis_key: latest.neis_key, gcal_url: latest.gcal_url, relay_url: latest.relay_url, relay_key: latest.relay_key })
   }
 
   const lists = { custom: local.custom_models ?? {}, hidden: local.hidden_models ?? {} }
@@ -279,7 +281,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
           <label>업무분장표</label>
           <div className="row" style={{ marginBottom: 6 }}>
             <button className="btn btn-sm" onClick={() => void pickRoster()} disabled={reading}>
-              {reading ? '읽는 중…' : '📄 파일에서 불러오기'}
+              {reading ? '읽는 중…' : '파일에서 불러오기'}
             </button>
             <span className="muted small">한글·엑셀·PDF 에서 글을 뽑아 옵니다</span>
             {roster && (

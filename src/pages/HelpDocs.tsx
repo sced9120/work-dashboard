@@ -130,7 +130,7 @@ export default function HelpDocs({ onGo }: Props): JSX.Element {
               onClick={() => void window.api.shell.open(item.url)}
               title="교육청 자료실의 자료 폴더를 브라우저로 엽니다"
             >
-              📂 자료 폴더 ↗
+              자료 폴더 ↗
             </button>
             <button className="btn btn-sm btn-ghost" onClick={() => setOpen(isOpen ? null : item.id)}>
               {isOpen ? '접기' : '파일 보기'}
@@ -160,9 +160,9 @@ export default function HelpDocs({ onGo }: Props): JSX.Element {
             })}
             <div className="row" style={{ marginTop: 8 }}>
               <button className="btn btn-sm" onClick={() => ask(item)}>
-                💬 이 업무를 도우미에게 묻기
+                이 업무를 도우미에게 묻기
               </button>
-              <span className="muted small">파일은 [📂 자료 폴더] 에서 내려받습니다.</span>
+              <span className="muted small">파일은 [자료 폴더] 에서 내려받습니다.</span>
             </div>
           </div>
         )}
@@ -188,7 +188,7 @@ export default function HelpDocs({ onGo }: Props): JSX.Element {
 
       <div className="card">
         <div className="card-title">
-          <span>⭐ 내 업무</span>
+          <span>내 업무</span>
           {!picking && (
             <button className="btn btn-sm btn-primary" onClick={openPicker}>
               {mine.length ? '내 업무 다시 고르기' : '내 업무 고르기'}

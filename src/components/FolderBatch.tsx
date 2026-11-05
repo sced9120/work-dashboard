@@ -1,3 +1,4 @@
+import Icon from './Icon'
 import { useEffect, useMemo, useState } from 'react'
 import type { BatchStudent } from '../../shared/batch'
 import { BATCH_DEFAULT_ITEMS, batchTable, lengthOk, seteukLength } from '../../shared/batch'
@@ -22,7 +23,7 @@ import {
 import { useToast } from '../lib/toast'
 import ModelPicker from './ModelPicker'
 
-const KIND_ICON = { pdf: '📕', image: '🖼', doc: '📝' } as const
+const KIND_ICON = { pdf: 'file', image: 'image', doc: 'file' } as const
 
 /** 결과 표에서 미리 보여 줄 글자 수 (긴 칸은 눌러서 펼친다) */
 const CLIP = 140
@@ -193,7 +194,7 @@ export default function FolderBatch({ onSettings }: { onSettings: () => void }):
           </div>
           <div className="row">
             <button className="btn btn-primary btn-sm" onClick={() => void pick()} disabled={b.busy}>
-              📁 폴더 고르기
+              폴더 고르기
             </button>
             {b.folder && (
               <>
@@ -250,7 +251,7 @@ export default function FolderBatch({ onSettings }: { onSettings: () => void }):
                         <td>
                           {s.files.map((f) => (
                             <span key={f.id} className="batch-file" title={`${f.name} · ${fmtBytes(f.size)}`}>
-                              {KIND_ICON[f.kind]} {f.name}
+                              <Icon name={KIND_ICON[f.kind]} size={14} className="att-ico" /> {f.name}
                             </span>
                           ))}
                         </td>
@@ -360,7 +361,7 @@ export default function FolderBatch({ onSettings }: { onSettings: () => void }):
           )}
           {!b.busy && failed.length > 0 && (
             <button className="btn btn-sm" onClick={() => void runBatch(model, failed.map((s) => s.key))} disabled={!b.agree}>
-              🔄 실패한 {failed.length}명 다시
+              실패한 {failed.length}명 다시
             </button>
           )}
         </div>
@@ -388,17 +389,17 @@ export default function FolderBatch({ onSettings }: { onSettings: () => void }):
           </div>
           <div className="row" style={{ marginBottom: 10 }}>
             <button className="btn btn-primary btn-sm" onClick={() => void save('xlsx')} disabled={b.busy}>
-              📥 엑셀로 저장
+              엑셀로 저장
             </button>
             <button className="btn btn-sm" onClick={() => void save('csv')} disabled={b.busy}>
               CSV 로 저장
             </button>
             <button className="btn btn-sm" onClick={() => void copy()}>
-              📋 표 복사
+              표 복사
             </button>
             {o.seteuk && (
               <button className="btn btn-sm" onClick={() => void copySeteuk()}>
-                📋 세특만 복사
+                세특만 복사
               </button>
             )}
             <span className="muted small">{b.savedAt ? '저장했습니다.' : '결과는 프로그램을 끄면 사라집니다 — 저장해 두세요.'}</span>
@@ -440,7 +441,7 @@ export default function FolderBatch({ onSettings }: { onSettings: () => void }):
 
       {drag > 0 && !b.busy && (
         <div className="drop-cover">
-          <div className="drop-cover-box">📁 여기에 폴더를 놓으면 학생별로 묶어 읽을 준비를 합니다</div>
+          <div className="drop-cover-box">여기에 폴더를 놓으면 학생별로 묶어 읽을 준비를 합니다</div>
         </div>
       )}
     </div>

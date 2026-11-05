@@ -1,3 +1,4 @@
+import Icon from '../components/Icon'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatAttachment, ChatMeta, ChatMode } from '../../shared/chat'
 import { CHAT_MODES, chatGroup } from '../../shared/chat'
@@ -141,7 +142,7 @@ function DocCard({
   return (
     <div className="plan">
       <div className="plan-head">
-        <b>📄 한글 파일로 만들까요?</b>
+        <b>한글 파일로 만들까요?</b>
         <span className="badge">양식 없이 · .hwpx</span>
       </div>
       <textarea value={draft} onChange={(e) => setDraft(e.target.value)} style={{ minHeight: 160 }} />
@@ -151,7 +152,7 @@ function DocCard({
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <button className="btn btn-primary" onClick={() => void save()} disabled={busy || !draft.trim()}>
-          {busy ? '만드는 중…' : '💾 한글 파일로 저장'}
+          {busy ? '만드는 중…' : '한글 파일로 저장'}
         </button>
       </div>
       {doc.saved && (
@@ -171,7 +172,7 @@ function DocCard({
   )
 }
 
-const kindIcon = (a: ChatAttachment): string => (a.kind === 'image' ? '🖼' : a.kind === 'pdf' ? '📑' : '📄')
+const kindIcon = (a: ChatAttachment): JSX.Element => <Icon name={a.kind === 'image' ? 'image' : 'file'} size={14} className="att-ico" />
 const kindNote = (a: ChatAttachment): string =>
   a.kind === 'text' ? `${(a.text ?? '').length.toLocaleString()}자` : a.kind === 'image' ? '사진 그대로' : '스캔본 · 파일 그대로'
 
@@ -242,7 +243,9 @@ function ChatList({ currentId, busyIds }: { currentId: string; busyIds: Set<stri
               ) : (
                 <div key={m.id} className={`chat-side-item ${m.id === currentId ? 'active' : ''}`}>
                   <button className="chat-side-open" onClick={() => void openChat(m.id)} title={m.title}>
-                    <span className="chat-side-icon">{m.mode === 'free' ? '💬' : '📚'}</span>
+                    <span className="chat-side-icon">
+                      <Icon name={m.mode === 'free' ? 'chat' : 'book'} size={15} />
+                    </span>
                     <span className="chat-side-title">{m.title}</span>
                     {busyIds.has(m.id) && <span className="chat-side-busy" title="답을 받는 중" />}
                   </button>
@@ -255,10 +258,10 @@ function ChatList({ currentId, busyIds }: { currentId: string; busyIds: Set<stri
                       setEditing(m.id)
                     }}
                   >
-                    ✏️
+                    <Icon name="edit" size={15} />
                   </button>
                   <button className="chat-side-act" title="지우기" aria-label={`${m.title} 지우기`} onClick={() => void remove(m)}>
-                    🗑
+                    <Icon name="trash" size={15} />
                   </button>
                 </div>
               )
@@ -296,7 +299,7 @@ function InstructionBox({ rec, locked }: { rec: Rec; locked: boolean }): JSX.Ele
   return (
     <div className={`chat-inst ${open ? 'open' : ''}`}>
       <button className="chat-inst-head" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <span className="chat-inst-label">📝 지침</span>
+        <span className="chat-inst-label">지침</span>
         <span className="chat-inst-sum">{firstLine ? firstLine : '없음 — 눌러서 이 대화에서 따를 지침을 적을 수 있습니다'}</span>
         <span className="muted small">{open ? '접기 ▲' : '펴기 ▼'}</span>
       </button>
@@ -364,7 +367,7 @@ function InstructionBox({ rec, locked }: { rec: Rec; locked: boolean }): JSX.Ele
           <div className="row" style={{ gap: 6, marginTop: 6 }}>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="지침 이름 (예: 수학 세특)" style={{ maxWidth: 240 }} />
             <button className="btn btn-sm" onClick={() => void save()} disabled={!rec.instruction.trim()}>
-              💾 이 지침 저장
+              이 지침 저장
             </button>
             <span className="hint" style={{ margin: 0 }}>
               지침은 대화마다 따로 저장되고, 대화 중에도 고칠 수 있습니다.
@@ -557,12 +560,14 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
 
   const welcome = free ? (
     <div className="chat-welcome">
-      <div className="chat-welcome-emoji">💬</div>
+      <div className="chat-welcome-emoji">
+        <Icon name="chat" size={32} />
+      </div>
       <div className="chat-welcome-title">무엇이든 이야기해 보세요</div>
       <p className="chat-welcome-sub">
-        보관한 공문 · 업무는 싣지 않고 그냥 대화합니다. 위 <b>📝 지침</b>에 적은 대로 대화 내내 따릅니다.
+        보관한 공문 · 업무는 싣지 않고 그냥 대화합니다. 위 <b>지침</b>에 적은 대로 대화 내내 따릅니다.
         <br />
-        학생 결과물(보고서 · 활동지 · 사진 · 스캔 PDF)을 <b>끌어 놓거나 [📎 파일]</b>로 올리고 세특 초안을 부탁해 보세요. 그림을 만들어 주지는 않습니다.
+        학생 결과물(보고서 · 활동지 · 사진 · 스캔 PDF)을 <b>끌어 놓거나 [파일]</b>로 올리고 세특 초안을 부탁해 보세요. 그림을 만들어 주지는 않습니다.
       </p>
       <div className="chat-suggest">
         {FREE_SUGGESTIONS.map((s) => (
@@ -574,7 +579,9 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
     </div>
   ) : (
     <div className="chat-welcome">
-      <div className="chat-welcome-emoji">📚</div>
+      <div className="chat-welcome-emoji">
+        <Icon name="book" size={32} />
+      </div>
       <div className="chat-welcome-title">무엇을 도와드릴까요?</div>
       <p className="chat-welcome-sub">
         {docCount > 0 ? (
@@ -591,7 +598,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
         <br />
         <b>일정이나 업무를 넣어 달라고 하셔도 됩니다.</b> 넣을 목록을 먼저 보여 드리고, 누르시면 그때 들어갑니다.
         <br />
-        <b>"이런 내용으로 회의록 양식에 맞춰 만들어 줘"</b> 처럼 부탁하시면 넣어 둔 한글 양식의 모양으로 새 한글 파일을 만들어 드립니다. [📎 파일] 로 올린 한글
+        <b>"이런 내용으로 회의록 양식에 맞춰 만들어 줘"</b> 처럼 부탁하시면 넣어 둔 한글 양식의 모양으로 새 한글 파일을 만들어 드립니다. [파일] 로 올린 한글
         파일을 양식으로 써도 됩니다.
         <br />
         교육청 <b>학교업무 도움자료</b>(업무흐름도·서식) 가운데 질문에 맞는 자료 폴더도 함께 찾아 드립니다.
@@ -608,7 +615,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
 
   const avatar = (
     <div className="chat-avatar" aria-hidden="true">
-      {free ? '💬' : '📚'}
+      <Icon name={free ? 'chat' : 'book'} size={16} />
     </div>
   )
   const who = <div className="chat-who">{free ? 'AI' : '업무 도우미'}</div>
@@ -635,7 +642,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
           ) : (
             <div className="chat-text">{m.content}</div>
           ))}
-        {m.stopped && <div className="chat-stopped">⏹ 멈춘 곳까지 받았습니다</div>}
+        {m.stopped && <div className="chat-stopped">멈춘 곳까지 받았습니다</div>}
 
         {m.plan && (
           <div className="plan">
@@ -695,7 +702,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
             <span className="chat-sources-label">도움자료</span>
             {m.links.map((l) => (
               <button key={l.url} className="chat-source-chip chat-link-chip" title="교육청 학교업무 도움자료의 자료 폴더를 브라우저로 엽니다" onClick={() => void window.api.shell.open(l.url)}>
-                📂 {l.title} ↗
+                {l.title} ↗
               </button>
             ))}
           </div>
@@ -715,19 +722,19 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
         {m.role === 'assistant' && !m.error && m.content && (
           <div className="chat-acts">
             <button className="chat-act" onClick={() => void copy(m.content)} title="답을 복사합니다">
-              📋 복사
+              복사
             </button>
             {(() => {
               const n = extractTables(m.content).length
               return n > 0 ? (
                 <button className="chat-act chat-act-xlsx" onClick={() => void saveXlsx(m.content)} title={n > 1 ? `답의 표 ${n}개를 시트 ${n}장짜리 엑셀 파일로 저장합니다` : '답의 표를 엑셀 파일로 저장합니다'}>
-                  📥 엑셀로 저장{n > 1 ? ` (표 ${n}개)` : ''}
+                  엑셀로 저장{n > 1 ? ` (표 ${n}개)` : ''}
                 </button>
               ) : null
             })()}
             {i === lastAssistant && (
               <button className="chat-act" onClick={() => void regenerate(id, { jobTitle, model }).then(after)} disabled={busy} title="같은 질문으로 답을 다시 받습니다">
-                🔄 다시 받기
+                다시 받기
               </button>
             )}
           </div>
@@ -735,7 +742,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
         {m.error && i === lastAssistant && (
           <div className="chat-acts">
             <button className="chat-act" onClick={() => void regenerate(id, { jobTitle, model }).then(after)} disabled={busy}>
-              🔄 다시 해 보기
+              다시 해 보기
             </button>
           </div>
         )}
@@ -767,7 +774,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
         <div className="chat-main">
           <div className="chat-bar">
             <button className="btn btn-sm btn-ghost" onClick={toggleSide} title={side ? '대화 목록 숨기기' : '대화 목록 보기'} aria-label={side ? '대화 목록 숨기기' : '대화 목록 보기'}>
-              {side ? '◀' : '☰'}
+              {side ? '◀' : ''}
             </button>
             {!side && (
               <button className="btn btn-sm" onClick={() => newChat()}>
@@ -785,7 +792,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
                   disabled={busy}
                   title={m.desc}
                 >
-                  {m.icon} {m.label}
+                  <Icon name={m.id === 'free' ? 'chat' : 'book'} size={15} /> {m.label}
                 </button>
               ))}
             </div>
@@ -863,7 +870,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
               />
               <div className="chat-composer-foot">
                 <button className="chat-tool" onClick={() => void attach()} disabled={busy || reading || !hasKey} title="문서 · 사진을 올려 함께 보며 이야기합니다. 끌어 놓아도 됩니다.">
-                  {reading ? '읽는 중…' : '📎 파일 올리기'}
+                  {reading ? '읽는 중…' : '파일 올리기'}
                 </button>
                 <span className="spacer" />
                 {busy ? (
@@ -893,7 +900,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
 
       {drag > 0 && hasKey && !busy && (
         <div className="drop-cover">
-          <div className="drop-cover-box">📎 여기에 놓으면 대화에 올립니다</div>
+          <div className="drop-cover-box">여기에 놓으면 대화에 올립니다</div>
         </div>
       )}
     </div>

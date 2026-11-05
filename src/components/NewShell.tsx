@@ -31,7 +31,8 @@ const TABS: { id: TabId; label: string; subs: Sub[] }[] = [
     label: '이번 주',
     subs: [
       { page: '시간표', label: '시간표' },
-      { page: '달력', label: '달력' }
+      { page: '달력', label: '달력' },
+      { page: '출결', label: '출결 기록' }
     ]
   },
   {
@@ -69,6 +70,7 @@ const MAKE: { title: string; items: MakeItem[] }[] = [
   {
     title: '기록',
     items: [
+      { page: '메신저', icon: 'chat', label: '메신저 정리', desc: '메신저 · 카톡 글에서 할 일 · 출결 뽑기' },
       { page: '메모장', icon: 'note', label: '자유 메모장', desc: '아무 메모나 적어 두기' },
       { page: '일지', icon: 'pen', label: '업무 일지', desc: '한 일 · 한 줄 기록' }
     ]

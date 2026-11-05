@@ -20,6 +20,8 @@ export const NAV: { section: string; items: NavItem[] }[] = [
       { id: '달력', icon: 'calendar', label: '달력' },
       { id: '시간표', icon: 'clock', label: '시간표' },
       { id: '기한', icon: 'hourglass', label: '절차 기한' },
+      { id: '메신저', icon: 'chat', label: '메신저 정리' },
+      { id: '출결', icon: 'class', label: '출결 기록' },
       { id: '일지', icon: 'pen', label: '업무 일지' },
       { id: '메모장', icon: 'note', label: '자유 메모장' }
     ]

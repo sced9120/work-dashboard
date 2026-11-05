@@ -92,7 +92,7 @@ export default function Onboarding({ onDone }: Props): JSX.Element {
           <h1>내 업무 고르기</h1>
           <p className="lead">
             맡은 일을 적으면 교육청 <b>학교업무 도움자료</b> 가운데 맞는 것을 찾아 드립니다. 고른 업무는 업무 도우미가
-            먼저 살피고, [🧭 학교업무 도움자료] 에서 바로 열 수 있습니다.
+            먼저 살피고, [학교업무 도움자료] 에서 바로 열 수 있습니다.
           </p>
 
           <div className="card">
@@ -102,7 +102,7 @@ export default function Onboarding({ onDone }: Props): JSX.Element {
             </div>
             <HelpPicker level={level} text={duties} onText={setDuties} selected={picked} onSelected={setPicked} />
             <div className="hint">
-              연간 업무 로드맵에 미리 넣지는 않습니다. 내 업무는 나중에 [🧭 학교업무 도움자료] 에서 다시 고를 수 있습니다.
+              연간 업무 로드맵에 미리 넣지는 않습니다. 내 업무는 나중에 [학교업무 도움자료] 에서 다시 고를 수 있습니다.
             </div>
             <div className="row row-end" style={{ marginTop: 12 }}>
               <button className="btn btn-ghost" onClick={() => setStep('기본')} disabled={busy}>
@@ -190,7 +190,7 @@ export default function Onboarding({ onDone }: Props): JSX.Element {
             </label>
             <div className="row" style={{ marginBottom: 6 }}>
               <button className="btn btn-sm" onClick={() => void pickRoster()} disabled={reading}>
-                {reading ? '읽는 중…' : '📄 파일에서 불러오기'}
+                {reading ? '읽는 중…' : '파일에서 불러오기'}
               </button>
               <span className="muted small">한글·엑셀·PDF 에서 글을 뽑아 옵니다</span>
               {roster && (
@@ -233,7 +233,7 @@ export default function Onboarding({ onDone }: Props): JSX.Element {
           </p>
           <div className="row row-end">
             <button className="btn" onClick={() => void restore()} disabled={busy}>
-              📂 인수인계 파일 불러오기
+              인수인계 파일 불러오기
             </button>
           </div>
         </div>

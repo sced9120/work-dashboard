@@ -10,8 +10,8 @@
 export type ChatMode = 'work' | 'free'
 
 export const CHAT_MODES: { id: ChatMode; label: string; icon: string; desc: string }[] = [
-  { id: 'work', label: '업무 도우미', icon: '📚', desc: '보관한 공문 · 업무 · 일지 · 시간표를 근거로 답하고, 일정 넣기 · 한글 문서 만들기를 도와줍니다' },
-  { id: 'free', label: '일반 대화', icon: '💬', desc: '보관 자료 없이 그냥 대화합니다. 지침을 주면 그대로 따릅니다(세특 쓰기, 글 다듬기 …)' }
+  { id: 'work', label: '업무 도우미', icon: '', desc: '보관한 공문 · 업무 · 일지 · 시간표를 근거로 답하고, 일정 넣기 · 한글 문서 만들기를 도와줍니다' },
+  { id: 'free', label: '일반 대화', icon: '', desc: '보관 자료 없이 그냥 대화합니다. 지침을 주면 그대로 따릅니다(세특 쓰기, 글 다듬기 …)' }
 ]
 
 /**

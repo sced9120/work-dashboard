@@ -59,7 +59,7 @@ export function SchoolStrip({ onGo }: { onGo: (p: PageId) => void }): JSX.Elemen
       <b>{school.name}</b>
       <span>{school.atptName}</span>
       {school.address && <span>{school.address}</span>}
-      {school.tel && <span>☎ {school.tel}</span>}
+      {school.tel && <span>전화 {school.tel}</span>}
       {school.homepage && (
         <button className="link" onClick={() => void window.api.shell.open(/^https?:/.test(school.homepage) ? school.homepage : `http://${school.homepage}`)}>
           누리집 ↗
@@ -292,7 +292,7 @@ export function HelpWidget({ onGo }: { onGo: (p: PageId) => void }): JSX.Element
           <span className="upcoming-title">{it.title.replace(/^[\d-]+\.\s*/, '')}</span>
           <span className="muted small">자료 {it.files.length}</span>
           <button className="btn btn-sm btn-ghost" onClick={() => void window.api.shell.open(it.url)}>
-            📂 ↗
+            자료 ↗
           </button>
         </div>
       ))}
@@ -440,7 +440,7 @@ export function NoticesWidget({ adding, onAdding }: { adding: boolean; onAdding:
             {n.link && (
               <div style={{ marginTop: 8 }}>
                 <button className="btn btn-sm" onClick={() => void window.api.shell.open(n.link)}>
-                  🔗 링크 열기
+                  링크 열기
                 </button>
               </div>
             )}
@@ -455,11 +455,11 @@ export function NoticesWidget({ adding, onAdding }: { adding: boolean; onAdding:
 
 export function QuickWidget({ onGo }: { onGo: (p: PageId) => void }): JSX.Element {
   const links: { page: PageId; label: string }[] = [
-    { page: '학습', label: '📥 공문 · 매뉴얼로 업무 목록 만들기' },
-    { page: '위원회', label: '📑 학교 문서 만들기' },
-    { page: '도우미', label: '💬 업무 도우미에게 묻기' },
-    { page: '로드맵', label: '📊 연간 로드맵 보기' },
-    { page: '데이터', label: '💾 인수인계 파일 내보내기' }
+    { page: '학습', label: '공문 · 매뉴얼로 업무 목록 만들기' },
+    { page: '위원회', label: '학교 문서 만들기' },
+    { page: '도우미', label: '업무 도우미에게 묻기' },
+    { page: '로드맵', label: '연간 로드맵 보기' },
+    { page: '데이터', label: '인수인계 파일 내보내기' }
   ]
   return (
     <div className="stack">

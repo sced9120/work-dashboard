@@ -16,6 +16,7 @@ node -r ./tests/hook.cjs ./tests/run_ocr.cjs
 node -r ./tests/hook.cjs ./tests/run_batch.cjs
 node -r ./tests/hook.cjs ./tests/run_catalog.cjs
 node -r ./tests/hook.cjs ./tests/run_memo.cjs
+node -r ./tests/hook.cjs ./tests/run_messenger.cjs
 node tests/t_mdtable.cjs
 node tests/t_markdown.cjs
 node tests/t_catalog.cjs
@@ -23,6 +24,7 @@ node tests/t_ttdated.cjs
 node tests/t_widgetgrid.cjs
 node tests/t_hwpfit.cjs
 node tests/t_weather.cjs
+node tests/t_messenger.cjs
 node scripts/check-catalog.mjs
 ```
 

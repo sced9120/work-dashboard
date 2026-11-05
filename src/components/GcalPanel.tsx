@@ -84,7 +84,7 @@ export default function GcalPanel({ onClose, onChanged }: Props): JSX.Element {
   return (
     <div className="card">
       <div className="card-title">
-        <span>🔗 구글 캘린더 (원할 때만)</span>
+        <span>구글 캘린더 (원할 때만)</span>
         <button className="btn btn-sm btn-ghost" onClick={onClose}>
           닫기
         </button>
@@ -192,7 +192,7 @@ export default function GcalPanel({ onClose, onChanged }: Props): JSX.Element {
           )}
           <div className="row" style={{ marginTop: 10 }}>
             <button className="btn btn-sm btn-primary" onClick={() => void exportIcs()} disabled={busy}>
-              {busy ? '만드는 중…' : '📤 .ics 파일로 저장'}
+              {busy ? '만드는 중…' : '.ics 파일로 저장'}
             </button>
           </div>
           <ol className="gcal-steps">

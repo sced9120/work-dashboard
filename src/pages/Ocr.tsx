@@ -250,7 +250,7 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
         </label>
         <div className="row" style={{ marginTop: 10 }}>
           <button className="btn btn-primary" onClick={() => void run()} disabled={busy || !files.length || !tab.agree || !hasKey}>
-            {busy ? '읽는 중…' : '🔎 읽어서 표로 만들기'}
+            {busy ? '읽는 중…' : '읽어서 표로 만들기'}
           </button>
           {busy && (
             <>
@@ -291,10 +291,10 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
           )}
           <div className="row" style={{ marginBottom: 10 }}>
             <button className="btn btn-primary btn-sm" onClick={() => void save()} disabled={!tables.length || busy}>
-              📥 엑셀로 저장
+              엑셀로 저장
             </button>
             <button className="btn btn-sm" onClick={() => void copy()} disabled={!tables.length || busy}>
-              📋 표 복사
+              표 복사
             </button>
             <button className="btn btn-sm btn-ghost" onClick={() => patchTab(id, { showRaw: !tab.showRaw })}>
               {tab.showRaw ? '받은 글 닫기' : '받은 글 보기'}
@@ -338,7 +338,7 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
 
       {drag > 0 && !busy && (
         <div className="drop-cover">
-          <div className="drop-cover-box">📄 여기에 놓으면 이 탭에서 읽을 파일로 넣습니다</div>
+          <div className="drop-cover-box">여기에 놓으면 이 탭에서 읽을 파일로 넣습니다</div>
         </div>
       )}
     </div>
@@ -414,11 +414,11 @@ export default function Ocr({ onGo }: Props): JSX.Element {
   const modes = (
     <div className="ocr-modes" role="tablist" aria-label="읽는 방법">
       <button role="tab" aria-selected={mode === 'files'} className={`ocr-mode ${mode === 'files' ? 'active' : ''}`} onClick={() => switchMode('files')}>
-        📄 파일을 표로 옮기기
+        파일을 표로 옮기기
         <small>스캔 PDF · 사진을 글자 그대로 한 표에</small>
       </button>
       <button role="tab" aria-selected={mode === 'folder'} className={`ocr-mode ${mode === 'folder' ? 'active' : ''}`} onClick={() => switchMode('folder')}>
-        📁 폴더째 학생별 정리
+        폴더째 학생별 정리
         <small>학생마다 항목 정리 · 세특 · 채점 → 엑셀 · CSV</small>
       </button>
     </div>

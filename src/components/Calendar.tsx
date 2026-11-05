@@ -111,7 +111,7 @@ export function layoutWeek(
       span: 1,
       fromPrev: false,
       toNext: false,
-      label: `⏰ ${d.title}`,
+      label: `기한 · ${d.title}`,
       color: 'deadline',
       done: false,
       rank: 0
@@ -571,7 +571,7 @@ export default function Calendar({
         </button>
         {compact && onOpenFull && (
           <button className="btn btn-sm" onClick={onOpenFull} title="달력 화면으로 크게 보기">
-            ⛶ 크게
+            크게
           </button>
         )}
         {big && onShrink && (
@@ -777,7 +777,7 @@ export default function Calendar({
                         {e.end_date && e.end_date !== e.event_date
                           ? ` · ${e.event_date} ~ ${e.end_date}`
                           : ''}
-                        {e.remind === 1 && ` · ⏰ ${ddayLabel(e.end_date || e.event_date)}`}
+                        {e.remind === 1 && ` · 기한 ${ddayLabel(e.end_date || e.event_date)}`}
                       </div>
                     </div>
                   </div>

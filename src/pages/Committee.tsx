@@ -1,3 +1,4 @@
+import Mono from '../components/Mono'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DocField, DocForm } from '../../shared/docforms'
 import {
@@ -61,7 +62,7 @@ const BLANK_FORM_EDITOR: FormEditor = {
   name: '',
   group: '직접 만든 서식',
   summary: '',
-  icon: '📃',
+  icon: '',
   outlineText: '',
   fieldText: '',
   guide: '',
@@ -630,7 +631,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
       JSON.stringify({
         name,
         group: formEditor.group.trim() || '직접 만든 서식',
-        icon: formEditor.icon || '📃',
+        icon: formEditor.icon || '',
         summary: formEditor.summary.trim(),
         outline,
         guide: formEditor.guide.trim(),
@@ -716,7 +717,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
 
       <div className="row" style={{ marginBottom: 6 }}>
         <button className="btn btn-sm" onClick={() => void pickExampleFile()} disabled={reading}>
-          {reading ? '읽는 중…' : '📄 파일에서 불러오기'}
+          {reading ? '읽는 중…' : '파일에서 불러오기'}
         </button>
         <button
           className="btn btn-sm btn-primary"
@@ -724,13 +725,13 @@ export default function Committee({ onGo }: Props): JSX.Element {
           disabled={!editing.content.trim()}
           title="이름·연락처·주민등록번호·학번·주소를 ○○○ 으로 덮습니다"
         >
-          🧹 개인정보 가리기
+          개인정보 가리기
         </button>
         <span className="muted small">한글·워드·PDF·엑셀에서 글을 뽑아 옵니다</span>
       </div>
 
       <div className="note note-info" style={{ marginBottom: 10 }}>
-        예시는 <b>형식만</b> 쓰이므로 이름이 없어도 됩니다. <b>[🧹 개인정보 가리기]</b> 를 누르면
+        예시는 <b>형식만</b> 쓰이므로 이름이 없어도 됩니다. <b>[개인정보 가리기]</b> 를 누르면
         이름 · 연락처 · 주민등록번호 · 학번 · 주소를 <code>○○○</code> 으로 덮습니다. 되돌릴 수
         없으니 덮은 뒤 눈으로 한 번 확인하세요 — 완벽하지 않습니다.
       </div>
@@ -773,10 +774,10 @@ export default function Committee({ onGo }: Props): JSX.Element {
 
       <div className="tabs">
         <button className={`tab ${mode === '만들기' ? 'active' : ''}`} onClick={() => setMode('만들기')}>
-          ✍ 문서 만들기
+          문서 만들기
         </button>
         <button className={`tab ${mode === '보관함' ? 'active' : ''}`} onClick={() => setMode('보관함')}>
-          🗂 양식 · 예시 보관함
+          양식 · 예시 보관함
           {hwpForms.length + templates.length > 0 && (
             <span className="badge" style={{ marginLeft: 6 }}>
               {hwpForms.length + templates.length}
@@ -784,14 +785,14 @@ export default function Committee({ onGo }: Props): JSX.Element {
           )}
         </button>
         <button className={`tab ${mode === '서식' ? 'active' : ''}`} onClick={() => setMode('서식')}>
-          📄 빈칸 채우기 (AI 안 씀)
+          빈칸 채우기 (AI 안 씀)
         </button>
         <button
           className="tab tab-link"
           onClick={() => onGo('도우미')}
           title="업무 도우미에게 말로 부탁해 문서를 만듭니다. 넣어 둔 한글 양식에 맞춰 파일로도 만들어 줍니다."
         >
-          💬 도우미와 대화로 만들기
+          도우미와 대화로 만들기
         </button>
       </div>
 
@@ -800,7 +801,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
         <>
           <div className="note note-info" style={{ marginBottom: 14 }}>
             <b>양식이 없어도 됩니다.</b> 문서마다 들어갈 항목을 프로그램이 알고 있어서, 내용만 채우면 바로
-            나옵니다. 학교에서 쓰던 한글 파일이 있으면 <b>[🗂 양식 · 예시 보관함]</b> 에 넣고 어느 문서의 양식인지
+            나옵니다. 학교에서 쓰던 한글 파일이 있으면 <b>[양식 · 예시 보관함]</b> 에 넣고 어느 문서의 양식인지
             골라 두세요. 그 문서를 고르면 <b>저장된 양식을 먼저 골라</b> 그 모양 그대로 한글 파일로 만들어 드립니다.
             <div style={{ marginTop: 6 }}>
               맡으신 업무에 필요한 문서가 없다면 맨 아래 <b>[＋ 문서 종류 직접 만들기]</b> 로 만들어 쓰실 수
@@ -820,14 +821,14 @@ export default function Committee({ onGo }: Props): JSX.Element {
                     const h = hwpForms.filter((x) => x.doc_kind === f.id).length
                     return (
                       <button key={f.id} className="pickcard" onClick={() => chooseForm(f)}>
-                        <span className="pickcard-icon">{f.icon}</span>
+                        <Mono name={f.name} size={34} className="pickcard-icon" />
                         <span className="pickcard-body">
                           <span className="pickcard-name">{f.name}</span>
                           <span className="pickcard-sum">{f.summary || '직접 만든 서식'}</span>
                         </span>
                         <span className="pickcard-badges">
                           {isCustom(f) && <span className="badge">내가 만든</span>}
-                          {h > 0 && <span className="badge badge-accent">📑 양식 {h}</span>}
+                          {h > 0 && <span className="badge badge-accent">양식 {h}</span>}
                           {n > 0 && <span className="badge">예시 {n}</span>}
                         </span>
                       </button>
@@ -840,7 +841,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
 
           <div className="card">
             <div className="card-title">
-              <span>📑 우리 학교 한글 양식으로 바로 만들기</span>
+              <span>우리 학교 한글 양식으로 바로 만들기</span>
               <button className="btn btn-sm" onClick={() => void addHwp()}>
                 ＋ 한글 양식 넣기
               </button>
@@ -855,7 +856,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
               <div className="pickgrid">
                 {hwpForms.map((h) => (
                   <button key={h.id} className="pickcard" onClick={() => openDirect(h)}>
-                    <span className="pickcard-icon">📑</span>
+                    <Mono name="양식" size={34} className="pickcard-icon" />
                     <span className="pickcard-body">
                       <span className="pickcard-name">{h.name}</span>
                       <span className="pickcard-sum">
@@ -921,15 +922,6 @@ export default function Committee({ onGo }: Props): JSX.Element {
                 ))}
               </datalist>
             </div>
-            <div className="field" style={{ width: 90 }}>
-              <label>아이콘</label>
-              <input
-                type="text"
-                value={formEditor.icon}
-                onChange={(e) => setFormEditor({ ...formEditor, icon: e.target.value })}
-                maxLength={4}
-              />
-            </div>
           </div>
 
           <div className="field">
@@ -951,14 +943,14 @@ export default function Committee({ onGo }: Props): JSX.Element {
             <label>예시 문서 (선택)</label>
             <div className="row" style={{ marginBottom: 6 }}>
               <button className="btn btn-sm" onClick={() => void pickSampleFile()} disabled={reading}>
-                {reading ? '읽는 중…' : '📄 파일에서 불러오기'}
+                {reading ? '읽는 중…' : '파일에서 불러오기'}
               </button>
               <button
                 className="btn btn-sm btn-primary"
                 onClick={() => void sketchFromSample()}
                 disabled={sketching || !hasKey || !formEditor.sample.trim()}
               >
-                {sketching ? '뽑는 중…' : '✨ 예시에서 서식 뽑기'}
+                {sketching ? '뽑는 중…' : '예시에서 서식 뽑기'}
               </button>
               {!hasKey && <span className="muted small">API 키가 있어야 뽑아낼 수 있습니다</span>}
             </div>
@@ -1038,7 +1030,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
           <div className="card">
             <div className="card-title">
               <span>
-                {form.icon} {form.name}
+                {form.name}
                 {isCustom(form) && (
                   <span className="badge" style={{ marginLeft: 8 }}>
                     내가 만든 서식
@@ -1055,7 +1047,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
                       className="btn btn-sm btn-danger"
                       onClick={() => void removeCustomForm(form)}
                     >
-                      🗑 서식 지우기
+                      서식 지우기
                     </button>
                   </>
                 )}
@@ -1115,7 +1107,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
                   }}
                 />
                 <span className="look-body">
-                  <span className="look-name">📑 저장된 우리 학교 한글 양식으로</span>
+                  <span className="look-name">저장된 우리 학교 한글 양식으로</span>
                   {hwpForms.length ? (
                     <>
                       <select
@@ -1169,7 +1161,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
               <label className={`look ${!useHwp || !hwpForm ? 'on' : ''}`}>
                 <input type="radio" checked={!useHwp || !hwpForm} onChange={() => setUseHwp(false)} />
                 <span className="look-body">
-                  <span className="look-name">📝 글로 초안 만들기</span>
+                  <span className="look-name">글로 초안 만들기</span>
                   <span className="look-sum">
                     들어갈 항목에 맞춰 글로 만듭니다. 복사해 붙이거나 한글 기본 모양(.hwpx)으로 저장합니다. 우리 학교
                     글 예시를 넣어 두면 그 형식을 따릅니다.
@@ -1292,7 +1284,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
               <div className="row">
                 {showNames && (
                   <button className="btn btn-sm" onClick={() => void findNames()}>
-                    🔍 이름 자동 찾기
+                    이름 자동 찾기
                   </button>
                 )}
                 <button className="btn btn-sm btn-ghost" onClick={() => setShowNames((v) => !v)}>
@@ -1373,7 +1365,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
                   </button>
                   <span className="spacer" />
                   <button className="btn" onClick={() => void buildPreview()}>
-                    👁 전송될 내용 확인
+                    전송될 내용 확인
                   </button>
                 </div>
 
@@ -1419,7 +1411,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
                   onClick={() => void composeHwp()}
                   disabled={!hasKey || missing.length > 0}
                 >
-                  {composeKey ? '🤖 다시 만들기' : `📑 「${hwpForm.name}」 모양으로 만들기`}
+                  {composeKey ? '다시 만들기' : `「${hwpForm.name}」 모양으로 만들기`}
                 </button>
               ) : (
                 <button
@@ -1481,27 +1473,27 @@ export default function Committee({ onGo }: Props): JSX.Element {
                       })()
                     }
                   >
-                    📋 복사
+                    복사
                   </button>
                   <button className="btn btn-sm" onClick={() => void keepAsExample()}>
-                    📚 예시로 남기기
+                    예시로 남기기
                   </button>
                   <button className="btn btn-sm" onClick={() => void saveResult()} title="메모장에서 열리는 .txt 파일">
-                    💾 텍스트로 저장
+                    텍스트로 저장
                   </button>
                   <button
                     className="btn btn-sm"
                     onClick={() => void saveAsHwp()}
                     title="양식 없이 한글 기본 모양(.hwpx)으로 저장합니다"
                   >
-                    📄 한글 파일로
+                    한글 파일로
                   </button>
                   <button
                     className="btn btn-sm btn-primary"
                     onClick={toHwpForm}
                     title="넣어 둔 학교 한글 양식의 모양으로 이 글을 새 한글 문서로 만듭니다"
                   >
-                    📑 학교 양식에 담기
+                    학교 양식에 담기
                   </button>
                 </div>
               </div>
@@ -1523,7 +1515,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
           {!(useHwp && hwpForm) && result && pourId !== null && (
             <div className="card">
               <div className="card-title">
-                <span>📑 학교 한글 양식에 담기</span>
+                <span>학교 한글 양식에 담기</span>
                 <button className="btn btn-sm btn-ghost" onClick={() => setPourId(null)}>
                   닫기
                 </button>
@@ -1544,7 +1536,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
                   ))}
                 </select>
                 <button className="btn btn-primary" onClick={() => setPourKey((k) => k + 1)} disabled={!hasKey}>
-                  {pourKey ? '🤖 다시 담기' : '🤖 이 양식에 담기'}
+                  {pourKey ? '다시 담기' : '이 양식에 담기'}
                 </button>
               </div>
               <p className="hint" style={{ marginBottom: 0 }}>
@@ -1580,7 +1572,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
           <div className="card">
             <div className="card-title">
               <span>
-                📑 {directForm.name}
+                {directForm.name}
                 {docName(directForm.doc_kind) && (
                   <span className="badge" style={{ marginLeft: 8 }}>
                     {docName(directForm.doc_kind)} 양식
@@ -1592,7 +1584,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
               </button>
             </div>
             <p className="hint" style={{ margin: 0 }}>
-              이 양식 하나를 틀로 새 한글 문서를 만듭니다. 문서 종류에 묶어 두려면 <b>[🗂 양식 · 예시 보관함]</b> 에서
+              이 양식 하나를 틀로 새 한글 문서를 만듭니다. 문서 종류에 묶어 두려면 <b>[양식 · 예시 보관함]</b> 에서
               고르세요.
             </p>
           </div>
@@ -1616,8 +1608,8 @@ export default function Committee({ onGo }: Props): JSX.Element {
             두면 그 자리를 채워 넣기만 합니다. 입력한 내용이 이 PC 밖으로 나가지 않으므로 실명을
             그대로 쓰셔도 됩니다.
             <div style={{ marginTop: 6 }}>
-              한글 양식 파일의 빈칸을 인터넷 없이 채우려면 <b>[✍ 문서 만들기]</b> 아래쪽{' '}
-              <b>[📑 우리 학교 한글 양식으로 바로 만들기]</b> 에서 양식을 고른 뒤 <b>[빈칸만 직접 채우기]</b> 를
+              한글 양식 파일의 빈칸을 인터넷 없이 채우려면 <b>[문서 만들기]</b> 아래쪽{' '}
+              <b>[우리 학교 한글 양식으로 바로 만들기]</b> 에서 양식을 고른 뒤 <b>[빈칸만 직접 채우기]</b> 를
               쓰세요.
             </div>
           </div>
@@ -1712,7 +1704,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
                         })()
                       }
                     >
-                      📋 복사
+                      복사
                     </button>
                     <button
                       className="btn btn-sm btn-primary"
@@ -1726,7 +1718,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
                         })()
                       }
                     >
-                      💾 파일로 저장
+                      파일로 저장
                     </button>
                   </div>
                 </div>
@@ -1750,7 +1742,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
       {mode === '보관함' && (
         <div className="card">
           <div className="card-title">
-            <span>📚 글 예시</span>
+            <span>글 예시</span>
             <button className="btn btn-sm btn-primary" onClick={() => openExampleEditor('')}>
               ＋ 예시 넣기
             </button>

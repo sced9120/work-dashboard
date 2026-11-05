@@ -1,3 +1,5 @@
+import Icon from '../components/Icon'
+import type { IconName } from '../components/Icon'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Task, TaskInput } from '../../shared/types'
 import TaskForm from '../components/TaskForm'
@@ -20,10 +22,10 @@ export interface GroupSeed {
 
 type ViewMode = '인포그래픽' | '업무별' | '목록'
 
-const VIEWS: { id: ViewMode; icon: string; hint: string }[] = [
-  { id: '인포그래픽', icon: '📊', hint: '한 해 흐름을 주제로 묶어 한눈에' },
-  { id: '업무별', icon: '🗂', hint: '한 업무의 공문·진행을 날짜순으로' },
-  { id: '목록', icon: '☰', hint: '업무 하나하나를 펼쳐 보고 고치는 곳' }
+const VIEWS: { id: ViewMode; icon: IconName; hint: string }[] = [
+  { id: '인포그래픽', icon: 'bars', hint: '한 해 흐름을 주제로 묶어 한눈에' },
+  { id: '업무별', icon: 'flow', hint: '한 업무의 공문·진행을 날짜순으로' },
+  { id: '목록', icon: 'guide', hint: '업무 하나하나를 펼쳐 보고 고치는 곳' }
 ]
 
 export default function Roadmap(): JSX.Element {
@@ -167,7 +169,9 @@ export default function Roadmap(): JSX.Element {
             onClick={() => setView(v.id)}
             title={v.hint}
           >
-            <span className="viewswitch-icon">{v.icon}</span>
+            <span className="viewswitch-icon">
+              <Icon name={v.icon} size={16} />
+            </span>
             {v.id}
           </button>
         ))}
@@ -240,7 +244,7 @@ export default function Roadmap(): JSX.Element {
               }}
               title="찾은 업무를 한 주제로 모읍니다. 이름은 다음 화면에서 고칠 수 있습니다"
             >
-              🗂 이 {visible.length}건을 한 주제로 묶기
+              이 {visible.length}건을 한 주제로 묶기
             </button>
           </div>
         )}

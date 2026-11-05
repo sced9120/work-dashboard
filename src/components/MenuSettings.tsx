@@ -90,7 +90,7 @@ export default function MenuSettings(): JSX.Element {
   return (
     <div className={`card menu-card ${flash ? 'flash' : ''}`} id="menu-settings" ref={boxRef}>
       <div className="card-title">
-        <span>🧭 왼쪽 메뉴</span>
+        <span>왼쪽 메뉴</span>
         <span className="muted small">이 PC에만 저장됩니다 · 인수인계 파일로 넘어가지 않습니다</span>
       </div>
       <p className="hint" style={{ marginTop: 0 }}>
@@ -129,13 +129,15 @@ export default function MenuSettings(): JSX.Element {
           <div className="menu-sec">바로가기</div>
           {nav.links.length === 0 && (
             <p className="small muted" style={{ margin: '2px 0 8px' }}>
-              자주 가는 누리집(나이스 · 업무포털 · 에듀파인 등)을 왼쪽 메뉴에 둡니다. [도구 모음]에서 📌 메뉴에 고정한 도구도
+              자주 가는 누리집(나이스 · 업무포털 · 에듀파인 등)을 왼쪽 메뉴에 둡니다. [도구 모음]에서 메뉴에 고정한 도구도
               여기 들어옵니다.
             </p>
           )}
           {nav.links.map((l, i) => (
             <div className="menu-row" key={l.id}>
-              <span className="menu-ico">{l.icon || <Icon name="link" size={16} />}</span>
+              <span className="menu-ico">
+                <Icon name="link" size={16} />
+              </span>
               <span className="menu-name">
                 {l.name}
                 <small>{l.tool ? '도구 모음에서 고정' : l.url}</small>

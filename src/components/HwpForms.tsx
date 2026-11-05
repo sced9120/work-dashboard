@@ -137,7 +137,7 @@ export function HwpFormShelf({ docs, onChanged, onUse }: ShelfProps): JSX.Elemen
   return (
     <div className="card">
       <div className="card-title">
-        <span>📑 한글 양식 파일</span>
+        <span>한글 양식 파일</span>
         <button className="btn btn-sm btn-primary" onClick={() => void add()}>
           ＋ 한글 양식 넣기
         </button>
@@ -326,7 +326,7 @@ export function HwpFormMaker({ form, content, onContent, aliases, hasKey, onGo, 
             )}
             {hasKey && (
               <button className="btn btn-sm" onClick={toChat} title="업무 도우미로 가서 말로 부탁합니다">
-                💬 도우미와 대화로 만들기
+                도우미와 대화로 만들기
               </button>
             )}
           </div>
@@ -413,7 +413,7 @@ export function HwpFormMaker({ form, content, onContent, aliases, hasKey, onGo, 
                   onClick={() => void saveDirect()}
                   disabled={busy}
                 >
-                  {busy ? '만드는 중…' : `💾 한글 파일로 저장 (.${form.kind})`}
+                  {busy ? '만드는 중…' : `한글 파일로 저장 (.${form.kind})`}
                 </button>
               </div>
             )}
@@ -449,7 +449,7 @@ export function HwpFormMaker({ form, content, onContent, aliases, hasKey, onGo, 
                 <ModelPicker feature="scenario" label="새 문서 쓰기에 쓸 모델" onReady={setModel} onChange={setModel} />
                 <div className="row" style={{ marginBottom: 12 }}>
                   <button className="btn btn-primary" onClick={runAi} disabled={!content.trim()}>
-                    {runKey ? '🤖 다시 쓰기' : '🤖 AI로 새 문서 쓰기'}
+                    {runKey ? '다시 쓰기' : 'AI로 새 문서 쓰기'}
                   </button>
                 </div>
               </>

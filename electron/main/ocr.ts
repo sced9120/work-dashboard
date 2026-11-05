@@ -706,7 +706,7 @@ async function readChunked(s: Session, chunks: PageChunk[], note: string, onProg
     OCR_CONTINUED
   )
   const intro = proseOf(results[0].answers[0].text).split('\n').find((l) => l.trim()) ?? ''
-  const missing = failed.length ? `\n\n> ⚠ 다음 쪽은 읽지 못했습니다. 그 쪽만 따로 다시 읽어 주세요: ${failed.join(' · ')}` : ''
+  const missing = failed.length ? `\n\n> 주의: 다음 쪽은 읽지 못했습니다. 그 쪽만 따로 다시 읽어 주세요: ${failed.join(' · ')}` : ''
   const text = `${intro}${missing}\n\n${tables.map(tableToMd).join('\n\n')}`
   const usage = results.reduce((u, r) => ({ input: u.input + (r?.usage.input ?? 0), output: u.output + (r?.usage.output ?? 0) }), { input: 0, output: 0 })
   return { ok: true, text, finish: 'stop', truncated: false, usage }

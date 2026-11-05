@@ -71,7 +71,7 @@ export default function LastYear({ tasks, onGo, bare }: Props): JSX.Element | nu
       {!bare && (
         <div className="card-title">
           <span>
-            🔁 작년 이맘때 <span className="muted">— {month}월 {week}주 무렵</span>
+            작년 이맘때 <span className="muted">— {month}월 {week}주 무렵</span>
           </span>
           <button className="btn btn-sm btn-ghost" onClick={() => onGo('로드맵')}>
             로드맵에서 보기

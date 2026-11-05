@@ -201,7 +201,7 @@ export default function ChainList({ tt, rules, who, me, manual, myClass, date, p
                       </ul>
                     </div>
                     <button className="btn btn-sm" onClick={() => void copy(o)}>
-                      📋 복사
+                      복사
                     </button>
                   </div>
                 </div>
@@ -217,7 +217,7 @@ export default function ChainList({ tt, rules, who, me, manual, myClass, date, p
             )}
             {!deep && (
               <button className="btn btn-sm" onClick={searchDeep} disabled={searching}>
-                {searching ? '찾는 중…' : '🔗 3중 교체까지 더 찾기'}
+                {searching ? '찾는 중…' : '3중 교체까지 더 찾기'}
               </button>
             )}
             {peers.size > 0 && (

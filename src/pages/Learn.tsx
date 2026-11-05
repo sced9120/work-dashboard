@@ -1,3 +1,4 @@
+import Icon from '../components/Icon'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DocKind, ExtractedDoc, ModelChoice, TaskDraft } from '../../shared/types'
 import { currentSchoolYear, schoolYearLabel } from '../../shared/types'
@@ -391,14 +392,18 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
           className={`viewswitch-btn ${source === '파일' ? 'active' : ''}`}
           onClick={() => setSource('파일')}
         >
-          <span className="viewswitch-icon">📁</span> 파일 올리기
+          <span className="viewswitch-icon">
+              <Icon name="inbox" size={16} />
+            </span> 파일 올리기
         </button>
         <button
           className={`viewswitch-btn ${source === '보관함' ? 'active' : ''}`}
           onClick={() => setSource('보관함')}
           title="이미 보관해 둔 공문을 파일 고르기 없이 학습시킵니다"
         >
-          <span className="viewswitch-icon">🗄</span> 저장된 문서 학습
+          <span className="viewswitch-icon">
+              <Icon name="box" size={16} />
+            </span> 저장된 문서 학습
         </button>
       </div>
 
@@ -414,7 +419,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
                 setKindPicked(true)
               }}
             >
-              {k === '길라잡이/매뉴얼' ? '📚 길라잡이 · 매뉴얼' : '📃 개별 공문'}
+              {k === '길라잡이/매뉴얼' ? '길라잡이 · 매뉴얼' : '개별 공문'}
             </button>
           ))}
         </div>
@@ -438,7 +443,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
                   setKindPicked(true)
                 }}
               >
-                📃 개별 공문으로 바꾸기
+                개별 공문으로 바꾸기
               </button>
             </div>
           </div>
@@ -542,7 +547,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
               style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
             />
             <span className="small">
-              🧹 개인정보를 가리고 AI에 보내기{' '}
+              개인정보를 가리고 AI에 보내기{' '}
               <span className="muted">
                 — 이름·연락처·주민등록번호·학번·주소를 ○○○ 으로 덮어 보냅니다. 보관하는 원문은
                 그대로 남습니다
@@ -637,7 +642,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
               onClick={() => void archiveOnly()}
               disabled={busy || readyCount === 0}
             >
-              📁 AI 없이 원문만 보관
+              AI 없이 원문만 보관
             </button>
             {busy && <span className="muted small">{progress}</span>}
           </div>

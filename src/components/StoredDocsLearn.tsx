@@ -300,7 +300,7 @@ export default function StoredDocsLearn({ jobTitle, kind, model, onKind }: Props
               onClick={() => onKind('개별 공문')}
               disabled={busy}
             >
-              📃 개별 공문으로 바꾸기
+              개별 공문으로 바꾸기
             </button>
           </div>
         </div>
@@ -479,7 +479,7 @@ export default function StoredDocsLearn({ jobTitle, kind, model, onKind }: Props
           style={{ width: 15, height: 15, accentColor: 'var(--accent)' }}
         />
         <span className="small">
-          🧹 개인정보를 가리고 AI에 보내기{' '}
+          개인정보를 가리고 AI에 보내기{' '}
           <span className="muted">
             — 이름·연락처·주민등록번호·학번·주소를 ○○○ 으로 덮어 보냅니다. 보관된 원문은 그대로
             남습니다
@@ -493,7 +493,7 @@ export default function StoredDocsLearn({ jobTitle, kind, model, onKind }: Props
           onClick={() => void run()}
           disabled={busy || !runGroups.length}
         >
-          {busy ? '분석 중…' : `🤖 고른 공문 ${runGroups.length}건 학습하기`}
+          {busy ? '분석 중…' : `고른 공문 ${runGroups.length}건 학습하기`}
         </button>
       </div>
     </div>

@@ -27,6 +27,8 @@ import Ocr from './pages/Ocr'
 import Icon from './components/Icon'
 import TourHost from './components/Tour'
 import NewShell, { focusAsk } from './components/NewShell'
+import Messenger from './pages/Messenger'
+import Attendance from './pages/Attendance'
 import { OrbitMark } from './components/Brand'
 import TodayBoard from './components/TodayBoard'
 import { AI_ITEM, DATA_ITEM, isShown, requestMenuEdit, sidebarNav, useNavPrefs } from './lib/nav'
@@ -59,6 +61,8 @@ export type PageId =
   | '도구'
   | '메모장'
   | 'OCR'
+  | '메신저'
+  | '출결'
 
 function Shell(): JSX.Element {
   const ui = useUiPrefs()
@@ -325,6 +329,8 @@ function Shell(): JSX.Element {
       {page === '도구' && <Tools />}
       {page === '메모장' && <Memos />}
       {page === 'OCR' && <Ocr onGo={setPage} />}
+      {page === '메신저' && <Messenger onGo={setPage} />}
+      {page === '출결' && <Attendance onGo={setPage} />}
     </>
   )
 
@@ -447,7 +453,9 @@ function Shell(): JSX.Element {
                     onClick={() => void window.api.shell.open(l.url)}
                     title={collapsed ? `${l.name} ↗` : l.url}
                   >
-                    <span className="nav-icon">{l.icon ? <span className="side-emoji">{l.icon}</span> : <Icon name="link" />}</span>
+                    <span className="nav-icon">
+                      <Icon name="link" />
+                    </span>
                     <span className="side-label">{l.name}</span>
                     <span className="side-label side-out">
                       <Icon name="out" size={13} />

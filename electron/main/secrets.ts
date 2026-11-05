@@ -44,7 +44,9 @@ const DEFAULTS: LocalSettings = {
   // 자동 실행으로 켜져도 창을 띄운다. 트레이에만 숨어 있으면 켜진 줄 모르고 지나치기 쉽다.
   start_hidden: false,
   neis_key: '',
-  gcal_url: ''
+  gcal_url: '',
+  relay_url: '',
+  relay_key: ''
 }
 
 interface StoredShape {
@@ -62,9 +64,9 @@ interface StoredShape {
   open_at_login?: boolean
   start_hidden?: boolean
   /** base64로 인코딩된 암호문 */
-  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string; gcal_url?: string }
+  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string }
   /** 암호화를 못 쓰는 환경일 때만 사용 */
-  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string; gcal_url?: string }
+  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string }
 }
 
 function coerceProvider(p: string | undefined): Provider {
@@ -176,6 +178,8 @@ function readLocalSettings(): LocalSettings {
   const claude_key = useEnc ? decrypt(raw.enc?.claude_key) : (raw.plain?.claude_key ?? '')
   const neis_key = useEnc ? decrypt(raw.enc?.neis_key) : (raw.plain?.neis_key ?? '')
   const gcal_url = useEnc ? decrypt(raw.enc?.gcal_url) : (raw.plain?.gcal_url ?? '')
+  const relay_url = useEnc ? decrypt(raw.enc?.relay_url) : (raw.plain?.relay_url ?? '')
+  const relay_key = useEnc ? decrypt(raw.enc?.relay_key) : (raw.plain?.relay_key ?? '')
 
   return {
     provider: coerceProvider(raw.provider),
@@ -194,7 +198,9 @@ function readLocalSettings(): LocalSettings {
     open_at_login: raw.open_at_login ?? DEFAULTS.open_at_login,
     start_hidden: raw.start_hidden ?? DEFAULTS.start_hidden,
     neis_key,
-    gcal_url
+    gcal_url,
+    relay_url,
+    relay_key
   }
 }
 
@@ -224,7 +230,9 @@ export function saveLocalSettings(next: LocalSettings): void {
       gemini_key: enc(next.gemini_key),
       claude_key: enc(next.claude_key),
       neis_key: enc(next.neis_key ?? ''),
-      gcal_url: enc(next.gcal_url ?? '')
+      gcal_url: enc(next.gcal_url ?? ''),
+      relay_url: enc(next.relay_url ?? ''),
+      relay_key: enc(next.relay_key ?? '')
     }
   } else {
     out.plain = {
@@ -232,7 +240,9 @@ export function saveLocalSettings(next: LocalSettings): void {
       gemini_key: next.gemini_key,
       claude_key: next.claude_key,
       neis_key: next.neis_key ?? '',
-      gcal_url: next.gcal_url ?? ''
+      gcal_url: next.gcal_url ?? '',
+      relay_url: next.relay_url ?? '',
+      relay_key: next.relay_key ?? ''
     }
   }
 

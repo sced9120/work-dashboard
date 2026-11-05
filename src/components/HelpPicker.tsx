@@ -63,7 +63,7 @@ export default function HelpPicker({ level, text, onText, selected, onSelected }
       </div>
       <div className="row" style={{ marginBottom: 10 }}>
         <button className="btn btn-primary" onClick={() => void run()} disabled={busy || !text.trim()}>
-          {busy ? '찾는 중…' : '🔎 맞는 도움자료 찾기'}
+          {busy ? '찾는 중…' : '맞는 도움자료 찾기'}
         </button>
         {matches && (
           <span className="muted small">
@@ -78,7 +78,7 @@ export default function HelpPicker({ level, text, onText, selected, onSelected }
             <div className="help-match" key={m.line}>
               <div className="help-match-line">{m.line}</div>
               {m.hits.length === 0 ? (
-                <div className="muted small">맞는 자료를 찾지 못했습니다. [🧭 학교업무 도움자료] 에서 직접 고를 수 있습니다.</div>
+                <div className="muted small">맞는 자료를 찾지 못했습니다. [학교업무 도움자료] 에서 직접 고를 수 있습니다.</div>
               ) : (
                 m.hits.map((h) => (
                   <label className="help-pick" key={h.id}>
