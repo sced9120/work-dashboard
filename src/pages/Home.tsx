@@ -23,6 +23,7 @@ import {
 import type { Box, PxBox } from '../lib/freeLayout'
 import { MIN_BODY_H, MIN_H, MIN_W, boardHeight, clampPx, fromPx, masonry, settle, toPx } from '../lib/freeLayout'
 import { useToast } from '../lib/toast'
+import { DdayWidget, WeatherWidget } from '../components/WeatherDday'
 
 interface Props {
   jobTitle: string
@@ -52,6 +53,8 @@ export type WidgetId =
   | 'lastyear'
   | 'notices'
   | 'quick'
+  | 'weather'
+  | 'dday'
 
 interface WidgetDef {
   /** 제목 앞 아이콘 (이모지 대신 테마 색을 따르는 선 아이콘) */
@@ -84,7 +87,9 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
   lastyear: { icon: 'past', title: '작년 이맘때', desc: '지난 학년도 이맘때 했던 일', wide: true, rank: 9, page: '로드맵', h: 220 },
   // 메모 카드 한 장이 100px 쯤 — 줄여도 두 장은 보이고 나머지는 스크롤
   notices: { icon: 'pin', title: '메모 · 공지', desc: '다음 담당자에게 남길 메모', wide: false, rank: 10, h: 300, minH: 280 },
-  quick: { icon: 'rocket', title: '빠른 이동', desc: '자주 가는 화면 버튼', wide: false, rank: 11, h: 260 }
+  quick: { icon: 'rocket', title: '빠른 이동', desc: '자주 가는 화면 버튼', wide: false, rank: 11, h: 260 },
+  weather: { icon: 'weather', title: '날씨', desc: '학교가 있는 곳(또는 고른 곳)의 지금 날씨 · 미세먼지 · 시간별', wide: false, rank: 1.5, h: 230 },
+  dday: { icon: 'dday', title: 'D-Day', desc: '시험 · 방학식 · 수능처럼 기다리는 날까지 남은 날', wide: false, rank: 1.6, h: 220 }
 }
 
 interface WidgetState {
@@ -433,6 +438,10 @@ export default function Home({ jobTitle, onGo }: Props): JSX.Element {
         return <NoticesWidget adding={noticeAdding} onAdding={setNoticeAdding} />
       case 'quick':
         return <QuickWidget onGo={onGo} />
+      case 'weather':
+        return <WeatherWidget onGo={onGo} w={(mode.free ? (w.box?.w ?? 0) * boardW > 560 : w.wide) ? 8 : 4} h={3} />
+      case 'dday':
+        return <DdayWidget h={3} />
     }
   }
 

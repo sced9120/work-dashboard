@@ -1,5 +1,5 @@
 /*
- * 화면 테마 — 기본 · 회색 벤토 · 글래스 · 미드나잇 · 라벤더, 각각 밝게 · 어둡게.
+ * 화면 테마 — HSOrbit(기본) · 회색 벤토 · 기본(파랑) · 미드나잇, 각각 밝게 · 어둡게. (글래스 · 라벤더는 3.6.2 에서 뺌)
  *
  * styles.css 는 그대로 두고 여기서 덮어쓴다. <html data-theme="…" data-mode="light|dark"> 를
  * src/lib/theme.ts 가 단다. 순서:
@@ -14,7 +14,9 @@
  *   9. 도구 모음 · 메뉴 고르기 · 바로가기
  *  10. 자유 메모장
  *  11. 시간표 → 동교과 선생님
- *  12. 미드나잇 · 라벤더 테마
+ *  12. 미드나잇 테마
+ *  …
+ *  20. HSOrbit (3.6.2 기본) — 회색 벤토 모양 규칙을 함께 쓰고 색 · 글꼴 · 선만 다시 잡는다
  *  13. 스캔 문서 → 엑셀 (OCR)
  *  14. 아이콘 (Lucian Icons — 테마 색 하나로)
  * 내 시간표 그림(.ttb)과 발표자료 미리보기(.slide-thumb)는 출력물 모양이라 어느 테마에서도 원래 색이다.
@@ -183,7 +185,7 @@ select:focus {
 .cal-cell.drop {
   background: var(--accent-soft);
 }
-/* 위에 떠서 뒤가 비치면 안 되는 상자 (글래스에서 반투명 카드 색을 쓰지 않게) */
+/* 위에 떠서 뒤가 비치면 안 되는 상자 (받은 테마가 반투명 카드 색을 써도 비치지 않게) */
 .ask,
 .sheet,
 .topic-side {
@@ -244,7 +246,7 @@ select:focus {
 }
 
 /* ---- 회색 벤토 · 밝게 ---- */
-:root[data-theme='bento'] {
+:root[data-theme='bento'], :root[data-theme='orbit'] {
   --bg: #e2e2df;
   --surface: #f8f8f6;
   --surface-2: #efefec;
@@ -303,7 +305,7 @@ select:focus {
 }
 
 /* ---- 회색 벤토 · 어둡게 ---- */
-:root[data-theme='bento'][data-mode='dark'] {
+:root[data-theme='bento'][data-mode='dark'], :root[data-theme='orbit'][data-mode='dark'] {
   --bg: #2b2b2b;
   --surface: #424242;
   --surface-2: #4b4b4b;
@@ -349,134 +351,6 @@ select:focus {
   --on-fan: #1b1b1b;
   --card-shadow: rgba(0, 0, 0, 0.45);
   --tour-dim: rgba(0, 0, 0, 0.62);
-}
-
-/* ---- 글래스 · 밝게 ---- */
-:root[data-theme='glass'] {
-  --app-bg:
-    radial-gradient(26% 20% at 4% 8%, rgba(255, 255, 255, 0.8), rgba(214, 220, 255, 0.4) 45%, transparent 72%),
-    radial-gradient(20% 17% at 97% 16%, rgba(255, 255, 255, 0.75), rgba(186, 204, 255, 0.35) 50%, transparent 74%),
-    radial-gradient(34% 28% at 90% 96%, rgba(255, 210, 236, 0.55), transparent 70%),
-    radial-gradient(42% 30% at 16% 98%, rgba(140, 228, 236, 0.4), transparent 70%),
-    linear-gradient(160deg, #b8c2de 0%, #98a6c9 48%, #8a9ac5 100%);
-  --bg: #9eabcf;
-  --surface: rgba(255, 255, 255, 0.56);
-  --surface-2: rgba(255, 255, 255, 0.38);
-  --surface-3: rgba(255, 255, 255, 0.62);
-  --surface-solid: #eef1fa;
-  --field-bg: rgba(255, 255, 255, 0.74);
-  --btn-bg: rgba(255, 255, 255, 0.66);
-  --border: rgba(255, 255, 255, 0.7);
-  --border-strong: rgba(38, 48, 110, 0.24);
-  --text: #1b2250;
-  --text-2: #2c3566;
-  --muted: #4a5385;
-  --accent: #4b4fd8;
-  --accent-soft: rgba(75, 79, 216, 0.14);
-  --accent-strong: #3a3ec2;
-  --on-accent: #ffffff;
-  --focus-ring: rgba(75, 79, 216, 0.22);
-  --btn-hover-line: rgba(38, 48, 110, 0.4);
-  --danger: #c0262d;
-  --danger-soft: rgba(255, 228, 230, 0.75);
-  --warn: #9a5b09;
-  --warn-soft: rgba(255, 244, 222, 0.75);
-  --ok: #157046;
-  --ok-soft: rgba(224, 248, 236, 0.75);
-  --note-info-line: rgba(75, 79, 216, 0.25);
-  --note-info-fg: #2f33a8;
-  --toast-bg: #2b3362;
-  --toast-fg: #ffffff;
-  --radius: 14px;
-  --radius-lg: 18px;
-  --radius-btn: 10px;
-  --home-gap: 14px;
-  --shadow: 0 8px 28px rgba(40, 50, 110, 0.14);
-  --glass: blur(18px) saturate(150%);
-  --raise: #353d68;
-  --on-raise: #ffffff;
-  --raise-danger: #ffb4a8;
-  --chip: #4b4fd8;
-  --on-chip: #ffffff;
-  --stack-1: rgba(255, 255, 255, 0.45);
-  --stack-2: rgba(255, 255, 255, 0.7);
-  --fan-1: #c9cff2;
-  --fan-2: #9ea6ea;
-  --on-fan: #1b2250;
-  --card-shadow: rgba(40, 50, 110, 0.25);
-  --side-w: 224px;
-  --side-w-mini: 68px;
-  --side-bg: transparent;
-  --side-fg: var(--text);
-  --side-title: var(--text);
-  --side-muted: var(--muted);
-  --side-section: var(--muted);
-  --side-hover: rgba(255, 255, 255, 0.5);
-  --side-active: linear-gradient(135deg, #5a5ee6, #4044c4);
-  --side-on-active: #ffffff;
-  --side-line: rgba(38, 48, 110, 0.14);
-  --tour-dim: rgba(27, 34, 80, 0.5);
-  --tour-ring: #5fd8d6;
-}
-
-/* ---- 글래스 · 어둡게 ---- */
-:root[data-theme='glass'][data-mode='dark'] {
-  --app-bg:
-    radial-gradient(26% 20% at 4% 8%, rgba(120, 130, 255, 0.35), transparent 70%),
-    radial-gradient(22% 18% at 97% 14%, rgba(95, 216, 214, 0.22), transparent 72%),
-    radial-gradient(36% 28% at 88% 96%, rgba(190, 110, 220, 0.22), transparent 70%),
-    radial-gradient(44% 30% at 14% 98%, rgba(70, 140, 220, 0.25), transparent 70%),
-    linear-gradient(160deg, #1a2045 0%, #141a36 50%, #11152c 100%);
-  --bg: #141a36;
-  --surface: rgba(255, 255, 255, 0.075);
-  --surface-2: rgba(255, 255, 255, 0.05);
-  --surface-3: rgba(255, 255, 255, 0.12);
-  --surface-solid: #1e2548;
-  --field-bg: rgba(0, 0, 0, 0.22);
-  --btn-bg: rgba(255, 255, 255, 0.08);
-  --border: rgba(255, 255, 255, 0.13);
-  --border-strong: rgba(255, 255, 255, 0.26);
-  --text: #eef0ff;
-  --text-2: #d6daf6;
-  --muted: #aab1da;
-  --accent: #9298ff;
-  --accent-soft: rgba(146, 152, 255, 0.18);
-  --accent-strong: #b3b7ff;
-  --on-accent: #12163a;
-  --focus-ring: rgba(146, 152, 255, 0.3);
-  --btn-hover-line: rgba(255, 255, 255, 0.4);
-  --danger: #ff8f8f;
-  --danger-soft: rgba(255, 120, 120, 0.12);
-  --danger-line: rgba(255, 143, 143, 0.35);
-  --danger-hover: rgba(255, 120, 120, 0.2);
-  --danger-hover-line: rgba(255, 143, 143, 0.5);
-  --warn: #f6c06a;
-  --warn-soft: rgba(246, 192, 106, 0.12);
-  --ok: #7be0a6;
-  --ok-soft: rgba(123, 224, 166, 0.12);
-  --note-info-line: rgba(146, 152, 255, 0.3);
-  --note-info-fg: #c8cbff;
-  --note-warn-line: rgba(246, 192, 106, 0.3);
-  --note-ok-line: rgba(123, 224, 166, 0.3);
-  --note-danger-line: rgba(255, 143, 143, 0.3);
-  --toast-bg: #eef0ff;
-  --toast-fg: #141a36;
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  --raise: linear-gradient(135deg, #6a6ff0, #4b4fd0);
-  --on-raise: #ffffff;
-  --raise-danger: #ffd2ca;
-  --chip: #9298ff;
-  --on-chip: #12163a;
-  --stack-1: rgba(255, 255, 255, 0.07);
-  --stack-2: rgba(255, 255, 255, 0.14);
-  --fan-1: #39417c;
-  --fan-2: #4f58b4;
-  --on-fan: #eef0ff;
-  --card-shadow: rgba(0, 0, 0, 0.5);
-  --side-hover: rgba(255, 255, 255, 0.08);
-  --side-active: linear-gradient(135deg, #7177f2, #5156d6);
-  --side-line: rgba(255, 255, 255, 0.1);
-  --tour-dim: rgba(5, 8, 24, 0.62);
 }
 
 /* ================= 4. 어둡게: 색을 직접 적은 곳 ================= */
@@ -840,43 +714,43 @@ select:focus {
 }
 
 /* ---- 벤토: 알약 모양 독, 손잡이가 독 가장자리를 파고든다 ---- */
-:root[data-theme='bento'] .shell,
-:root[data-theme='glass'] .shell {
+:root[data-theme='bento'] .shell, :root[data-theme='orbit'] .shell {
   padding: 12px 0 12px 12px;
   column-gap: 12px;
 }
-:root[data-theme='bento'] .sidebar,
-:root[data-theme='glass'] .sidebar {
+:root[data-theme='bento'] .sidebar, :root[data-theme='orbit'] .sidebar {
   padding: 0;
   gap: 12px;
 }
-:root[data-theme='bento'] .side-ai {
+:root[data-theme='bento'] .side-ai, :root[data-theme='orbit'] .side-ai {
   height: 60px;
   padding: 0 18px;
   border-radius: 30px;
   background: var(--surface);
   color: var(--text);
 }
-:root[data-theme='bento'] .side-ai:hover {
+:root[data-theme='bento'] .side-ai:hover, :root[data-theme='orbit'] .side-ai:hover {
   background: var(--surface-2);
 }
-:root[data-theme='bento'] .side-ai.active {
+:root[data-theme='bento'] .side-ai.active, :root[data-theme='orbit'] .side-ai.active {
   background: var(--chip);
   color: var(--on-chip);
 }
-:root[data-theme='bento'] .side-dock {
+:root[data-theme='bento'] .side-dock, :root[data-theme='orbit'] .side-dock {
   padding: 12px 8px;
   border-radius: 30px;
   background: var(--surface);
 }
 :root[data-theme='bento'] .sidebar .nav-btn,
-:root[data-theme='bento'] .side-me {
+:root[data-theme='bento'] .side-me,
+:root[data-theme='orbit'] .sidebar .nav-btn,
+:root[data-theme='orbit'] .side-me {
   border-radius: 999px;
 }
-:root[data-theme='bento'] .sidebar .nav-btn {
+:root[data-theme='bento'] .sidebar .nav-btn, :root[data-theme='orbit'] .sidebar .nav-btn {
   min-height: 40px;
 }
-:root[data-theme='bento'] .side-knob {
+:root[data-theme='bento'] .side-knob, :root[data-theme='orbit'] .side-knob {
   left: calc(12px + var(--side-w) - 18px);
   width: 36px;
   height: 36px;
@@ -885,114 +759,55 @@ select:focus {
   color: var(--on-chip);
   box-shadow: 0 0 0 6px var(--bg);
 }
-:root[data-theme='bento'] .side-knob:hover {
+:root[data-theme='bento'] .side-knob:hover, :root[data-theme='orbit'] .side-knob:hover {
   color: var(--on-chip);
   transform: translateY(-50%) scale(1.06);
 }
-:root[data-theme='bento'] .main,
-:root[data-theme='glass'] .main {
+:root[data-theme='bento'] .main, :root[data-theme='orbit'] .main {
   padding-left: 18px;
   padding-top: 18px;
-}
-
-/* ---- 글래스: 뿌연 유리판 ---- */
-:root[data-theme='glass'] .side-ai,
-:root[data-theme='glass'] .side-dock {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  backdrop-filter: var(--glass);
-}
-:root[data-theme='glass'] .side-ai {
-  height: 56px;
-  padding: 0 16px;
-  border-radius: 20px;
-  color: var(--text);
-}
-:root[data-theme='glass'] .side-ai .side-ai-ico {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #5fd8d6, #5a5ee6);
-  color: #ffffff;
-}
-:root[data-theme='glass'] .side-ai.active {
-  background: var(--side-active);
-  color: var(--side-on-active);
-}
-:root[data-theme='glass'] .side-dock {
-  padding: 12px 8px;
-  border-radius: 22px;
-}
-:root[data-theme='glass'] .sidebar .nav-btn {
-  border-radius: 12px;
-}
-:root[data-theme='glass'] .sidebar .nav-btn.active {
-  box-shadow: 0 6px 16px rgba(75, 79, 216, 0.35);
-}
-:root[data-theme='glass'] .side-knob {
-  left: calc(12px + var(--side-w) - 14px);
-  width: 28px;
-  height: 28px;
-  background: var(--surface-solid);
-  border-color: var(--border);
 }
 
 /* ================= 6. 카드 · 위젯 ================= */
 
 :root[data-theme='bento'] .card,
-:root[data-theme='bento'] .hw {
+:root[data-theme='bento'] .hw,
+:root[data-theme='orbit'] .card,
+:root[data-theme='orbit'] .hw {
   border-color: transparent;
   box-shadow: none;
   border-radius: var(--radius-lg);
 }
-:root[data-theme='bento'] .card {
+:root[data-theme='bento'] .card, :root[data-theme='orbit'] .card {
   padding: 20px 22px;
 }
-:root[data-theme='bento'] .card + .card {
+:root[data-theme='bento'] .card + .card, :root[data-theme='orbit'] .card + .card {
   margin-top: var(--home-gap);
 }
-:root[data-theme='bento'] .hw {
+:root[data-theme='bento'] .hw, :root[data-theme='orbit'] .hw {
   padding: 14px 18px;
 }
-:root[data-theme='bento'] .hw-grid {
+:root[data-theme='bento'] .hw-grid, :root[data-theme='orbit'] .hw-grid {
   gap: var(--home-gap);
 }
-:root[data-theme='bento'] .link {
+:root[data-theme='bento'] .link, :root[data-theme='orbit'] .link {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-:root[data-theme='bento'] .page-head h1,
-:root[data-theme='glass'] .page-head h1 {
+:root[data-theme='bento'] .page-head h1, :root[data-theme='orbit'] .page-head h1 {
   font-size: 23px;
   letter-spacing: -0.02em;
 }
 :root[data-theme='bento'] input[type='text'],
 :root[data-theme='bento'] input[type='password'],
-:root[data-theme='bento'] select {
+:root[data-theme='bento'] select,
+:root[data-theme='orbit'] input[type='text'],
+:root[data-theme='orbit'] input[type='password'],
+:root[data-theme='orbit'] select {
   border-radius: 12px;
 }
-:root[data-theme='bento'] textarea {
+:root[data-theme='bento'] textarea, :root[data-theme='orbit'] textarea {
   border-radius: 14px;
-}
-
-:root[data-theme='glass'] .card,
-:root[data-theme='glass'] .hw {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  backdrop-filter: var(--glass);
-}
-:root[data-theme='glass'] .hw-grid {
-  gap: var(--home-gap);
-}
-:root[data-theme='glass'] input[type='text'],
-:root[data-theme='glass'] input[type='password'],
-:root[data-theme='glass'] select,
-:root[data-theme='glass'] textarea {
-  border-color: var(--border-strong);
-  border-radius: 10px;
 }
 
 /* ================= 7. 홈 '오늘' 위젯 ================= */
@@ -1629,19 +1444,24 @@ select:focus {
 :root[data-theme='bento'] .td-arm,
 :root[data-theme='bento'] .td-chips,
 :root[data-theme='bento'] .td-search,
-:root[data-theme='bento'] .td-fan-clip {
+:root[data-theme='bento'] .td-fan-clip,
+:root[data-theme='orbit'] .td-hero,
+:root[data-theme='orbit'] .td-arm,
+:root[data-theme='orbit'] .td-chips,
+:root[data-theme='orbit'] .td-search,
+:root[data-theme='orbit'] .td-fan-clip {
   border-color: transparent;
 }
-:root[data-theme='bento'] .td-left {
+:root[data-theme='bento'] .td-left, :root[data-theme='orbit'] .td-left {
   row-gap: 0;
 }
-:root[data-theme='bento'] .td-hero {
+:root[data-theme='bento'] .td-hero, :root[data-theme='orbit'] .td-hero {
   border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 0;
 }
-:root[data-theme='bento'] .td-arm {
+:root[data-theme='bento'] .td-arm, :root[data-theme='orbit'] .td-arm {
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
-:root[data-theme='bento'] .td-arm::after {
+:root[data-theme='bento'] .td-arm::after, :root[data-theme='orbit'] .td-arm::after {
   content: '';
   position: absolute;
   left: 100%;
@@ -1655,7 +1475,7 @@ select:focus {
   );
   pointer-events: none;
 }
-:root[data-theme='bento'] .td-chips {
+:root[data-theme='bento'] .td-chips, :root[data-theme='orbit'] .td-chips {
   z-index: 1;
   margin-top: var(--home-gap);
 }
@@ -1683,7 +1503,7 @@ select:focus {
   .td-chips {
     grid-column: 1;
   }
-  :root[data-theme='bento'] .td-arm::after {
+  :root[data-theme='bento'] .td-arm::after, :root[data-theme='orbit'] .td-arm::after {
     display: none;
   }
 }
@@ -1863,36 +1683,6 @@ select:focus {
   --p-raise: #cacaca;
   --p-chip: #dcdcdc;
 }
-.theme-prev[data-prev='glass'] {
-  --p-bg: linear-gradient(160deg, #c3cce6, #93a2c8);
-  --p-side: rgba(255, 255, 255, 0.55);
-  --p-tile: rgba(255, 255, 255, 0.55);
-  --p-line: rgba(255, 255, 255, 0.75);
-  --p-raise: #353d68;
-  --p-chip: #4b4fd8;
-}
-.theme-prev[data-prev='glass']::before {
-  content: '';
-  position: absolute;
-  width: 46px;
-  height: 46px;
-  right: -10px;
-  top: -12px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #ffffff, #c7d0ff 55%, #9fb0ff);
-  opacity: 0.85;
-}
-.theme-prev[data-prev='glass'] i {
-  border-radius: 9px;
-}
-.theme-prev[data-prev='glass'][data-prev-mode='dark'] {
-  --p-bg: linear-gradient(160deg, #1d2450, #11152c);
-  --p-side: rgba(255, 255, 255, 0.08);
-  --p-tile: rgba(255, 255, 255, 0.08);
-  --p-line: rgba(255, 255, 255, 0.14);
-  --p-raise: #6a6ff0;
-  --p-chip: #9298ff;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .shell,
@@ -1955,7 +1745,7 @@ select:focus {
   color: var(--side-title);
   border-color: var(--side-muted);
 }
-:root[data-theme='bento'] .side-edit {
+:root[data-theme='bento'] .side-edit, :root[data-theme='orbit'] .side-edit {
   border-radius: 999px;
 }
 .nav-collapsed .side-edit {
@@ -2505,7 +2295,7 @@ select:focus {
   cursor: pointer;
 }
 
-/* ================= 12. 미드나잇 · 라벤더 (v3.2.1) ================= */
+/* ================= 12. 미드나잇 (v3.2.1) ================= */
 
 /* ---- 미드나잇 · 어둡게 (본모습): 검정 바탕 · 진회색 카드 · 보라 강조 · 주황 포인트 ---- */
 :root[data-theme='midnight'][data-mode='dark'] {
@@ -2695,198 +2485,7 @@ select:focus {
   border-radius: 10px;
 }
 
-/* ---- 라벤더 · 밝게: 연보라 바탕 · 큰 흰 판 · 보라 메뉴 띠 ---- */
-:root[data-theme='lavender'] {
-  --app-bg: radial-gradient(60% 50% at 88% 6%, rgba(255, 255, 255, 0.55), transparent 70%), linear-gradient(160deg, #e3e2f3, #d3d1ec);
-  --bg: #dcdbef;
-  --main-bg: #ffffff;
-  --surface: #f6f6fc;
-  --surface-2: #efeef9;
-  --surface-3: #e8e6f6;
-  --surface-solid: #ffffff;
-  --field-bg: #ffffff;
-  --btn-bg: #ffffff;
-  --border: #e6e4f4;
-  --border-strong: #c9c5ea;
-  --text: #1e1b3a;
-  --text-2: #3b3760;
-  --muted: #8a87a8;
-  --accent: #6c5ce7;
-  --accent-soft: #ecebfd;
-  --accent-strong: #5a4bd6;
-  --on-accent: #ffffff;
-  --focus-ring: rgba(108, 92, 231, 0.18);
-  --btn-hover-line: #b3aee6;
-  --danger: #d9364f;
-  --danger-soft: #fdecef;
-  --warn: #a8690f;
-  --warn-soft: #fdf3e2;
-  --ok: #23845f;
-  --ok-soft: #e4f6ef;
-  --note-info-line: #d9d6fa;
-  --note-info-fg: #4b3fc4;
-  --toast-bg: #1e1b3a;
-  --toast-fg: #ffffff;
-  --radius: 16px;
-  --radius-lg: 22px;
-  --radius-btn: 12px;
-  --home-gap: 14px;
-  --shadow: none;
-  --glass: none;
-  --raise: #7367f0;
-  --on-raise: #ffffff;
-  --raise-danger: #ffd2da;
-  --chip: #6c5ce7;
-  --on-chip: #ffffff;
-  --stack-1: #f1f0fb;
-  --stack-2: #dcd9f6;
-  --fan-1: #e3e0fb;
-  --fan-2: #b9b1f5;
-  --on-fan: #1e1b3a;
-  --card-shadow: rgba(60, 50, 140, 0.18);
-  --side-w: 220px;
-  --side-w-mini: 66px;
-  --side-bg: linear-gradient(180deg, #7b6ff5, #6a5ce8);
-  --side-fg: rgba(255, 255, 255, 0.86);
-  --side-title: #ffffff;
-  --side-muted: rgba(255, 255, 255, 0.66);
-  --side-section: rgba(255, 255, 255, 0.62);
-  --side-hover: rgba(255, 255, 255, 0.14);
-  --side-active: #ffffff;
-  --side-on-active: #5a4bd6;
-  --side-line: rgba(255, 255, 255, 0.22);
-  --tour-dim: rgba(30, 27, 58, 0.55);
-  --tour-ring: #ffb547;
-}
 
-/* ---- 라벤더 · 어둡게: 남색 밤하늘에 보라 띠 ---- */
-:root[data-theme='lavender'][data-mode='dark'] {
-  --app-bg: linear-gradient(160deg, #16152c, #0f0e20);
-  --bg: #131226;
-  --main-bg: #1b1a33;
-  --surface: #24223f;
-  --surface-2: #1f1d38;
-  --surface-3: #2c2a4b;
-  --surface-solid: #24223f;
-  --field-bg: #17162d;
-  --btn-bg: #2a2847;
-  --border: #333057;
-  --border-strong: #4a4677;
-  --text: #ecebff;
-  --text-2: #cfccf0;
-  --muted: #9a96c4;
-  --accent: #8c82ff;
-  --accent-soft: rgba(140, 130, 255, 0.16);
-  --accent-strong: #a49cff;
-  --on-accent: #14122b;
-  --focus-ring: rgba(140, 130, 255, 0.3);
-  --btn-hover-line: #5e5a95;
-  --danger: #ff7a8a;
-  --danger-soft: rgba(255, 122, 138, 0.14);
-  --danger-line: rgba(255, 122, 138, 0.35);
-  --danger-hover: rgba(255, 122, 138, 0.22);
-  --danger-hover-line: rgba(255, 122, 138, 0.5);
-  --warn: #ffc46b;
-  --warn-soft: rgba(255, 196, 107, 0.12);
-  --ok: #5fd3a8;
-  --ok-soft: rgba(95, 211, 168, 0.13);
-  --note-info-line: rgba(140, 130, 255, 0.35);
-  --note-info-fg: #c9c4ff;
-  --note-warn-line: rgba(255, 196, 107, 0.3);
-  --note-ok-line: rgba(95, 211, 168, 0.3);
-  --note-danger-line: rgba(255, 122, 138, 0.35);
-  --toast-bg: #2c2a4b;
-  --toast-fg: #ffffff;
-  --raise: #6f63f0;
-  --on-raise: #ffffff;
-  --raise-danger: #ffc2cc;
-  --chip: #8c82ff;
-  --on-chip: #14122b;
-  --stack-1: #2c2a4b;
-  --stack-2: #3a3763;
-  --fan-1: #2f2c55;
-  --fan-2: #5a51b8;
-  --on-fan: #ecebff;
-  --card-shadow: rgba(0, 0, 0, 0.45);
-  --side-bg: linear-gradient(180deg, #5d52dc, #4b40c4);
-  --side-fg: rgba(255, 255, 255, 0.82);
-  --side-muted: rgba(255, 255, 255, 0.6);
-  --side-section: rgba(255, 255, 255, 0.55);
-  --side-hover: rgba(255, 255, 255, 0.12);
-  --side-active: #ffffff;
-  --side-on-active: #4b40c4;
-  --side-line: rgba(255, 255, 255, 0.18);
-  --tour-dim: rgba(5, 4, 15, 0.66);
-  --tour-ring: #ffc46b;
-}
-
-:root[data-theme='lavender'] .shell {
-  padding: 14px;
-  column-gap: 14px;
-}
-:root[data-theme='lavender'] .sidebar {
-  padding: 14px 10px 12px;
-  border-radius: 28px;
-}
-:root[data-theme='lavender'] .side-ai {
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.16);
-  color: #ffffff;
-}
-:root[data-theme='lavender'] .side-ai:hover {
-  background: rgba(255, 255, 255, 0.24);
-}
-:root[data-theme='lavender'] .side-ai.active {
-  background: var(--side-active);
-  color: var(--side-on-active);
-}
-:root[data-theme='lavender'] .sidebar .nav-btn,
-:root[data-theme='lavender'] .side-me {
-  border-radius: 12px;
-}
-:root[data-theme='lavender'] .side-edit {
-  border-color: rgba(255, 255, 255, 0.35);
-  color: rgba(255, 255, 255, 0.78);
-}
-:root[data-theme='lavender'] .nav-new {
-  box-shadow: 0 0 0 2px #6f62ee;
-}
-:root[data-theme='lavender'] .main {
-  background: var(--main-bg);
-  border-radius: 28px;
-  padding-top: 26px;
-}
-:root[data-theme='lavender'] .side-knob {
-  left: calc(14px + var(--side-w) - 14px);
-  border: 0;
-  background: var(--surface-solid);
-  color: var(--accent);
-  box-shadow: 0 2px 10px rgba(60, 50, 140, 0.28);
-}
-:root[data-theme='lavender'] .card,
-:root[data-theme='lavender'] .hw {
-  border-color: transparent;
-  box-shadow: none;
-  border-radius: var(--radius-lg);
-}
-:root[data-theme='lavender'] .card + .card {
-  margin-top: var(--home-gap);
-}
-:root[data-theme='lavender'] .hw-grid {
-  gap: var(--home-gap);
-}
-:root[data-theme='lavender'] .page-head h1 {
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-:root[data-theme='lavender'] input[type='text'],
-:root[data-theme='lavender'] input[type='password'],
-:root[data-theme='lavender'] select,
-:root[data-theme='lavender'] textarea {
-  border-color: var(--border);
-  border-radius: 12px;
-}
 
 /* 설정 → 화면 테마 미리보기 (미드나잇은 고르면 어둡게가 되므로 늘 어두운 모습으로) */
 .theme-prev[data-prev='midnight'],
@@ -2900,25 +2499,6 @@ select:focus {
 }
 .theme-prev[data-prev='midnight'] i {
   border-radius: 9px;
-}
-.theme-prev[data-prev='lavender'] {
-  --p-bg: #dcdbef;
-  --p-side: #7367f0;
-  --p-tile: #ffffff;
-  --p-line: transparent;
-  --p-raise: #7367f0;
-  --p-chip: #1e1b3a;
-}
-.theme-prev[data-prev='lavender'][data-prev-mode='dark'] {
-  --p-bg: #131226;
-  --p-side: #5d52dc;
-  --p-tile: #24223f;
-  --p-line: transparent;
-  --p-raise: #6f63f0;
-  --p-chip: #8c82ff;
-}
-.theme-prev[data-prev='lavender'] i {
-  border-radius: 10px;
 }
 
 /* ================= 13. 스캔 문서 → 엑셀 (OCR) ================= */
@@ -3580,20 +3160,13 @@ select:focus {
   --li-tint: 0.08;
 }
 /* 회색 벤토: 거의 무채색 */
-:root[data-theme='bento'] {
+:root[data-theme='bento'], :root[data-theme='orbit'] {
   --li-accent: #7a7a74;
   --li-tint: 0.13;
 }
-:root[data-theme='bento'][data-mode='dark'] {
+:root[data-theme='bento'][data-mode='dark'], :root[data-theme='orbit'][data-mode='dark'] {
   --li-accent: #a6a6a1;
   --li-tint: 0.07;
-}
-/* 글래스: 남보라 */
-:root[data-theme='glass'] {
-  --li-accent: #4b4fd8;
-}
-:root[data-theme='glass'][data-mode='dark'] {
-  --li-accent: #8f93ff;
 }
 /* 미드나잇: 보라 (주황은 손잡이에만) */
 :root[data-theme='midnight'] {
@@ -3602,13 +3175,6 @@ select:focus {
 :root[data-theme='midnight'][data-mode='dark'] {
   --li-accent: #8b5cf6;
   --li-tint: 0.09;
-}
-/* 라벤더: 보라 */
-:root[data-theme='lavender'] {
-  --li-accent: #6c5ce7;
-}
-:root[data-theme='lavender'][data-mode='dark'] {
-  --li-accent: #8c82ff;
 }
 
 /* 왼쪽 메뉴는 글자색 한 가지로 — 메뉴 줄마다 색이 섞이지 않게 */
@@ -4290,12 +3856,6 @@ select:focus {
   height: 100%;
   min-height: 0;
 }
-:root[data-theme='lavender'] .nshell {
-  padding: 0 14px 14px;
-}
-:root[data-theme='lavender'] .nshell > .main {
-  margin-top: 10px;
-}
 
 .ns-top {
   position: relative;
@@ -4309,9 +3869,6 @@ select:focus {
   -webkit-backdrop-filter: blur(20px) saturate(170%);
   backdrop-filter: blur(20px) saturate(170%);
   border-bottom: 1px solid var(--border);
-}
-:root[data-theme='lavender'] .ns-top {
-  margin: 0 -14px;
 }
 .ns-brand {
   display: flex;
@@ -4418,7 +3975,7 @@ select:focus {
 .ns-make.on {
   filter: brightness(1.08);
 }
-/* 강조색 단추 안의 아이콘은 글자색 한 가지로 (라벤더에서 아이콘 칠이 단추 보라와 같아 사라졌다) */
+/* 강조색 단추 안의 아이콘은 글자색 한 가지로 (아이콘 칠이 단추색과 같아 사라지지 않게) */
 .ns-make,
 .ns-ask-go,
 .ns-logo {
@@ -5391,3 +4948,562 @@ select:focus {
 .fit-ask { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .fit-q { width: 100%; margin-bottom: 0; }
 .fit-q label { font-size: 12.5px; }
+
+/* ================= 19. 날씨 · D-Day 위젯 (v3.6.2) ================= */
+.tb-pick-new {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  vertical-align: 1px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.wx { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.wx-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.wx-emoji { font-size: 34px; line-height: 1; }
+.wx-temp {
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.wx-side { display: flex; flex-direction: column; min-width: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.wx-side b { font-size: 14px; color: var(--text); font-weight: 600; }
+.wx-side span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wx-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.wx-air { padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+.wx-air.g0 { background: color-mix(in srgb, #2563eb 12%, transparent); color: #2563eb; }
+.wx-air.g1 { background: color-mix(in srgb, #15803d 12%, transparent); color: #15803d; }
+.wx-air.g2 { background: color-mix(in srgb, #d97706 15%, transparent); color: #b45309; }
+.wx-air.g3 { background: color-mix(in srgb, #dc2626 13%, transparent); color: #dc2626; }
+.wx-place {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+}
+.wx-place:hover { color: var(--accent); text-decoration: underline; }
+.wx-tip {
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wx-chip { padding: 2px 8px; border-radius: 999px; font-weight: 600; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.wx-hours { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; }
+.wx-hour {
+  flex: 1 0 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px 2px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  font-size: 12.5px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.wx-hour small { font-size: 11px; color: var(--muted); }
+.wx-hour b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.wx-hour .wx-pop { font-style: normal; color: #2563eb; }
+.wx-tomorrow { color: var(--muted); }
+.wx-pick { display: flex; flex-direction: column; gap: 8px; }
+.wx-pick input[type='search'] { flex: 1; min-width: 0; }
+.wx-results { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+:root[data-mode='dark'] .wx-air.g0, :root[data-mode='dark'] .wx-hour .wx-pop,
+.tw.look-dark .wx-air.g0, .tw.look-dark .wx-hour .wx-pop { color: #9dbcff; }
+:root[data-mode='dark'] .wx-air.g1, .tw.look-dark .wx-air.g1 { color: #7ad79a; }
+:root[data-mode='dark'] .wx-air.g2, .tw.look-dark .wx-air.g2 { color: #f5b454; }
+:root[data-mode='dark'] .wx-air.g3, .tw.look-dark .wx-air.g3 { color: #ff8f8f; }
+:root[data-mode='dark'] .wx-air, .tw.look-dark .wx-air { background: color-mix(in srgb, currentColor 16%, transparent); }
+
+.dd { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dd-hero { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.dd-hero > b {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dd-hero.today > b { color: var(--danger); }
+.dd-hero.past > b { color: var(--muted); }
+.dd-hero > span { display: flex; flex-direction: column; min-width: 0; }
+.dd-hero .dd-title { font-size: 14px; font-weight: 600; }
+.dd-hero small { font-size: 12px; color: var(--muted); }
+.dd-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-row { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+.dd-row .dd-title { flex: 1; }
+.dd-row.past { opacity: 0.55; }
+.dd-badge {
+  min-width: 52px;
+  text-align: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.dd-x {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 11px;
+  opacity: 0;
+}
+.dd-row:hover .dd-x, .dd-x:focus-visible { opacity: 1; }
+.dd-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.dd-add { display: flex; flex-direction: column; gap: 6px; }
+
+/* ================= 20. HSOrbit (v3.6.2 기본 테마) =================
+ * hsorbit.uk 와 같은 결: 종이 #F4F3EE · 먹 #353532 · 새벽 4시 바늘 주황 #E07A3F (어둡게 #1C1B19 · #EDEBE4 · #EE8E55).
+ * 모양은 회색 벤토 규칙을 함께 쓰고(선택자에 orbit 을 덧붙임), 여기서 색 · 글꼴 · 선을 다시 잡는다.
+ *  - 강조는 먹색(채운 단추 · 고른 메뉴). 주황은 '지금'을 가리킬 때만 아껴 쓴다(지금 교시 · D-Day · 고른 탭 점 · 포커스).
+ *  - 그림자 · 그러데이션 · 유리 대신 얇은 선(hairline)과 종이 바탕.
+ *  - 제목 · 큰 숫자는 Gowun Dodum, 나머지 글은 Pretendard, 영문 이름은 Nunito.
+ */
+:root {
+  --font-ui: 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif;
+  --font-display: 'Gowun Dodum', var(--font-ui);
+  --font-brand: Nunito, var(--font-ui);
+  --hand: #e07a3f;
+  --hand-ink: #a9501f;
+  --hand-soft: #f7e3d5;
+}
+:root[data-mode='dark'] {
+  --hand: #ee8e55;
+  --hand-ink: #f2a679;
+  --hand-soft: #3a2a20;
+}
+
+:root[data-theme='orbit'] {
+  --bg: #f4f3ee;
+  --surface: #ffffff;
+  --surface-2: #faf9f5;
+  --surface-3: #efede6;
+  --field-bg: #ffffff;
+  --btn-bg: #ffffff;
+  --border: #e2e0d8;
+  --border-strong: #cdcac0;
+  --text: #353532;
+  --text-2: #4a4945;
+  --muted: #6b6a64;
+  --accent: #353532;
+  --accent-soft: #efede6;
+  --accent-strong: #1f1f1d;
+  --on-accent: #f4f3ee;
+  --focus-ring: color-mix(in srgb, var(--hand) 28%, transparent);
+  --btn-hover-line: #a9a69c;
+  --danger: #b4321f;
+  --danger-soft: #faece8;
+  --warn: #9a5a12;
+  --warn-soft: #f8efe1;
+  --ok: #2f6b3f;
+  --ok-soft: #e9f1e8;
+  --note-info-line: #e2e0d8;
+  --note-info-fg: #353532;
+  --toast-bg: #353532;
+  --toast-fg: #f4f3ee;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-btn: 999px;
+  --home-gap: 12px;
+  --shadow: none;
+  --raise: #353532;
+  --on-raise: #f4f3ee;
+  --raise-danger: #f6a27d;
+  --chip: #353532;
+  --on-chip: #f4f3ee;
+  --stack-1: #f4f3ee;
+  --stack-2: #d9d6cc;
+  --fan-1: #e4e1d8;
+  --fan-2: #b6b2a6;
+  --on-fan: #353532;
+  --card-shadow: rgba(53, 53, 50, 0.12);
+  --side-w: 220px;
+  --side-bg: transparent;
+  --side-fg: var(--text);
+  --side-title: var(--text);
+  --side-muted: var(--muted);
+  --side-section: var(--hand-ink);
+  --side-hover: var(--surface-3);
+  --side-active: var(--chip);
+  --side-on-active: var(--on-chip);
+  --side-line: var(--border);
+  --tour-dim: rgba(28, 27, 25, 0.55);
+  --tour-ring: var(--hand);
+  --li-accent: #6b6a64;
+  --li-tint: 0.1;
+}
+:root[data-theme='orbit'][data-mode='dark'] {
+  --bg: #1c1b19;
+  --surface: #252421;
+  --surface-2: #2a2926;
+  --surface-3: #312f2b;
+  --field-bg: #201f1c;
+  --btn-bg: #2a2926;
+  --border: #36342f;
+  --border-strong: #4a4740;
+  --text: #edebe4;
+  --text-2: #d6d3ca;
+  --muted: #a19e94;
+  --accent: #edebe4;
+  --accent-soft: #312f2b;
+  --accent-strong: #ffffff;
+  --on-accent: #1c1b19;
+  --btn-hover-line: #6a675e;
+  --danger: #f08a74;
+  --danger-soft: #3a221d;
+  --warn: #e9b062;
+  --warn-soft: #362b1b;
+  --ok: #8ccf98;
+  --ok-soft: #1f2e22;
+  --note-info-line: #36342f;
+  --note-info-fg: #edebe4;
+  --toast-bg: #edebe4;
+  --toast-fg: #1c1b19;
+  --raise: #edebe4;
+  --on-raise: #1c1b19;
+  --raise-danger: #b4321f;
+  --chip: #edebe4;
+  --on-chip: #1c1b19;
+  --stack-1: #2a2926;
+  --stack-2: #3a3833;
+  --fan-1: #34322d;
+  --fan-2: #4a4740;
+  --on-fan: #edebe4;
+  --card-shadow: rgba(0, 0, 0, 0.45);
+  --side-hover: var(--surface-3);
+  --tour-dim: rgba(0, 0, 0, 0.62);
+  --li-accent: #a19e94;
+  --li-tint: 0.06;
+}
+
+/* 글꼴 — 모든 테마의 본문은 Pretendard(앱에 넣어 둠), 제목 결은 HSOrbit 에서만 */
+body {
+  font-family: var(--font-ui);
+}
+:root[data-theme='orbit'] .page-head h1,
+:root[data-theme='orbit'] .tw-clock b,
+:root[data-theme='orbit'] .wx-temp,
+:root[data-theme='orbit'] .dd-hero > b {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+:root[data-theme='orbit'] .page-head h1 {
+  font-size: 30px;
+  line-height: 1.2;
+}
+:root[data-theme='orbit'] .page-head p {
+  color: var(--muted);
+}
+
+/* 마크 */
+.orbit-mark {
+  flex: none;
+  display: block;
+  color: var(--text);
+}
+
+/* 단추 — 먹색 알약 · 흰 알약 + 얇은 선 */
+:root[data-theme='orbit'] .btn {
+  border-color: var(--border);
+  font-weight: 600;
+}
+:root[data-theme='orbit'] .btn:hover {
+  border-color: var(--btn-hover-line);
+}
+:root[data-theme='orbit'] .btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme='orbit'] .btn-primary:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+:root[data-theme='orbit'] :focus-visible {
+  outline: 2px solid var(--hand);
+  outline-offset: 2px;
+}
+:root[data-theme='orbit'] .link:hover {
+  color: var(--hand-ink);
+}
+
+/* 카드 · 위젯 — 종이 위의 흰 판, 그림자 없이 얇은 선 */
+:root[data-theme='orbit'] .card,
+:root[data-theme='orbit'] .hw {
+  border: 1px solid var(--border);
+}
+:root[data-theme='orbit'][data-mode='dark'] .card,
+:root[data-theme='orbit'][data-mode='dark'] .hw {
+  border-color: transparent;
+}
+:root[data-theme='orbit'] .hw-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0;
+}
+:root[data-theme='orbit'] .hw-title .hw-ico {
+  color: var(--muted);
+}
+:root[data-theme='orbit'] .badge-accent {
+  background: var(--hand-soft);
+  color: var(--hand-ink);
+}
+
+/* ---- 왼쪽 메뉴 (예전 화면) ---- */
+.side-brand {
+  display: none;
+}
+:root[data-theme='orbit'] .side-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 14px 0;
+}
+:root[data-theme='orbit'] .side-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+:root[data-theme='orbit'] .side-brand-text b {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+:root[data-theme='orbit'] .side-brand-text small {
+  font-family: var(--font-brand);
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--hand-ink);
+}
+.nav-collapsed .side-brand {
+  justify-content: center;
+  padding: 4px 0 0;
+}
+:root[data-theme='orbit'] .side-ai,
+:root[data-theme='orbit'] .side-dock {
+  border: 1px solid var(--border);
+}
+:root[data-theme='orbit'][data-mode='dark'] .side-ai,
+:root[data-theme='orbit'][data-mode='dark'] .side-dock {
+  border-color: transparent;
+}
+:root[data-theme='orbit'] .side-ai {
+  height: 52px;
+  border-radius: 26px;
+  font-weight: 600;
+}
+:root[data-theme='orbit'] .sidebar .nav-section {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+:root[data-theme='orbit'] .sidebar .nav-btn.active {
+  font-weight: 600;
+}
+
+/* ---- 새 화면: 위 줄 ---- */
+:root[data-theme='orbit'] .ns-top {
+  padding: 12px 24px;
+  background: var(--bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-theme='orbit'] .ns-logo {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+}
+:root[data-theme='orbit'] .ns-brand-text b {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+/* 탭: 알약 대신 글자 탭 + 고른 탭 아래 주황 점 하나 */
+:root[data-theme='orbit'] .ns-tabs {
+  gap: 4px;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+:root[data-theme='orbit'] .ns-tabs button {
+  position: relative;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 500;
+}
+:root[data-theme='orbit'] .ns-tabs button:hover {
+  background: none;
+  color: var(--text);
+}
+:root[data-theme='orbit'] .ns-tabs button.on {
+  background: none;
+  box-shadow: none;
+  color: var(--text);
+  font-weight: 700;
+}
+:root[data-theme='orbit'] .ns-tabs button.on::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--hand);
+}
+:root[data-theme='orbit'] .ns-make {
+  min-height: 38px;
+  padding: 0 16px 0 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme='orbit'] .ns-make:hover,
+:root[data-theme='orbit'] .ns-make.on {
+  filter: none;
+  background: var(--accent-strong);
+}
+:root[data-theme='orbit'] .ns-icon {
+  border-radius: 999px;
+}
+:root[data-theme='orbit'] .ns-pop {
+  background: var(--surface);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-radius: 20px;
+  box-shadow: 0 18px 50px rgba(53, 53, 50, 0.14);
+}
+:root[data-theme='orbit'] .ns-pop-title,
+:root[data-theme='orbit'] .tb-picker-gname {
+  color: var(--hand-ink);
+  letter-spacing: 0.04em;
+}
+:root[data-theme='orbit'] .ns-pop-ico {
+  background: var(--surface-3);
+  color: var(--text);
+}
+:root[data-theme='orbit'] .ns-pop-item:hover,
+:root[data-theme='orbit'] .ns-pop-item.on {
+  background: var(--surface-2);
+}
+
+/* ---- 오늘 판 위젯 ---- */
+:root[data-theme='orbit'] .tw-clock b {
+  font-size: clamp(28px, 50cqh, 84px);
+}
+:root[data-theme='orbit'] .dd-hero > b {
+  color: var(--hand);
+}
+:root[data-theme='orbit'] .dd-hero.past > b {
+  color: var(--muted);
+}
+:root[data-theme='orbit'] .dd-badge {
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+:root[data-theme='orbit'] .wx-tip,
+:root[data-theme='orbit'] .wx-chip,
+:root[data-theme='orbit'] .tb-pick-new {
+  background: var(--hand-soft);
+  color: var(--hand-ink);
+}
+:root[data-theme='orbit'] .wx-hour {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+:root[data-theme='orbit'][data-mode='dark'] .wx-hour {
+  border-color: transparent;
+}
+
+/* 설정 → 화면 테마 미리보기 */
+.theme-prev[data-prev='orbit'] {
+  --p-bg: #f4f3ee;
+  --p-side: #ffffff;
+  --p-tile: #ffffff;
+  --p-line: #e2e0d8;
+  --p-raise: #353532;
+  --p-chip: #e07a3f;
+}
+.theme-prev[data-prev='orbit'] i {
+  border-radius: 12px;
+}
+.theme-prev[data-prev='orbit'] .tp-side {
+  border-radius: 99px;
+}
+.theme-prev[data-prev='orbit'][data-prev-mode='dark'] {
+  --p-bg: #1c1b19;
+  --p-side: #252421;
+  --p-tile: #252421;
+  --p-line: transparent;
+  --p-raise: #edebe4;
+  --p-chip: #ee8e55;
+}
+:root[data-theme='orbit'] .td-head {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+/* 지금 교시: 먹색 칸 + 흘러가는 막대는 주황 */
+:root[data-theme='orbit'] .td-per.now .td-per-n {
+  color: var(--hand-ink);
+}
+:root[data-theme='orbit'] .td-per.now .td-per-bar {
+  background: var(--hand);
+}
+.wx-emoji { display: grid; place-items: center; color: var(--text); }
+.wx-ico { display: inline-block; vertical-align: -3px; flex: none; }
+.wx-hour > span { display: inline-flex; align-items: center; gap: 3px; }
+.wx-place::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--hand);
+  vertical-align: 1px;
+}
+:root[data-theme='orbit'] .wx-air.g0,
+:root[data-theme='orbit'] .wx-air.g1 {
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+:root[data-theme='orbit'] .wx-air.g2 {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+:root[data-theme='orbit'] .wx-air.g3 {
+  background: var(--danger-soft);
+  color: var(--danger);
+}

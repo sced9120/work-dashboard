@@ -80,8 +80,10 @@ export type IconName =
   | 'event'
   | 'past'
   | 'rocket'
+  | 'weather'
+  | 'dday'
 
-type Drawn = 'chevron' | 'up' | 'out' | 'lock' | 'unlock'
+type Drawn = 'chevron' | 'up' | 'out' | 'lock' | 'unlock' | 'weather' | 'dday'
 
 /** 이 앱의 이름 → Lucian 아이콘 */
 const LUCIAN: Record<Exclude<IconName, Drawn>, string> = {
@@ -124,7 +126,11 @@ const PATHS: Record<Drawn, JSX.Element> = {
   up: <path d="M12 19V5.5M6.5 11 12 5.5l5.5 5.5" />,
   out: <path d="M14 4.5h5.5V10M19.5 4.5 11 13M18 14v4.5a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2H11" />,
   lock: <path d="M7 11V8a5 5 0 0 1 10 0v3M6.5 11h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5v-6A1.5 1.5 0 0 1 6.5 11Z" />,
-  unlock: <path d="M7 11V8a5 5 0 0 1 9.6-2M6.5 11h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5v-6A1.5 1.5 0 0 1 6.5 11Z" />
+  unlock: <path d="M7 11V8a5 5 0 0 1 9.6-2M6.5 11h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5v-6A1.5 1.5 0 0 1 6.5 11Z" />,
+  // 해와 구름
+  weather: <path d="M9 3.5v1.5M3.5 9H5M5.1 5.1l1 1M12.9 5.1l-1 1M6.3 11.2A3.5 3.5 0 1 1 12.4 7.6M8 20h9.5a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6 1.2A3 3 0 0 0 8 20Z" />,
+  // 동그라미 친 달력
+  dday: <path d="M7 3.5v3M17 3.5v3M4.5 9.5h15M6 5h12a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 18 20H6a1.5 1.5 0 0 1-1.5-1.5v-12A1.5 1.5 0 0 1 6 5ZM12 17.5a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5Z" />
 }
 
 interface Props {

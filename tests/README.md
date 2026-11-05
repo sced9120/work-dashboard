@@ -19,6 +19,7 @@ node tests/t_catalog.cjs                           # remote/catalog.json 규칙 
 node tests/t_ttdated.cjs                           # 시간표 — 그 날만 바꾼 수업 (빌드 없이)
 node tests/t_widgetgrid.cjs                        # 새 화면 오늘 판 — 위젯 칸 놓기 · 밀기 · 크기 (빌드 없이)
 node tests/t_hwpfit.cjs                            # 한글 양식 — 양식과 새 문서 맞춰 보기 · 칸 맞춤 · 『 』 굵게 · 검사관 답 (빌드 없이)
+node tests/t_weather.cjs                           # 날씨 · D-Day 위젯 — 학교 주소 → 지역 · 미세먼지 등급 · 날씨 답 읽기 · D-Day 셈 (빌드 없이)
 ```
 
 Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron/dist/electron -r ./tests/hook.cjs ./tests/run_ocr.cjs`
@@ -36,4 +37,5 @@ Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron
 | `t_ttdated.cjs` | 주 고르기(일요일은 다음 주) · 그 날만 바꾸기 · 되돌리기 · 원래 글이면 안 바꿈 · 60일 지난 것 지우기 · 그 주에만 얹기 · 바뀐 칸에 원래 글 · 깨진 값 |
 | `t_widgetgrid.cjs` | 놓으면 겹친 위젯을 아래로(연쇄) · 끄는 동안 처음 자리에서 다시 계산 · 빈칸 메우기 · 첫 빈자리 · 깨진 판 풀기 · 판 · 크기 한도 · 손잡이별 크기 · 좁은 창 차례 |
 | `t_hwpfit.cjs` | 칸 맞춤 빈칸 되살리기(":" 없는 빈칸 · 쉼표 뒤는 그대로) · 『 』 안 굵게(바탕 모양이면 그대로) · 빠진 문단 · 빠진 문장 · 빠진 항목 줄 · 번호 건너뜀 · 지어 붙인 문단 · 제목 · 받는 사람 빈칸 · 학생 두 벌 · 둘째 벌에서만 빠진 줄 · 검사관 답(고친 것 · 물을 것 · 고친 문서 · 없음 · 그대로 · 모양 틀림) |
+| `t_weather.cjs` | 학교 주소에서 시 · 군 · 구만(도 · 광역시 · 특별자치시) · 짧은 이름 · 날씨 코드 말(밤엔 달) · 미세먼지 등급(환경부 기준, 나쁜 쪽) · Open-Meteo 답(지금 · 오늘 · 내일 · 지금 시부터 12시간 · 미세먼지 못 받아도) · 우산 · 지금 비 · 미세먼지 알림 · D-Day(D-Day · D+ · 해 넘김) · 틀린 D-Day 빼기 · 다가오는 것 먼저 |
 | `t_catalog.cjs` | https 만 · 테마 토큰만 · 의견 설문지 · OCR 지침/모델(Gemini · OpenAI) · 실제 `remote/catalog.json` |

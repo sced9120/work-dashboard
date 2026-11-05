@@ -28,7 +28,7 @@ const r = sanitizeCatalog({
   ],
   themes: [
     { id: 'forest', name: '숲', base: 'bento', light: { '--bg': '#dfe5df', accent: '#2f5d46', '--app-bg': 'linear-gradient(160deg, #c3cce6, #93a2c8)', '--shadow': '0 1px 2px rgba(0, 0, 0, 0.05)' }, dark: {} },
-    { id: 'evil', name: '나쁜', base: 'glass', light: { '--bg': 'url(https://x.example/a.png)', '--surface': 'red;background:url(x)', '--side-w': '900px', '--text': '"a"', '--muted': 'image-set(x)', '--accent': '#123456' } },
+    { id: 'evil', name: '나쁜', base: 'bento', light: { '--bg': 'url(https://x.example/a.png)', '--surface': 'red;background:url(x)', '--side-w': '900px', '--text': '"a"', '--muted': 'image-set(x)', '--accent': '#123456' } },
     { id: 'nobase', name: '모양없음', base: 'neon', light: { '--bg': '#000' } },
     { id: 'empty', name: '빈', base: 'classic', light: { '--bg': 'url(x)' } }
   ]
@@ -42,7 +42,7 @@ const th = r.catalog.themes
 ok(th.map((t) => t.id).join(',') === 'forest,evil', `테마: ${th.map((t) => t.id).join(',')}`)
 ok(th[0].light['--accent'] === '#2f5d46' && th[0].light['--app-bg'].startsWith('linear-gradient') && th[0].light['--shadow'].includes('rgba'), '-- 없이 적은 이름 · 그러데이션 · 그림자 값은 씀')
 ok(JSON.stringify(th[1].light) === JSON.stringify({ '--accent': '#123456' }), `주소 · ; · 따옴표 · image · 배치 토큰은 뺌: ${JSON.stringify(th[1].light)}`)
-ok(r.dropped.some((d) => d.includes('bento · glass · classic · midnight · lavender')) && r.dropped.some((d) => d.includes('바꿀 색이 하나도')), '모양이 틀리거나 색이 하나도 없으면 뺌')
+ok(r.dropped.some((d) => d.includes('orbit · bento · classic · midnight')) && r.dropped.some((d) => d.includes('바꿀 색이 하나도')), '모양이 틀리거나 색이 하나도 없으면 뺌')
 ok(sanitizeCatalog([]).catalog.tools.length === 0 && sanitizeCatalog(null).dropped.length === 1, '묶음이 아니면 빈 목록')
 ok(sanitizeCatalog({ schema: 2, tools: [good] }).dropped[0].includes('schema 2') && sanitizeCatalog({ schema: 2, tools: [good] }).catalog.tools.length === 1, '모르는 schema 여도 아는 칸은 씀')
 ok(isNewTool({ added: '2026-10-01' }, '2026-10-08') && !isNewTool({ added: '2026-08-01' }, '2026-10-08') && !isNewTool({ added: '' }, '2026-10-08') && !isNewTool({ added: '2026-10-20' }, '2026-10-08'), '30일 안만 새로')

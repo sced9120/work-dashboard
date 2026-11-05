@@ -10,7 +10,7 @@
  * 이 파일은 다른 파일을 가져오지 않는다 — 검사 스크립트가 따로 읽어 쓴다.
  */
 
-export type CatalogThemeBase = 'classic' | 'bento' | 'glass' | 'midnight' | 'lavender'
+export type CatalogThemeBase = 'orbit' | 'classic' | 'bento' | 'midnight'
 
 export interface CatalogTool {
   /** 영문 소문자 · 숫자 · - (메뉴에 고정할 때 이것으로 찾는다) */
@@ -83,7 +83,7 @@ export const THEME_VARS: readonly string[] = [
   '--tour-dim', '--tour-ring'
 ]
 
-const BASES: readonly CatalogThemeBase[] = ['classic', 'bento', 'glass', 'midnight', 'lavender']
+const BASES: readonly CatalogThemeBase[] = ['orbit', 'classic', 'bento', 'midnight']
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 /** 색 · 길이 · 그러데이션만. 주소(url( · : · /)와 따옴표 · ; · { } 를 쓸 수 없다 */
@@ -178,7 +178,7 @@ export function sanitizeCatalog(raw: unknown): { catalog: Catalog; dropped: stri
     if (!ID.test(id)) return void dropped.push(`${where}: id 는 영문 소문자 · 숫자 · - 로 적어 주세요`)
     if (seenTheme.has(id)) return void dropped.push(`${where}: id "${id}" 가 겹칩니다`)
     if (!name) return void dropped.push(`${where}: name(이름)이 비었습니다`)
-    if (!base) return void dropped.push(`${where}: base 는 bento · glass · classic · midnight · lavender 가운데 하나여야 합니다`)
+    if (!base) return void dropped.push(`${where}: base 는 orbit · bento · classic · midnight 가운데 하나여야 합니다`)
     const light = varsOf(o.light, `${where} light`, dropped)
     const dark = varsOf(o.dark, `${where} dark`, dropped)
     if (!Object.keys(light).length && !Object.keys(dark).length) return void dropped.push(`${where}: 바꿀 색이 하나도 없습니다`)

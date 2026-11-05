@@ -45,6 +45,7 @@ import { classTimetable, clearNeisCache, mealsOn, nextMealDay, scheduleCached, s
 import type { TtRow } from '../../shared/timetable'
 import { STD_EXAMPLE, aiReadTimetable, importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
 import { schoolContext } from './context'
+import { schoolPlace, searchPlaces, weatherAt } from './weather'
 import { ymd } from '../../shared/neis'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
 import type {
@@ -970,6 +971,10 @@ function registerIpc(): void {
     savedPaths.add(path.resolve(res.filePath))
     return { ok: true, message: `저장했습니다: ${res.filePath}`, path: res.filePath }
   })
+  /* ---------- 날씨 (Open-Meteo · Nominatim) ---------- */
+  ipcMain.handle('weather:at', (_e, lat: number, lon: number, force: boolean) => weatherAt(Number(lat), Number(lon), force === true))
+  ipcMain.handle('weather:search', (_e, q: string) => searchPlaces(String(q ?? '')))
+  ipcMain.handle('weather:schoolPlace', () => schoolPlace())
   ipcMain.handle('neis:test', () => testNeis())
   ipcMain.handle('neis:clearCache', () => clearNeisCache())
 

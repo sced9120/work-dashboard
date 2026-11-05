@@ -13,8 +13,6 @@ const OUT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'b
 
 /* ---------- 그리기 ---------- */
 
-const lerp = (a, b, t) => a + (b - a) * t
-
 /** 둥근 사각형 내부까지의 거리. 0보다 크면 바깥. */
 function roundRectDist(x, y, left, top, right, bottom, r) {
   const cx = Math.max(left + r, Math.min(x, right - r))
@@ -39,69 +37,60 @@ function blend(dst, i, r, g, b, a) {
   dst[i + 3] = Math.round(dst[i + 3] * inv + 255 * a)
 }
 
-/** 선분과 점 사이 거리 (체크 표시를 그리는 데 쓴다) */
-function segDist(px, py, x1, y1, x2, y2) {
-  const vx = x2 - x1
-  const vy = y2 - y1
-  const wx = px - x1
-  const wy = py - y1
-  const t = Math.max(0, Math.min(1, (wx * vx + wy * vy) / (vx * vx + vy * vy)))
-  return Math.hypot(px - (x1 + t * vx), py - (y1 + t * vy))
-}
+/**
+ * HSOrbit 마크 — 종이색 둥근 판 위에 궤도(꼬리) · 가운데 점 · 새벽 4시 자리의 주황 점.
+ * 원본은 hsorbit.uk 로고 svg/hsorbit-mark.svg (viewBox 64): 호 M12.95 25 A22 22 0 1 1 24.48 56.67,
+ * 가운데 (32,36) r9, 주황 (51.05,47) r4.5. 여기서는 512 판 가운데에 6.4배로 놓는다.
+ */
+const PAPER = [244, 243, 238]
+const LINE = [226, 224, 216]
+const INK = [53, 53, 50]
+const HAND = [224, 122, 63]
 
 function renderRGBA(size) {
   const s = size / 512 // 512 기준으로 좌표를 잡고 배율만 바꾼다
   const px = new Uint8Array(size * size * 4)
+  const k = 6.4
+  const at = (vx, vy) => [256 + (vx - 32) * k, 256 + (vy - 36) * k]
+  const [cx, cy] = at(32, 36)
+  const R = 22 * k
+  // 작은 아이콘(16 · 24px)에서도 선이 끊기지 않게 최소 1.6px
+  const stroke = Math.max(4 * k, (512 / size) * 1.6)
+  const A0 = (-150 * Math.PI) / 180
+  const A1 = (110 * Math.PI) / 180
+  const e0 = [cx + R * Math.cos(A0), cy + R * Math.sin(A0)]
+  const e1 = [cx + R * Math.cos(A1), cy + R * Math.sin(A1)]
+  const [hx, hy] = at(51.05, 47)
+  const feather = Math.max(1.2, 512 / size) // 512 좌표에서 1px 만큼 부드럽게
 
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const i = (y * size + x) * 4
-      const X = x / s
-      const Y = y / s
+      const X = (x + 0.5) / s
+      const Y = (y + 0.5) / s
 
-      // 바탕: 파란 라운드 사각형에 위아래 그라데이션
-      const bgA = cover(roundRectDist(X, Y, 16, 16, 496, 496, 104), 2)
-      if (bgA > 0) {
-        const t = Y / 512
-        blend(px, i, lerp(59, 29, t), lerp(130, 78, t), lerp(246, 216, t), bgA)
-      }
+      // 바탕: 종이색 둥근 사각형 + 얇은 테두리(흰 작업 표시줄에서도 보이게)
+      const outer = roundRectDist(X, Y, 16, 16, 496, 496, 112)
+      const bgA = cover(outer, feather)
+      if (bgA > 0) blend(px, i, ...LINE, bgA)
+      const inA = cover(roundRectDist(X, Y, 22, 22, 490, 490, 106), feather)
+      if (inA > 0) blend(px, i, ...PAPER, inA)
+      if (bgA <= 0) continue
 
-      // 뒤쪽 종이 한 장 (살짝 비껴 있음)
-      const backA = cover(roundRectDist(X, Y, 150, 118, 388, 386, 22), 2)
-      if (backA > 0) blend(px, i, 219, 232, 254, backA * 0.95)
+      // 궤도: 호(둥근 끝)
+      const ang = Math.atan2(Y - cy, X - cx)
+      const onArc = ang >= A0 && ang <= A1
+      const d = onArc ? Math.abs(Math.hypot(X - cx, Y - cy) - R) : Math.min(Math.hypot(X - e0[0], Y - e0[1]), Math.hypot(X - e1[0], Y - e1[1]))
+      const arcA = cover(d - stroke / 2, feather)
+      if (arcA > 0) blend(px, i, ...INK, arcA)
 
-      // 앞쪽 종이
-      const paperA = cover(roundRectDist(X, Y, 128, 148, 366, 416, 22), 2)
-      if (paperA > 0) blend(px, i, 255, 255, 255, paperA)
+      // 가운데 점
+      const coreA = cover(Math.hypot(X - cx, Y - cy) - 9 * k, feather)
+      if (coreA > 0) blend(px, i, ...INK, coreA)
 
-      // 목록 줄 세 개
-      if (paperA > 0.9) {
-        for (let k = 0; k < 3; k++) {
-          const top = 206 + k * 56
-          const right = k === 2 ? 268 : 322
-          const lineA = cover(roundRectDist(X, Y, 226, top, right, top + 16, 8), 1.6)
-          if (lineA > 0) blend(px, i, 148, 163, 184, lineA)
-
-          // 줄 앞의 점
-          const dotA = cover(Math.hypot(X - 186, Y - (top + 8)) - 10, 1.6)
-          if (dotA > 0) blend(px, i, 191, 202, 216, dotA)
-        }
-      }
-
-      // 완료 표시 (초록 원 + 흰 체크)
-      const badgeA = cover(Math.hypot(X - 372, Y - 388) - 76, 2)
-      if (badgeA > 0) blend(px, i, 255, 255, 255, badgeA)
-      const badgeInner = cover(Math.hypot(X - 372, Y - 388) - 64, 2)
-      if (badgeInner > 0) blend(px, i, 22, 163, 74, badgeInner)
-
-      if (badgeInner > 0.5) {
-        const d = Math.min(
-          segDist(X, Y, 340, 388, 362, 412),
-          segDist(X, Y, 362, 412, 406, 362)
-        )
-        const checkA = cover(d - 9, 1.8)
-        if (checkA > 0) blend(px, i, 255, 255, 255, checkA)
-      }
+      // 새벽 4시 주황 점 (로고처럼 궤도 위에 그대로 얹는다)
+      const handA = cover(Math.hypot(X - hx, Y - hy) - 5.2 * k, feather)
+      if (handA > 0) blend(px, i, ...HAND, handA)
     }
   }
   return px

@@ -23,6 +23,7 @@ import {
   TasksWidget
 } from './HomeWidgets'
 import { useToast } from '../lib/toast'
+import { DdayWidget, WeatherWidget } from './WeatherDday'
 
 /**
  * 새 화면의 '오늘' 판 — 갤럭시 홈 화면처럼 위젯을 칸에 맞춰 놓는다.
@@ -36,6 +37,8 @@ import { useToast } from '../lib/toast'
 type BoardId =
   | 'now'
   | 'clock'
+  | 'weather'
+  | 'dday'
   | 'meal'
   | 'deadlines'
   | 'notices'
@@ -63,11 +66,15 @@ interface Def {
   sizes: [number, number][]
   /** 제목 옆 [열기] 로 갈 화면 */
   page?: PageId
+  /** 위젯 목록에 '새' 표시 */
+  fresh?: boolean
 }
 
 const DEFS: Record<BoardId, Def> = {
   now: { icon: 'spark', title: '지금 · 오늘 수업', desc: '지금 몇 교시인지, 오늘 교시 띠와 오늘 일정', group: '오늘', size: [5, 4], lim: { minW: 4, minH: 3, maxW: 8, maxH: 6 }, sizes: [[5, 4], [8, 4], [4, 5]], page: '시간표' },
   clock: { icon: 'clock', title: '날짜 · 시각', desc: '큰 시계와 오늘 날짜', group: '오늘', size: [3, 2], lim: { minW: 2, minH: 1, maxW: 4, maxH: 3 }, sizes: [[2, 1], [3, 2], [4, 2]] },
+  weather: { icon: 'weather', title: '날씨', desc: '학교가 있는 곳(또는 고른 곳)의 지금 날씨 · 미세먼지 · 시간별', group: '오늘', size: [3, 2], lim: { minW: 2, minH: 2, maxW: 8, maxH: 4 }, sizes: [[3, 2], [4, 3], [8, 3]], fresh: true },
+  dday: { icon: 'dday', title: 'D-Day', desc: '시험 · 방학식 · 수능처럼 기다리는 날까지 남은 날', group: '오늘', size: [3, 2], lim: { minW: 2, minH: 2, maxW: 6, maxH: 6 }, sizes: [[3, 2], [3, 3], [4, 4]], fresh: true },
   meal: { icon: 'meal', title: '오늘 급식', desc: '조식 · 중식 · 석식 (나이스)', group: '오늘', size: [3, 2], lim: { minW: 2, minH: 2, maxW: 8, maxH: 5 }, sizes: [[3, 2], [4, 3], [8, 3]] },
   deadlines: { icon: 'hourglass', title: '절차 기한', desc: '다가오는 통보 · 통지 기한과 D-day', group: '오늘', size: [4, 3], lim: { minW: 3, minH: 2, maxW: 8, maxH: 6 }, sizes: [[4, 3], [4, 4]], page: '기한' },
   notices: { icon: 'pin', title: '메모 · 공지', desc: '다음 담당자에게 남길 메모', group: '오늘', size: [4, 4], lim: { minW: 3, minH: 3, maxW: 8, maxH: 8 }, sizes: [[4, 4], [4, 6], [8, 4]] },
@@ -103,6 +110,9 @@ interface Item extends Placed {
 }
 
 const KEY = 'today_board'
+/** 날씨 · D-Day 를 판에 한 번 넣었는지 (v3.6.2) */
+const FRESH_KEY = 'today_board_fresh_362'
+const FRESH_IDS: BoardId[] = ['weather', 'dday']
 /** 한 줄 높이 · 칸 사이 (px) */
 const ROW = 76
 const GAP = 12
@@ -112,18 +122,21 @@ const NARROW = 720
 const HOLD_MS = 450
 const SLOP = 8
 
-const DEFAULT_PLACES: [BoardId, number, number][] = [
-  ['now', 0, 0],
-  ['clock', 5, 0],
-  ['meal', 5, 2],
-  ['deadlines', 0, 4],
-  ['notices', 4, 4],
-  ['calendar', 0, 7],
-  ['schedule', 4, 8],
-  ['tasks', 4, 11]
+/** 처음 판 — [위젯, x, y, 가로, 세로] */
+const DEFAULT_PLACES: [BoardId, number, number, number, number][] = [
+  ['now', 0, 0, 5, 4],
+  ['clock', 5, 0, 3, 2],
+  ['weather', 5, 2, 3, 2],
+  ['meal', 0, 4, 3, 3],
+  ['dday', 3, 4, 2, 3],
+  ['deadlines', 5, 4, 3, 3],
+  ['notices', 0, 7, 4, 4],
+  ['schedule', 4, 7, 4, 3],
+  ['tasks', 4, 10, 4, 4],
+  ['calendar', 0, 11, 4, 6]
 ]
 
-const defaults = (): Item[] => DEFAULT_PLACES.map(([id, x, y]) => ({ id, x, y, w: DEFS[id].size[0], h: DEFS[id].size[1] }))
+const defaults = (): Item[] => DEFAULT_PLACES.map(([id, x, y, w, h]) => ({ id, x, y, w, h }))
 
 const lookOf = (it: Item): Look => ({ ...LOOK, ...it.look })
 
@@ -225,7 +238,21 @@ export default function TodayBoard({ jobTitle, onGo }: Props): JSX.Element {
   const loadTasks = useCallback(async () => setTasks(await window.api.tasks.list()), [])
   useEffect(() => {
     void loadTasks()
-    void (async () => setItems(parseBoard(await window.api.setting.get(KEY))))()
+    void (async () => {
+      const list = parseBoard(await window.api.setting.get(KEY))
+      // 새로 생긴 위젯(날씨 · D-Day)을 한 번만 빈자리에 넣어 둔다 — 빼면 다시 넣지 않는다
+      if ((await window.api.setting.get(FRESH_KEY)) !== '1') {
+        for (const id of FRESH_IDS) {
+          if (list.some((w) => w.id === id)) continue
+          const [w, h] = DEFS[id].size
+          const spot = firstFree(list, w, h)
+          list.push({ id, x: spot.x, y: spot.y, w, h })
+        }
+        void window.api.setting.set(KEY, JSON.stringify({ v: 1, items: list }))
+        void window.api.setting.set(FRESH_KEY, '1')
+      }
+      setItems(list)
+    })()
   }, [loadTasks])
 
   useLayoutEffect(() => {
@@ -479,6 +506,10 @@ export default function TodayBoard({ jobTitle, onGo }: Props): JSX.Element {
         return <Hero onGo={onGo} />
       case 'clock':
         return <ClockBody />
+      case 'weather':
+        return <WeatherWidget onGo={onGo} w={it.w} h={it.h} />
+      case 'dday':
+        return <DdayWidget h={it.h} />
       case 'meal':
         return <MealCard onGo={onGo} />
       case 'deadlines':
@@ -835,7 +866,10 @@ function WidgetPicker({ placed, onAdd, onClose }: { placed: Set<BoardId>; onAdd:
                           <Icon name={def.icon} size={20} />
                         </span>
                         <span className="tb-pick-text">
-                          <b>{def.title}</b>
+                          <b>
+                            {def.title}
+                            {def.fresh && <span className="tb-pick-new">새</span>}
+                          </b>
                           <small>{def.desc}</small>
                         </span>
                         <span className="tb-pick-sizes">

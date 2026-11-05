@@ -9,11 +9,12 @@ import { THEME_VARS, sanitizeCatalog } from '../../shared/catalog'
  * 이 창의 localStorage 에 둔다. 시작할 때 IPC 를 기다리지 않고 바로 읽을 수 있어서
  * 첫 화면부터 고른 모양으로 그린다 — 설정 파일에서 읽으면 한 번 파랗게 깜빡인다.
  *
- * 받은 테마(저장소의 remote/catalog.json, shared/catalog.ts)는 세 테마 가운데 하나의 모양에 색 토큰만 바꾼 것이다.
+ * 받은 테마(저장소의 remote/catalog.json, shared/catalog.ts)는 네 테마 가운데 하나의 모양에 색 토큰만 바꾼 것이다.
+ * 글래스 · 라벤더는 3.6.2 에서 뺐다 — 골라 두었던 분은 HSOrbit 으로 옮긴다(read 가 모르는 이름은 기본값으로).
  * 고르면 그 내용을 통째로 여기 적어 두어, 다음에 켤 때 목록을 받기 전에도 바로 그 색으로 그린다.
  */
 
-export type ThemeId = 'classic' | 'bento' | 'glass' | 'midnight' | 'lavender'
+export type ThemeId = 'orbit' | 'classic' | 'bento' | 'midnight'
 export type ModePref = 'system' | 'light' | 'dark'
 
 export interface UiPrefs {
@@ -30,12 +31,11 @@ export interface UiPrefs {
 export type ShellId = 'classic' | 'new'
 
 export const THEMES: { id: ThemeId; name: string; desc: string; prefer?: 'light' | 'dark' }[] = [
+  { id: 'orbit', name: 'HSOrbit', desc: '종이 바탕 · 먹색 글 · 새벽 4시 주황 바늘. 기본 모양' },
   { id: 'bento', name: '회색 벤토', desc: '회색 타일을 촘촘히 붙인 모양. 강조할 것은 바탕과 반대 밝기로' },
-  { id: 'glass', name: '글래스', desc: '뿌연 유리 카드에 남보라 · 민트 포인트' },
-  { id: 'classic', name: '기본', desc: '지금까지 쓰던 파란 강조색 모양' },
+  { id: 'classic', name: '기본(파랑)', desc: '예전부터 쓰던 파란 강조색 모양' },
   // 어두운 모양이 본모습이라 고르면 밝기를 어둡게로 바꾼다 (밝게로 되돌릴 수 있다)
-  { id: 'midnight', name: '미드나잇', desc: '검정 바탕에 진회색 카드, 보라 · 주황 포인트. 고르면 어둡게로 바뀝니다', prefer: 'dark' },
-  { id: 'lavender', name: '라벤더', desc: '연보라 바탕에 큰 흰 판, 왼쪽은 보라 메뉴 띠' }
+  { id: 'midnight', name: '미드나잇', desc: '검정 바탕에 진회색 카드, 보라 · 주황 포인트. 고르면 어둡게로 바뀝니다', prefer: 'dark' }
 ]
 
 export const MODES: { id: ModePref; label: string }[] = [
@@ -46,7 +46,9 @@ export const MODES: { id: ModePref; label: string }[] = [
 
 const KEY = 'wd_ui'
 const PRESET_KEY = 'wd_ui_preset'
-const DEFAULTS: UiPrefs = { theme: 'bento', mode: 'system', navCollapsed: false, preset: '', shell: 'classic' }
+/** 새 디자인(HSOrbit, 3.6.2)으로 한 번 바꿨는지 — 그 뒤에는 고른 테마를 그대로 둔다 */
+const ORBIT_KEY = 'wd_ui_orbit'
+const DEFAULTS: UiPrefs = { theme: 'orbit', mode: 'system', navCollapsed: false, preset: '', shell: 'classic' }
 
 function read(): UiPrefs {
   try {
@@ -84,6 +86,21 @@ function writePreset(t: CatalogTheme | null): void {
 
 let prefs: UiPrefs = read()
 let preset: CatalogTheme | null = readPreset()
+
+// 새 디자인이 나오면 한 번만 HSOrbit 으로 옮긴다(받은 테마도 그만 씀). 설정 → 화면 테마에서 예전 모양으로 되돌릴 수 있다.
+try {
+  if (window.localStorage.getItem(ORBIT_KEY) !== '1') {
+    window.localStorage.setItem(ORBIT_KEY, '1')
+    if (prefs.theme !== 'orbit' || prefs.preset) {
+      prefs = { ...prefs, theme: 'orbit', preset: '' }
+      preset = null
+      window.localStorage.setItem(KEY, JSON.stringify(prefs))
+      window.localStorage.removeItem(PRESET_KEY)
+    }
+  }
+} catch {
+  // 저장이 막혀 있으면 고른 모양 그대로
+}
 /** 받은 테마로 덮어쓴 토큰 — 다른 것을 고르면 지운다 */
 let applied: string[] = []
 const listeners = new Set<() => void>()

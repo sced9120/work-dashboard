@@ -6,6 +6,7 @@ import { isShown } from '../lib/nav'
 import { queueChat, queueSearch } from '../lib/chatBridge'
 import { newChat } from '../lib/chatStore'
 import Icon from './Icon'
+import { OrbitMark } from './Brand'
 import type { IconName } from './Icon'
 
 /**
@@ -183,7 +184,7 @@ export default function NewShell(props: Props): JSX.Element {
       <header className="ns-top">
         <div className="ns-brand">
           <span className="ns-logo" aria-hidden="true">
-            <Icon name="box" size={16} />
+            <OrbitMark size={30} />
           </span>
           <span className="ns-brand-text">
             <b>{props.schoolName || '업무 대시보드'}</b>

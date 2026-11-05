@@ -38,6 +38,7 @@ import type {
 import type { HelpCatalog, HelpHit, HelpMatch } from '../../shared/helpdocs'
 import type { NeisDay, NeisLesson, NeisMealDay, NeisResult, NeisSchool } from '../../shared/neis'
 import type { IcsEvent } from '../../shared/ics'
+import type { WeatherPlace, WeatherResult } from '../../shared/weather'
 import type { CatalogResult } from '../../shared/catalog'
 import type { ChatAttachment, ChatDelta, ChatMeta, ChatPreset, ChatRecord, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
 import type { OcrAnswer, OcrFile, OcrProgress, OcrRequest } from '../../shared/ocr'
@@ -280,6 +281,13 @@ const api = {
     /** 학급 시간표 (키 필요) */
     classTimetable: (grade: number, cls: number, from: string, to: string): Promise<NeisResult<NeisLesson[]>> =>
       ipcRenderer.invoke('neis:classTimetable', grade, cls, from, to)
+  },
+  /** 날씨 위젯 (Open-Meteo, 키 없음) */
+  weather: {
+    at: (lat: number, lon: number, force = false): Promise<WeatherResult> => ipcRenderer.invoke('weather:at', lat, lon, force),
+    search: (q: string): Promise<{ ok: boolean; places: WeatherPlace[]; error?: string }> => ipcRenderer.invoke('weather:search', q),
+    /** 나이스에 연결한 학교 주소의 시 · 군 · 구 */
+    schoolPlace: (): Promise<WeatherPlace | null> => ipcRenderer.invoke('weather:schoolPlace')
   },
   /** 학교 시간표 (엑셀에서 읽은 것) */
   tt: {

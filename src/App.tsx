@@ -27,6 +27,7 @@ import Ocr from './pages/Ocr'
 import Icon from './components/Icon'
 import TourHost from './components/Tour'
 import NewShell, { focusAsk } from './components/NewShell'
+import { OrbitMark } from './components/Brand'
 import TodayBoard from './components/TodayBoard'
 import { AI_ITEM, DATA_ITEM, isShown, requestMenuEdit, sidebarNav, useNavPrefs } from './lib/nav'
 import { setUiPrefs, useUiPrefs } from './lib/theme'
@@ -387,6 +388,13 @@ function Shell(): JSX.Element {
   return (
     <div className={`shell ${collapsed ? 'nav-collapsed' : ''}`}>
       <nav className="sidebar" aria-label="메뉴">
+        <div className="side-brand">
+          <OrbitMark size={26} />
+          <span className="side-label side-brand-text">
+            <b>업무 대시보드</b>
+            <small>HSOrbit</small>
+          </span>
+        </div>
         {isShown(navp, AI_ITEM.id) && (
           <button
             className={`side-ai ${page === AI_ITEM.id ? 'active' : ''}`}
