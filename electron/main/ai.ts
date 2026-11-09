@@ -966,7 +966,7 @@ ${guide ? `
 [문서 종류]는 담당자가 고른 문서와 그 문서를 쓰는 법입니다. 구성은 양식을 따르고, 말투와 빠뜨리면 안 되는 것만 참고하세요.
 ` : ''}
 양식 읽는 법
-- [P3] 으로 시작하는 줄은 양식의 문단입니다. 괄호 안(가운데 · 16pt · 굵게)은 그 문단의 모양입니다.
+- [P3] 으로 시작하는 줄은 양식의 문단입니다. 괄호 안(가운데 · 16pt · 굵게)은 그 문단의 모양 설명일 뿐이니 **새 문서에 옮겨 쓰지 마세요.**
 - [T0] 은 표입니다. 아래의 | 칸 | 칸 | 줄이 표의 행이고, 합쳐진 칸은 한 칸입니다. <br> 은 칸 안의 줄바꿈입니다.
 - [B0] 은 글상자입니다. 칸 안의 [T5] 는 그 자리에 든 또 다른 표입니다.
 
@@ -983,6 +983,7 @@ ${guide ? `
 - 제목, 인사말, 안내·요청 문장("이에 … 참석하여 주십시오" 같은 것), 법령·규정 안내, 학교장 이름 줄은 **글자 하나 바꾸지 말고** 양식 그대로 쓰세요.
   [넣을 내용]이 제목을 바꾸라고 하지 않았으면 제목에 회차·날짜를 붙이지 마세요.
 - 번호 매긴 항목 줄(1. 2. 3. 가. 나.)과 "이름:" 항목 줄(일 시:, 장 소:)은 하나도 빼지 마세요.
+- 시나리오 · 회의록의 말하는 사람 표시(■ 위원장 :, ■ 인성부장 :, ◎위원 : 같은 것)는 양식 그대로 두세요. '담당자' 처럼 다른 말로 바꾸거나 한 사람으로 합치지 마세요.
 - 문장의 틀은 양식을 따르세요. 예) 양식이 『조항 + 조항 내용』 이면 새 문서도 『조항 + 조항 내용』, 양식이 "제2부제5조" 처럼 붙여 썼으면 붙여 씁니다.
 - 받는 사람이 손으로 채우는 자리(괄호 빈칸 "(      )", "년 월 일", "(인)", 밑줄 빈 줄, 회신란)는 양식 그대로 비워 두세요.
   "성명:", "학번:" 처럼 항목 이름 뒤가 빈 자리는 [넣을 내용]으로 채웁니다.
@@ -1028,7 +1029,7 @@ ${masked.slice(0, 20000)}`
     let final = parsed
     let review: ComposeReview = { fixed: [], ask: [], remain: [] }
     let sent = prompt
-    const docText = raw
+    const docText = maskText(raw, aliases)
       .replace(/\r\n?/g, '\n')
       .split('\n')
       .filter((l) => !/^\s*메모\s*[:：]/.test(l))
@@ -1047,6 +1048,7 @@ ${masked.slice(0, 20000)}`
 4. [넣을 내용]과 양식 어디에도 없는 사실·날짜·숫자·규정 내용이 있는가 → 빼고 '물을 것'에 적는다.
 5. 문장 틀(괄호 안에 쓰는 방식, 붙여 쓰기·띄어쓰기, 날짜 쓰는 꼴)이 양식과 다른가 → 양식처럼 고친다.
 6. 받는 사람이 손으로 쓰는 빈칸(괄호 빈칸, 년 월 일, 인, 밑줄 줄)을 채웠는가 → 양식처럼 비운다.
+7-1. 말하는 사람 표시(■ 위원장 :, ■ 인성부장 :)가 양식과 달라졌는가 → 양식의 표시로 되돌린다. 문단 앞에 "(가운데 · 24pt · 굵게)" 같은 모양 설명이 붙었으면 뺀다.
 7. [넣을 내용]의 사실이 빠졌는가 → 양식의 알맞은 자리에 넣는다. 자리가 없으면 넣지 말고 '검사'에 적는다.
 [프로그램 대조]는 프로그램이 기계적으로 찾은 것입니다. 참고하되, 맞는지는 당신이 판단하세요.
 
@@ -1210,11 +1212,20 @@ const BIN_MIME = new Set(['application/pdf', ...Object.values(CHAT_IMAGE_TYPES)]
  * 글로 뽑은 파일은 글로, 사진 · 스캔 PDF 는 이 PC 의 파일을 다시 읽어 그대로. 파일 그대로 보내는 것은 최근 것부터 한도까지.
  */
 export function richTurns(history: ChatSendTurn[], provider: Provider): RichTurn[] {
-  const list = (Array.isArray(history) ? history : [])
-    .filter((t) => t && (t.role === 'user' || t.role === 'assistant'))
-    .slice(-CHAT_HISTORY)
+  const all = (Array.isArray(history) ? history : []).filter((t) => t && (t.role === 'user' || t.role === 'assistant'))
+  const list = all.slice(-CHAT_HISTORY)
   // Claude · Gemini 는 첫 마디가 반드시 user 여야 한다. 잘려서 assistant 로 시작하면 앞을 버린다.
   while (list.length && list[0].role !== 'user') list.shift()
+  // 오래된 마디는 잘라도, 그때 올린 파일(양식 · 자료)은 잊지 않게 남는 첫 질문에 함께 싣는다
+  const kept = new Set(list)
+  const carried = all
+    .filter((t) => !kept.has(t))
+    .flatMap((t) => (Array.isArray(t.attachments) ? t.attachments : []))
+    .filter((a, i, arr) => arr.findIndex((b) => b.name === a.name) === i)
+  if (carried.length && list.length) {
+    const names = new Set((list[0].attachments ?? []).map((a) => a.name))
+    list[0] = { ...list[0], attachments: [...carried.filter((a) => !names.has(a.name)), ...(list[0].attachments ?? [])] }
+  }
   let room = CHAT_MAX_BINARY
   const out: RichTurn[] = []
   for (let i = list.length - 1; i >= 0; i--) {

@@ -173,6 +173,17 @@ function cellsOf(line: string): string[] {
  *
  * 번호 없는 줄은 바로 앞 문단과 같은 모양으로 본다. 빈 줄은 버린다(문단 사이 간격은 양식을 따른다).
  */
+/**
+ * 양식 설명에 붙여 보낸 모양 표시 "(가운데 · 24pt · 굵게)" 를 AI 가 글 앞에 옮겨 쓰는 일이 있다 — 글이 아니므로 걷어 낸다.
+ * 화면 미리보기의 "가운데 · 24pt · 굵게 — " 꼴도 같이.
+ */
+const STYLE_WORD = '(?:가운데|왼쪽|오른쪽|양쪽|배분|굵게|기울임|밑줄|\\d+(?:\\.\\d+)?\\s*pt)'
+const STYLE_PAREN = new RegExp(`^\\(\\s*${STYLE_WORD}(?:\\s*[·,]\\s*${STYLE_WORD})*\\s*\\)\\s*`)
+const STYLE_DASH = new RegExp(`^${STYLE_WORD}(?:\\s*·\\s*${STYLE_WORD})*\\s*—\\s*`)
+export function stripStyleLabel(text: string): string {
+  return text.replace(STYLE_PAREN, '').replace(STYLE_DASH, '')
+}
+
 export function parseComposed(answer: string): { items: DocItem[]; note: string } {
   const items: DocItem[] = []
   const notes: string[] = []
@@ -204,11 +215,12 @@ export function parseComposed(answer: string): { items: DocItem[]; note: string 
     const p = /^\s*\[([PB]\d+)\]\s?(.*)$/.exec(line)
     if (p) {
       lastSample = p[1]
-      if (p[2].trim()) items.push({ kind: 'p', sample: p[1], text: p[2].trim() })
+      const text = stripStyleLabel(p[2].trim())
+      if (text) items.push({ kind: 'p', sample: p[1], text })
       continue
     }
     if (!line.trim()) continue
-    items.push({ kind: 'p', sample: lastSample, text: line.trim() })
+    items.push({ kind: 'p', sample: lastSample, text: stripStyleLabel(line.trim()) })
   }
   return { items: items.filter((it) => it.kind === 'p' || it.rows.length), note: notes.join(' ') }
 }

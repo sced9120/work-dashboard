@@ -84,9 +84,12 @@ function Shell(): JSX.Element {
       setBatchNotifier(null)
     }
   }, [toast])
-  // 창에 파일을 떨어뜨려도 프로그램이 그 파일로 넘어가지 않게 (받는 곳은 data-drop 이 붙은 화면만)
+  // 창에 파일을 떨어뜨려도 프로그램이 그 파일로 넘어가지 않게 (받는 곳은 data-drop 이 붙은 화면만).
+  // 3.6.5 전에는 모든 끌기에 dropEffect='none' 을 걸어 달력 일정 끌어 옮기기가 놓이지 않았다
   useEffect(() => {
     const guard = (e: DragEvent): void => {
+      // 화면 안의 끌기(달력 일정 옮기기 등)는 막지 않는다 — 바깥에서 끌어 온 파일만
+      if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return
       const target = e.target instanceof Element ? e.target : null
       if (target?.closest('[data-drop]')) return
       e.preventDefault()

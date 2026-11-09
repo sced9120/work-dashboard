@@ -243,8 +243,14 @@ export interface SplitAnswer {
   /** 사람에게 보여 줄 말 */
   text: string
   actions: AgentAction[]
+  /** 첫 문서 (예전 화면과 맞추려고 남겨 둠) */
   doc?: DocRequest
+  /** 답에 붙은 문서 묶음 모두 — 두 문서를 한꺼번에 부탁받으면 둘 */
+  docs: DocRequest[]
 }
+
+/** 한 답에 문서 묶음은 이만큼까지 */
+export const MAX_DOCS = 4
 
 /** 답에서 묶음 하나를 떼어 낸다. 닫는 표시가 없으면 여는 표시 뒤를 모두 버린다. */
 function cut(answer: string, open: string, close: string): { text: string; body: string | null } {
@@ -258,15 +264,22 @@ function cut(answer: string, open: string, close: string): { text: string; body:
   }
 }
 
-/** "양식: …" "파일이름: …" 뒤에 "내용:" 부터 끝까지가 본문이다 */
+/**
+ * "양식: …" "파일이름: …" 뒤에 "내용:" 부터 끝까지가 본문이다.
+ * "내용:" 줄을 빠뜨렸으면 머리글 줄 뒤를 모두 본문으로 본다 — 묶음을 버려 카드가 안 뜨는 일을 막는다.
+ */
 export function parseDocBlock(body: string): DocRequest | null {
   const lines = body.replace(/\r\n?/g, '\n').split('\n')
   let form = ''
   let fileName = ''
   let at = -1
+  let lastHead = -1
   for (let i = 0; i < lines.length; i++) {
-    const m = /^\s*(양식|파일\s*이름|내용)\s*[:：]\s*(.*)$/.exec(lines[i])
-    if (!m) continue
+    const m = /^\s*(양식|파일\s*이름|내용|본문)\s*[:：]\s*(.*)$/.exec(lines[i])
+    if (!m) {
+      if (lines[i].trim() && lastHead >= 0) break
+      continue
+    }
     const key = m[1].replace(/\s/g, '')
     if (key === '양식') form = m[2].trim().replace(/^['"‘“「[]|['"’”」\]]$/g, '')
     else if (key === '파일이름') fileName = m[2].trim()
@@ -275,8 +288,9 @@ export function parseDocBlock(body: string): DocRequest | null {
       lines[i] = m[2]
       break
     }
+    lastHead = i
   }
-  if (at < 0) return null
+  if (at < 0) at = lastHead + 1
   const content = lines.slice(at).join('\n').trim()
   if (!content) return null
   return { form: /^(없음|없이|-)$/.test(form) ? '' : form, fileName, content }
@@ -284,9 +298,19 @@ export function parseDocBlock(body: string): DocRequest | null {
 
 /** 도우미 답을 "보여 줄 말" 과 "내밀 일감·문서" 로 가른다 */
 export function splitAnswer(answer: string): SplitAnswer {
-  const d = cut(answer, DOC_OPEN, DOC_CLOSE)
-  const doc = d.body !== null ? parseDocBlock(d.body) : null
-  const a = cut(d.text, OPEN, CLOSE)
+  const docs: DocRequest[] = []
+  let rest = answer
+  for (let k = 0; k < MAX_DOCS * 2; k++) {
+    const d = cut(rest, DOC_OPEN, DOC_CLOSE)
+    if (d.body === null) {
+      rest = d.text
+      break
+    }
+    const doc = parseDocBlock(d.body)
+    if (doc && docs.length < MAX_DOCS) docs.push(doc)
+    rest = d.text
+  }
+  const a = cut(rest, OPEN, CLOSE)
   let actions: AgentAction[] = []
   if (a.body !== null) {
     try {
@@ -295,7 +319,7 @@ export function splitAnswer(answer: string): SplitAnswer {
       // 깨진 묶음은 없는 셈 친다. 말만 보여 주면 사람이 다시 부탁할 수 있다.
     }
   }
-  return { text: a.text.trim(), actions, ...(doc ? { doc } : {}) }
+  return { text: a.text.trim(), actions, docs, ...(docs[0] ? { doc: docs[0] } : {}) }
 }
 
 /** 도우미에게 알려 줄 한글 파일 만드는 법. forms 는 쓸 수 있는 양식 이름들 */
@@ -304,7 +328,7 @@ export function docGuide(forms: string[]): string {
   return `[한글 파일 만들어 드리기]
 
 담당자가 "양식에 맞춰 만들어 줘", "한글 파일로 만들어 줘" 처럼 **문서 파일을 부탁**하면,
-답 끝에 아래 묶음을 하나만 붙이세요. 화면에서 프로그램이 그 양식의 구성·글꼴·문단 모양을 틀로 삼아
+답 끝에 아래 묶음을 붙이세요. **문서 하나에 묶음 하나**입니다 — 두 문서를 부탁받으면 묶음 두 개를 이어 붙이세요(한 답에 ${MAX_DOCS}개까지). 화면에서 프로그램이 그 양식의 구성·글꼴·문단 모양을 틀로 삼아
 이 내용으로 새 문서를 짜고, 담당자가 확인한 뒤 저장합니다. 당신이 파일을 직접 만드는 것이 아닙니다.
 
 ${DOC_OPEN}
@@ -322,6 +346,12 @@ ${DOC_CLOSE}
 - 대화·올린 파일·참고 자료에 있는 사실만 쓰세요. 모르는 것은 지어내지 말고 그냥 빼세요.
   "(   )", "○○○" 같은 빈자리 표시는 쓰지 마세요.
 - 어느 양식인지, 무엇을 담을지 분명하지 않으면 묶음을 붙이지 말고 되물으세요.
+- "만들겠습니다", "준비했습니다" 라고 말했으면 **반드시 묶음을 붙이세요.** 묶음이 없으면 화면에 파일 카드가 뜨지 않습니다.
+- 앞에서 만든 문서를 고쳐 달라고 하면, 고친 내용 전체로 그 문서의 묶음을 다시 붙이세요. 대화 앞쪽의
+  [이 답에서 내민 한글 파일] 이 앞서 만든 문서입니다.
+- 시나리오 · 회의록의 말하는 사람(위원장 · 인성부장 · 위원 등)은 양식 그대로 쓰세요. 대화 상대를 '담당자' 라고 부르는 것과 헷갈려
+  문서 속 직함을 '담당자' 로 바꾸지 마세요.
+- 문단 앞에 "(가운데 · 24pt · 굵게)" 같은 모양 설명을 쓰지 마세요.
 - 쓸 수 있는 양식이 없는데 양식을 원하면, [학교 문서 만들기 → 우리 학교 한글 양식] 에서 넣거나
   [파일] 로 한글 파일을 올려 달라고 안내하세요. 양식 없이도 만들 수 있다고 함께 알려 주세요.`
 }

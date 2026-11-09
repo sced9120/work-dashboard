@@ -1,6 +1,6 @@
 {
   "name": "work-dashboard",
-  "version": "3.6.4",
+  "version": "3.6.5",
   "description": "업무데스크 오르빗 — 선생님의 하루가 도는 곳 (HSOrbit)",
   "main": "./out/main/index.js",
   "author": "정현서",

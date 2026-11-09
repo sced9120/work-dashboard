@@ -25,6 +25,7 @@ node tests/t_widgetgrid.cjs
 node tests/t_hwpfit.cjs
 node tests/t_weather.cjs
 node tests/t_messenger.cjs
+node tests/t_chatdoc.cjs
 node scripts/check-catalog.mjs
 ```
 

@@ -36,9 +36,14 @@ export interface Msg extends ChatMsgBase {
   /** 넣었는지, 안 넣기로 했는지 */
   planDone?: '넣음' | '안 함'
   planCount?: number
-  /** 도우미가 내민 한글 파일 만들기 */
+  /** 도우미가 내민 한글 파일 만들기 (3.6.5 전에 저장한 대화 — 하나뿐) */
   doc?: ChatDoc
+  /** 도우미가 내민 한글 파일들 — 한 답에 여러 개 */
+  docs?: ChatDoc[]
 }
+
+/** 이 답의 한글 파일 카드들 (예전 대화의 doc 하나도) */
+export const docsOf = (m: Msg): ChatDoc[] => m.docs ?? (m.doc ? [m.doc] : [])
 
 export type Rec = ChatRecord<Msg>
 
@@ -270,9 +275,33 @@ export function liveText(rec: Rec | undefined, text: string): string {
 /** 보낼 대화 — 오류 · 빈 답은 빼고 */
 function sendable(messages: Msg[]): ChatSendTurn[] {
   return messages
-    .filter((m) => !m.error && (m.role === 'user' || m.content.trim()))
-    .map((m) => ({ role: m.role, content: m.content, ...(m.attachments?.length ? { attachments: m.attachments } : {}) }))
+    .filter((m) => !m.error && (m.role === 'user' || m.content.trim() || docsOf(m).length))
+    .map((m) => ({ role: m.role, content: withDocs(m), ...(m.attachments?.length ? { attachments: m.attachments } : {}) }))
 }
+
+/**
+ * 도우미 답에 붙었던 문서 묶음은 화면 카드로만 남고 글에서는 빠진다. 다음 질문 때 도우미가
+ * 자기가 무엇을 만들었는지 알도록, 묶음을 같은 모양으로 되살려 함께 보낸다(길면 앞부분만).
+ */
+function withDocs(m: Msg): string {
+  const docs = docsOf(m)
+  if (m.role !== 'assistant' || !docs.length) return m.content
+  const blocks = docs.map((d) => {
+    const body = d.req.content.length > 4000 ? `${d.req.content.slice(0, 4000)}\n…(뒤는 줄임)` : d.req.content
+    const state = d.saved ? `\n(담당자가 저장함: ${d.saved.split(/[\\/]/).pop()})` : ''
+    return `<<<문서\n양식: ${d.req.form || '없음'}\n파일이름: ${d.req.fileName}\n내용:\n${body}\n문서>>>${state}`
+  })
+  return `${m.content}\n\n[이 답에서 내민 한글 파일 — 화면에 카드로 보였습니다]\n${blocks.join('\n')}`.trim()
+}
+
+/** 한글 파일을 부탁한 말인지 */
+const WANTS_DOC = /(한글|hwpx?|파일|문서|양식|시나리오|회의록|통지서|사안\s*설명|사건\s*개요)/i
+const MAKE_VERB = /(만들|작성|써\s*줘|써줘|줘|생성|다시)/
+/** 도우미가 문서를 만든다고 말했는지 */
+const CLAIMS_DOC = /(준비했|만들겠|만들어\s*드리|만들도록|작성하겠|작성하도록|생성하겠|생성했|만들었)/
+
+const NUDGE = '방금 답에는 한글 파일 묶음(<<<문서 … 문서>>>)이 없어 화면에 파일 카드가 뜨지 않았습니다. ' +
+  '부탁받은 문서마다 묶음을 하나씩 붙여 다시 답해 주세요. 앞의 설명은 한두 줄이면 됩니다.'
 
 export interface SendResult {
   ok: boolean
@@ -313,23 +342,54 @@ async function ask(id: string, rec: Rec, ctx: { jobTitle: string; model: ModelCh
   } else if (cur.mode === 'free') {
     reply = { role: 'assistant', content: res.answer || '(답을 받기 전에 멈췄습니다)', ...(res.stopped ? { stopped: true } : {}) }
   } else {
-    const { text: answer, actions, doc: req } = splitAnswer(res.answer)
+    let split = splitAnswer(res.answer)
+    // 문서를 부탁받고(또는 만든다고 말하고) 묶음을 빠뜨렸으면 한 번만 다시 받는다
+    const lastUser = [...cur.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+    const askedDoc = WANTS_DOC.test(lastUser) && MAKE_VERB.test(lastUser)
+    if (!res.stopped && !split.docs.length && !split.actions.length && (askedDoc || CLAIMS_DOC.test(split.text))) {
+      try {
+        set({ live: { ...state.live, [id]: { reqId, text: split.text } } })
+        const again = await window.api.ai.chatStream({
+          reqId: uid(),
+          mode: rec.mode,
+          jobTitle: ctx.jobTitle,
+          instruction: rec.instruction,
+          history: [...sendable(rec.messages), { role: 'assistant', content: res.answer || '(빈 답)' }, { role: 'user', content: NUDGE }],
+          formFiles: files.map((f) => f.name),
+          ...(ctx.model ? { model: ctx.model } : {})
+        })
+        if (again.ok) {
+          const s2 = splitAnswer(again.answer)
+          if (s2.docs.length) split = { ...s2, text: split.text || s2.text }
+        }
+      } catch {
+        // 다시 받기에 실패하면 첫 답대로 둔다
+      }
+      delete live[id]
+    }
+    const { text: answer, actions, docs: reqs } = split
     const plan = res.stopped ? [] : buildPlan(actions)
-    let doc: ChatDoc | undefined
-    if (req && !res.stopped) {
+    const docs: ChatDoc[] = []
+    if (reqs.length && !res.stopped) {
       // 방금 넣은 양식도 찾을 수 있게 목록을 새로 읽는다
       const list = await window.api.hwp.list()
-      const found = req.form ? findForm(req.form, list, files) : null
-      doc = { req, ref: found?.ref ?? null, kind: found?.kind ?? null, formName: found?.formName ?? req.form, round: 0 }
+      for (const req of reqs) {
+        const found = req.form ? findForm(req.form, list, files) : null
+        docs.push({ req, ref: found?.ref ?? null, kind: found?.kind ?? null, formName: found?.formName ?? req.form, round: 0 })
+      }
     }
+    const empty = !answer && !plan.length && !docs.length && !res.stopped
     reply = {
       role: 'assistant',
-      content: answer || (plan.length ? '이렇게 넣을까요?' : doc ? '이렇게 만들어 볼게요.' : res.stopped ? '(답을 받기 전에 멈췄습니다)' : ''),
+      content: empty
+        ? '답이 비어 있습니다. 아래 [다시 받기] 를 눌러 주세요.'
+        : answer || (plan.length ? '이렇게 넣을까요?' : docs.length ? `한글 파일 ${docs.length}개를 만들어 볼게요.` : res.stopped ? '(답을 받기 전에 멈췄습니다)' : ''),
       sources: res.sources,
       ...(res.links?.length ? { links: res.links } : {}),
       ...(plan.length ? { plan, picked: plan.map(() => true) } : {}),
-      ...(doc ? { doc } : {}),
-      ...(res.stopped ? { stopped: true } : {})
+      ...(docs.length ? { docs } : {}),
+      ...(res.stopped ? { stopped: true } : {}),
+      ...(empty ? { error: true } : {})
     }
   }
   const next: Rec = { ...cur, messages: [...cur.messages, reply], updated: new Date().toISOString() }

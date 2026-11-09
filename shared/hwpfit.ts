@@ -209,6 +209,12 @@ const paraText = (it: DocItem): string => (it.kind === 'p' ? it.text : it.rows.m
  *  - 제목: 첫 문단이 양식과 다름
  *  - 빈칸: 받는 사람이 쓰는 ( ) 빈칸을 채움
  */
+/** '■ 위 원 장 : …' · '◎위원 : …' 의 말하는 사람 (띄어쓰기 없앰). 아니면 '' */
+export function speakerOf(text: string): string {
+  const m = /^\s*[■□◆◇▶◎●○]\s*([가-힣][가-힣 ]{0,10}?)\s*[:：]/.exec(text)
+  return m ? m[1].replace(/\s+/g, '') : ''
+}
+
 export function checkAgainstForm(form: FormPara[], items: DocItem[]): Finding[] {
   const unit = formUnit(form).filter((p) => p.kind === 'text')
   const out: Finding[] = []
@@ -273,6 +279,15 @@ export function checkAgainstForm(form: FormPara[], items: DocItem[]): Finding[] 
       }
     }
   }
+  // 말하는 사람 — 양식에 없는 화자(예: '■ 담당자 :')가 나오면 알린다
+  const speakers = new Set(unit.map((p) => speakerOf(p.text)).filter(Boolean))
+  if (speakers.size) {
+    for (const it of items) {
+      if (it.kind !== 'p') continue
+      const sp = speakerOf(it.text)
+      if (sp && !speakers.has(sp)) add({ kind: '말하는 사람', where: it.sample, detail: `"${sp}" — 양식에는 ${[...speakers].join(' · ')}` })
+    }
+  }
   // 제목
   const title = unit[0]
   const firstOut = items.find((it) => it.kind === 'p')
@@ -289,7 +304,8 @@ const KIND_HINT: Record<string, string> = {
   번호: '번호가 건너뜁니다',
   '새 문단': '양식에는 한 문단인데 이 모양으로 문단을 더 썼습니다. 양식에 없던 설명을 지어 넣었는지 보세요',
   제목: '제목이 양식과 다릅니다',
-  빈칸: '받는 사람이 직접 쓰는 ( ) 빈칸을 채웠습니다'
+  빈칸: '받는 사람이 직접 쓰는 ( ) 빈칸을 채웠습니다',
+  '말하는 사람': '양식에 없는 화자입니다. 양식의 화자 표시로 되돌리세요'
 }
 
 /** 검사관에게 줄 대조 결과 */
@@ -307,7 +323,8 @@ export function findingLine(f: Finding): string {
     번호: '번호가 건너뜁니다',
     '새 문단': '양식에 없던 문단이 있습니다',
     제목: '제목이 양식과 다릅니다',
-    빈칸: '받는 사람이 쓰는 빈칸을 채웠습니다'
+    빈칸: '받는 사람이 쓰는 빈칸을 채웠습니다',
+    '말하는 사람': '말하는 사람이 양식과 다릅니다'
   }
   return `${head[f.kind] ?? f.kind} — ${f.detail}`
 }

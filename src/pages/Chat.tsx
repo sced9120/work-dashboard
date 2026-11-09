@@ -8,7 +8,7 @@ import type { ModelChoice } from '../../shared/types'
 import type { PageId } from '../App'
 import { queueCommitteeTab, takeChat } from '../lib/chatBridge'
 import type { ChatDoc, Msg, Rec } from '../lib/chatStore'
-import {
+import { docsOf,
   allPresets,
   deletePreset,
   initChats,
@@ -695,7 +695,16 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
           </div>
         )}
 
-        {m.doc && <DocCard doc={m.doc} forms={forms} model={model} onGo={onGo} onChange={(next) => updateMsg(id, i, { doc: next })} />}
+        {docsOf(m).map((d, k, all) => (
+          <DocCard
+            key={k}
+            doc={d}
+            forms={forms}
+            model={model}
+            onGo={onGo}
+            onChange={(next) => updateMsg(id, i, m.docs ? { docs: all.map((x, j) => (j === k ? next : x)) } : { doc: next })}
+          />
+        ))}
 
         {m.links && m.links.length > 0 && (
           <div className="chat-sources">

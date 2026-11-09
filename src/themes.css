@@ -5776,3 +5776,24 @@ body {
 .mtt td.now small { color: inherit; opacity: 0.8; }
 .mtt td.changed { box-shadow: inset 0 0 0 1.5px var(--hand, #e07a3f); }
 :root[data-theme] .wk-grid > .card + .card, :root .wk-grid > .card + .card { margin-top: 0; }
+
+/* ================= 24. 달력 일정 바탕을 한 단계 진하게 (v3.6.5) =================
+ * 예전 바탕(#e8f0fe 등)은 종이 바탕 위에서 잘 안 보였다. 밝게는 제 색 24% · 글자는 더 진하게, 어둡게는 40%.
+ * 막대(.cal-ev) · 칩(.cal-chip) · 점 · 색 고르기 견본이 같은 색을 쓴다.
+ */
+.cal-ev.c-blue, .cal-chip.c-blue, .cal-dot.c-blue, .cal-swatch.c-blue { background: color-mix(in srgb, #2563eb 24%, #ffffff); color: #123f94; }
+.cal-ev.c-green, .cal-chip.c-green, .cal-dot.c-green, .cal-swatch.c-green { background: color-mix(in srgb, #16a34a 24%, #ffffff); color: #0f5328; }
+.cal-ev.c-orange, .cal-chip.c-orange, .cal-dot.c-orange, .cal-swatch.c-orange { background: color-mix(in srgb, #f59e0b 30%, #ffffff); color: #7a4306; }
+.cal-ev.c-red, .cal-chip.c-red, .cal-dot.c-red, .cal-swatch.c-red { background: color-mix(in srgb, #dc2626 22%, #ffffff); color: #8a1717; }
+.cal-ev.c-purple, .cal-chip.c-purple, .cal-dot.c-purple, .cal-swatch.c-purple { background: color-mix(in srgb, #7c3aed 22%, #ffffff); color: #4b1a9e; }
+.cal-ev.c-gray, .cal-chip.c-gray, .cal-dot.c-gray, .cal-swatch.c-gray { background: color-mix(in srgb, #6b7280 22%, #ffffff); color: #333a45; }
+
+:root[data-mode='dark'] .cal-ev.c-blue, :root[data-mode='dark'] .cal-chip.c-blue, :root[data-mode='dark'] .cal-dot.c-blue, :root[data-mode='dark'] .cal-swatch.c-blue { background: color-mix(in srgb, #3b82f6 40%, var(--surface-solid)); color: #e0eaff; }
+:root[data-mode='dark'] .cal-ev.c-green, :root[data-mode='dark'] .cal-chip.c-green, :root[data-mode='dark'] .cal-dot.c-green, :root[data-mode='dark'] .cal-swatch.c-green { background: color-mix(in srgb, #22c55e 36%, var(--surface-solid)); color: #dcf7e5; }
+:root[data-mode='dark'] .cal-ev.c-orange, :root[data-mode='dark'] .cal-chip.c-orange, :root[data-mode='dark'] .cal-dot.c-orange, :root[data-mode='dark'] .cal-swatch.c-orange { background: color-mix(in srgb, #f59e0b 36%, var(--surface-solid)); color: #fde9c4; }
+:root[data-mode='dark'] .cal-ev.c-red, :root[data-mode='dark'] .cal-chip.c-red, :root[data-mode='dark'] .cal-dot.c-red, :root[data-mode='dark'] .cal-swatch.c-red { background: color-mix(in srgb, #ef4444 36%, var(--surface-solid)); color: #ffe0e0; }
+:root[data-mode='dark'] .cal-ev.c-purple, :root[data-mode='dark'] .cal-chip.c-purple, :root[data-mode='dark'] .cal-dot.c-purple, :root[data-mode='dark'] .cal-swatch.c-purple { background: color-mix(in srgb, #8b5cf6 40%, var(--surface-solid)); color: #ece4ff; }
+:root[data-mode='dark'] .cal-ev.c-gray, :root[data-mode='dark'] .cal-chip.c-gray, :root[data-mode='dark'] .cal-dot.c-gray, :root[data-mode='dark'] .cal-swatch.c-gray { background: color-mix(in srgb, #9ca3af 30%, var(--surface-solid)); color: #eef0f3; }
+
+.cal-ev.deadline { background: color-mix(in srgb, #d97706 28%, #ffffff); color: #6e3a05; }
+:root[data-mode='dark'] .cal-ev.deadline { background: color-mix(in srgb, #f59e0b 36%, var(--surface-solid)); color: #fde9c4; }
