@@ -17,6 +17,7 @@ node -r ./tests/hook.cjs ./tests/run_batch.cjs
 node -r ./tests/hook.cjs ./tests/run_catalog.cjs
 node -r ./tests/hook.cjs ./tests/run_memo.cjs
 node -r ./tests/hook.cjs ./tests/run_messenger.cjs
+node -r ./tests/hook.cjs ./tests/run_exaone.cjs
 node tests/t_mdtable.cjs
 node tests/t_markdown.cjs
 node tests/t_catalog.cjs

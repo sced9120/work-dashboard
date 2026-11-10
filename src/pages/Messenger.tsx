@@ -50,7 +50,7 @@ export default function Messenger({ onGo }: { onGo: (p: PageId) => void }): JSX.
     void (async () => {
       setRoster(readRoster(await window.api.setting.get(ATT_ROSTER_KEY)))
       const s = await window.api.local.load()
-      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key))
+      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key || s.exaone_key))
     })()
     return window.api.inbox.onChanged(() => void loadInbox())
   }, [loadInbox])

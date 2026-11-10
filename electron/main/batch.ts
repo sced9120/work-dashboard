@@ -332,7 +332,8 @@ function ask(c: ModelChoice, key: string, system: string, pieces: Piece[], json:
   return askGemini(key, c.model, system, pieces, json, signal)
 }
 
-const keyOf = (s: LocalSettings, p: Provider): string => ((p === 'openai' ? s.openai_key : p === 'claude' ? s.claude_key : s.gemini_key) ?? '').trim()
+// K-EXAONE 은 글만 읽어 학생 결과물(사진 · PDF)을 못 본다 — 폴더째 정리에서는 쓰지 않는다
+const keyOf = (s: LocalSettings, p: Provider): string => (p === 'exaone' ? '' : (p === 'openai' ? s.openai_key : p === 'claude' ? s.claude_key : s.gemini_key) ?? '').trim()
 const defaultOf = (s: LocalSettings, p: Provider): string => (p === 'openai' ? s.openai_model : p === 'claude' ? s.claude_model : s.gemini_model)
 
 /** 고른 모델 → 없으면 이 기능에 저장한 것 → 기본 서비스 → 키가 있는 서비스 */

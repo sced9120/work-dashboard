@@ -52,7 +52,7 @@ export interface DbSettings {
   school_name: string
 }
 
-export type Provider = 'openai' | 'gemini' | 'claude'
+export type Provider = 'openai' | 'gemini' | 'claude' | 'exaone'
 
 /**
  * AI 기능별로 어떤 서비스·모델을 쓸지.
@@ -84,10 +84,13 @@ export interface LocalSettings {
   openai_key: string
   gemini_key: string
   claude_key: string
+  /** LG AI연구원 K-EXAONE (docs.exaone.ai, 무료 · 글만) */
+  exaone_key: string
   /** 서비스별 기본 모델. 기능별로 따로 고르지 않았을 때 이 값을 쓴다. */
   openai_model: string
   gemini_model: string
   claude_model: string
+  exaone_model: string
   /** 기능별 개별 선택. 비어 있으면 위의 기본값을 쓴다. */
   feature_models: FeatureModels
   /** 설정에서 추가한 모델 이름. 기본 목록과 합쳐 드롭다운에 나온다. */
@@ -531,6 +534,8 @@ export interface PickedFile {
 /** 기본 목록 — 새로 나온 것을 앞에 둔다. GPT-6 (2026.9): sol 이 주력, luna 가 싼 등급(스캔 문서 → 엑셀의 OpenAI 권장) */
 export const OPENAI_MODELS = ['gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-terra', 'gpt-5.6-luna'] as const
 export const GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'] as const
+/** LG AI연구원 K-EXAONE 2.5 (2026.11 무료 공개). 글만 읽는다 — 사진 · 스캔 PDF 는 못 읽음 */
+export const EXAONE_MODELS = ['k-exaone_v2.5'] as const
 export const CLAUDE_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1', 'claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5'] as const
 
 /**
@@ -549,7 +554,8 @@ export const MODEL_UPGRADES: Record<string, string> = {
 export const BUILTIN_MODELS: Record<Provider, readonly string[]> = {
   gemini: GEMINI_MODELS,
   openai: OPENAI_MODELS,
-  claude: CLAUDE_MODELS
+  claude: CLAUDE_MODELS,
+  exaone: EXAONE_MODELS
 }
 
 /** 모델 목록을 이루는 두 조각. 함께 저장되고 함께 바뀐다. */

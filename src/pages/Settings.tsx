@@ -24,9 +24,11 @@ const DEFAULT_LOCAL: LocalSettings = {
   openai_key: '',
   gemini_key: '',
   claude_key: '',
+  exaone_key: '',
   openai_model: 'gpt-6-sol',
   gemini_model: 'gemini-3.6-flash',
   claude_model: 'claude-sonnet-5-5',
+  exaone_model: 'k-exaone_v2.5',
   feature_models: {},
   custom_models: {},
   hidden_models: {},
@@ -70,10 +72,20 @@ const PROVIDERS: Record<
     placeholder: 'sk-ant-…',
     modelsUrl: 'https://platform.claude.com/docs/en/models/overview',
     pricingUrl: 'https://platform.claude.com/docs/en/about-claude/pricing'
+  },
+  exaone: {
+    label: 'K-EXAONE (LG)',
+    keyUrl: 'https://docs.exaone.ai/',
+    keyHint:
+      'LG AI연구원 EXAONE API Platform(docs.exaone.ai)에서 [API Key 발급하기] 로 무료로 키를 만들 수 있습니다. 글만 읽습니다 — 사진 · 스캔 PDF 를 읽는 기능(문서 스캔 · 폴더째 정리)은 Gemini · OpenAI 로 합니다. 1초에 한 번 · 1분에 60번까지 부를 수 있습니다.',
+    placeholder: 'EXAONE API 키',
+    modelsUrl: 'https://docs.exaone.ai/ko/docs/models',
+    pricingUrl: 'https://docs.exaone.ai/ko/docs/rate-limits'
   }
 }
 
-const keyOf = (l: LocalSettings, p: Provider): string => (p === 'openai' ? l.openai_key : p === 'claude' ? l.claude_key : l.gemini_key)
+const keyOf = (l: LocalSettings, p: Provider): string =>
+  p === 'openai' ? l.openai_key : p === 'claude' ? l.claude_key : p === 'exaone' ? l.exaone_key ?? '' : l.gemini_key
 
 export default function Settings({ onProfileChanged }: Props): JSX.Element {
   const toast = useToast()
@@ -158,7 +170,9 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
       ? local.openai_model
       : local.provider === 'claude'
         ? local.claude_model
-        : local.gemini_model
+        : local.provider === 'exaone'
+          ? local.exaone_model
+          : local.gemini_model
 
   const setModel = (value: string): void =>
     setLocal((l) =>
@@ -166,7 +180,9 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
         ? { ...l, openai_model: value }
         : l.provider === 'claude'
           ? { ...l, claude_model: value }
-          : { ...l, gemini_model: value }
+          : l.provider === 'exaone'
+            ? { ...l, exaone_model: value }
+            : { ...l, gemini_model: value }
     )
 
   const setKey = (value: string): void =>
@@ -175,7 +191,9 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
         ? { ...l, openai_key: value }
         : l.provider === 'claude'
           ? { ...l, claude_key: value }
-          : { ...l, gemini_key: value }
+          : l.provider === 'exaone'
+            ? { ...l, exaone_key: value }
+            : { ...l, gemini_key: value }
     )
 
   const currentKey =
@@ -183,7 +201,9 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
       ? local.openai_key
       : local.provider === 'claude'
         ? local.claude_key
-        : local.gemini_key
+        : local.provider === 'exaone'
+          ? local.exaone_key
+          : local.gemini_key
   const providerInfo = PROVIDERS[local.provider]
 
   /** 목록 변경을 화면과 파일에 함께 반영한다. */
@@ -198,6 +218,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
       const fallback = remaining[0] ?? ''
       if (local.provider === 'openai') next.openai_model = fallback
       else if (local.provider === 'claude') next.claude_model = fallback
+      else if (local.provider === 'exaone') next.exaone_model = fallback
       else next.gemini_model = fallback
     }
 
@@ -340,7 +361,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
         <div className="field">
           <label>사용할 서비스</label>
           <div className="row">
-            {(['gemini', 'openai', 'claude'] as const).map((p) => (
+            {(['gemini', 'openai', 'claude', 'exaone'] as const).map((p) => (
               <button
                 key={p}
                 className={`btn ${local.provider === p ? 'btn-primary' : ''}`}
@@ -393,7 +414,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
         <div className="field">
           <label>모델 안내 문서</label>
           <div className="model-docs">
-            {(['gemini', 'openai', 'claude'] as const).map((p) => (
+            {(['gemini', 'openai', 'claude', 'exaone'] as const).map((p) => (
               <div key={p} className="model-docs-row">
                 <span className="model-docs-name">
                   {PROVIDERS[p].label}

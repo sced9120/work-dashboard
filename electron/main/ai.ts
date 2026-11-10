@@ -378,6 +378,74 @@ async function openaiChat(
   return text
 }
 
+/* ---------- LG AI연구원 K-EXAONE (OpenAI 와 같은 모양, docs.exaone.ai) ----------
+ * 글만 읽는다. 늘 먼저 생각(reasoning_content)한 뒤 답(content)을 낸다 — 생각은 버리고 답만 쓴다.
+ * reasoning_effort 기본은 max(느림) — 학교 문서 · 대화에는 high 로 충분하다.
+ * 1초에 한 번 · 1분에 60번까지(429) — 검사관처럼 잇달아 부르면 잠깐 쉬었다 한 번 더.
+ */
+const EXAONE_URL = 'https://api.exaone.ai/v1/chat/completions'
+const EXAONE_MAX_TOKENS = 32768
+
+async function exaoneFetch(key: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<Response> {
+  const init = { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify(body), signal }
+  let res = await httpFetch(EXAONE_URL, init)
+  for (let k = 0; k < 2 && res.status === 429; k++) {
+    const wait = Number(res.headers.get('retry-after-ms')) || (Number(res.headers.get('retry-after')) || 1) * 1000
+    await new Promise((r) => setTimeout(r, Math.min(Math.max(wait, 800), 5000)))
+    res = await httpFetch(EXAONE_URL, init)
+  }
+  return res
+}
+
+async function exaoneChat(key: string, model: string, system: string, turns: ChatTurn[], json: boolean): Promise<string> {
+  const messages: { role: string; content: string }[] = []
+  const sys = json ? jsonSystem(system) : system
+  if (sys) messages.push({ role: 'system', content: sys })
+  for (const t of turns) messages.push({ role: t.role, content: t.content })
+  const res = await exaoneFetch(key, { model, messages, stream: false, max_tokens: EXAONE_MAX_TOKENS, reasoning_effort: 'high' })
+  if (!res.ok) throw new Error(await describeHttpError(res, 'K-EXAONE'))
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+  const text = (data.choices?.[0]?.message?.content ?? '').trim()
+  if (!text) throw new Error('K-EXAONE 이 빈 응답을 보냈습니다.')
+  return text
+}
+
+async function streamExaone(key: string, model: string, system: string, turns: RichTurn[], temperature: number | null, onText: OnText, signal: AbortSignal): Promise<string> {
+  const messages: { role: string; content: string }[] = []
+  if (system) messages.push({ role: 'system', content: system })
+  for (const t of turns) {
+    // 사진 · 스캔 PDF 는 읽지 못해 보내지 않고, 그렇다고만 알린다
+    const note = t.files.length ? `\n\n(올린 사진 · 스캔 PDF ${t.files.length}개는 K-EXAONE 이 읽지 못해 보내지 않았습니다. 필요하면 Gemini · OpenAI · Claude 로 바꿔 물어 달라고 안내하세요.)` : ''
+    messages.push({ role: t.role, content: `${t.text}${note}` || '(빈 글)' })
+  }
+  const res = await exaoneFetch(
+    key,
+    { model, messages, stream: true, max_tokens: EXAONE_MAX_TOKENS, reasoning_effort: 'high', ...(temperature !== null ? { temperature } : {}) },
+    signal
+  )
+  if (!res.ok) throw new Error(await describeHttpError(res, 'K-EXAONE'))
+  let text = ''
+  let finish = ''
+  await readSse(res, (data) => {
+    if (data === '[DONE]') return
+    let d: { choices?: { delta?: { content?: string }; finish_reason?: string | null }[]; error?: { message?: string } }
+    try {
+      d = JSON.parse(data)
+    } catch {
+      return
+    }
+    if (d.error) throw new Error(`K-EXAONE 오류: ${d.error.message ?? ''}`)
+    const c = d.choices?.[0]
+    if (c?.delta?.content) {
+      // 답 앞에 줄바꿈이 붙어 올 수 있다
+      text = (text + c.delta.content).replace(/^\s+/, '')
+      if (text) onText(text)
+    }
+    if (c?.finish_reason) finish = c.finish_reason
+  })
+  return finish
+}
+
 async function geminiChat(
   key: string,
   model: string,
@@ -472,6 +540,7 @@ async function describeHttpError(res: Response, who: string): Promise<string> {
 function defaultModelFor(settings: LocalSettings, p: Provider): string {
   if (p === 'openai') return settings.openai_model
   if (p === 'claude') return settings.claude_model
+  if (p === 'exaone') return settings.exaone_model || 'k-exaone_v2.5'
   return settings.gemini_model
 }
 
@@ -494,20 +563,22 @@ function resolveChoice(
   const choice = pick()
   // 고른 서비스의 키가 없고 다른 서비스 키만 있으면 그쪽 기본 모델로 (화면의 모델 고르개도 키 있는 서비스만 보여 준다)
   if (keyFor(settings, choice.provider)) return choice
-  const other = (['gemini', 'openai', 'claude'] as Provider[]).find((p) => keyFor(settings, p))
+  const other = (['gemini', 'openai', 'claude', 'exaone'] as Provider[]).find((p) => keyFor(settings, p))
   return other ? { provider: other, model: defaultModelFor(settings, other) } : choice
 }
 
 function keyFor(settings: LocalSettings, p: Provider): string {
   if (p === 'openai') return settings.openai_key
   if (p === 'claude') return settings.claude_key
+  if (p === 'exaone') return settings.exaone_key ?? ''
   return settings.gemini_key
 }
 
 const PROVIDER_LABEL: Record<Provider, string> = {
   openai: 'OpenAI',
   claude: 'Claude',
-  gemini: 'Gemini'
+  gemini: 'Gemini',
+  exaone: 'K-EXAONE'
 }
 
 /**
@@ -527,6 +598,7 @@ async function chatModel(
   if (!key) throw new Error(`${PROVIDER_LABEL[choice.provider]} API 키가 설정되지 않았습니다.`)
   if (choice.provider === 'openai') return openaiChat(key, choice.model, system, turns, json)
   if (choice.provider === 'claude') return claudeChat(key, choice.model, system, turns, json)
+  if (choice.provider === 'exaone') return exaoneChat(key, choice.model, system, turns, json)
   return geminiChat(key, choice.model, system, turns, json)
 }
 
@@ -1525,7 +1597,7 @@ export async function streamChat(
     last = full
     onText(full)
   }
-  const run = choice.provider === 'openai' ? streamOpenai : choice.provider === 'claude' ? streamClaude : streamGemini
+  const run = choice.provider === 'openai' ? streamOpenai : choice.provider === 'claude' ? streamClaude : choice.provider === 'exaone' ? streamExaone : streamGemini
   try {
     const finish = await run(key, choice.model, system, turns, temperature, seen, signal)
     return { text: last, finish, stopped: false }

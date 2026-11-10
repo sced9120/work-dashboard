@@ -159,7 +159,7 @@ export default function Slides({ onGo }: Props): JSX.Element {
   useEffect(() => {
     void (async () => {
       const s = await window.api.local.load()
-      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key))
+      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key || s.exaone_key))
     })()
   }, [])
 

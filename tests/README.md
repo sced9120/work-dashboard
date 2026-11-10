@@ -14,6 +14,7 @@ node -r ./tests/hook.cjs ./tests/run_chat.cjs      # 업무 도우미 · 일반 
 node -r ./tests/hook.cjs ./tests/run_catalog.cjs   # 도구 모음 목록 받기
 node -r ./tests/hook.cjs ./tests/run_memo.cjs      # 자유 메모장
 node -r ./tests/hook.cjs ./tests/run_messenger.cjs # 메신저 정리 · 폰에서 보내기
+node -r ./tests/hook.cjs ./tests/run_exaone.cjs    # K-EXAONE (LG) 연결
 node tests/t_mdtable.cjs                           # 답에서 표 뽑기 · 이어 붙이기 · 수식 (빌드 없이)
 node tests/t_markdown.cjs                          # AI 답의 Markdown 그리기 (빌드 없이)
 node tests/t_catalog.cjs                           # remote/catalog.json 규칙 (빌드 없이)
@@ -35,6 +36,7 @@ Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron
 | `run_chat.cjs` | 파일 올리기(글 · 사진 · 스캔 PDF · 막는 것) · 일반 대화(지침 · 보관 자료 없음 · temperature 없음) · 다음 질문에도 앞 파일 · 고르지 않은 경로는 안 읽음 · 업무 도우미 지침 · OpenAI(image_url · file) · Claude(image · document) · HEIC · 받는 대로 · 멈추기 · 오류 · 대화 보관(목록 · 이름 · 지우기 · 이상한 번호) · 지침 모음 · 키 없는 서비스를 골랐으면 키 있는 서비스로 · 인수인계 파일에 안 들어감 |
 | `run_catalog.cjs` | GitHub → jsDelivr · 3시간 두기 · 깨진 파일이면 마지막 것 · 인수인계 파일에 안 들어감 |
 | `run_memo.cjs` | 메모 · 자유 워크플로우 · 검색 · '넘기기' 켠 것만 인수인계 |
+| `run_exaone.cjs` | 처음 값 · 주소 · Bearer 키 · 모델 · reasoning_effort high · response_format 안 보냄 · 답 앞 줄바꿈 없앰 · 받는 대로 받을 때 생각(reasoning_content)은 버리고 답만 · 사진은 안 보내고 글로 알림 · 429 면 쉬었다 한 번 더 · 401 안내 · 키 저장 칸 |
 | `run_messenger.cjs` | 가리기(명단 학생 → 학생N · 성 없는 이름 · 다른 사람 → 사람A · 전화번호, 겹치는 이름은 그대로) · AI 에는 가린 글만 · 답의 가명 되돌리기 · 학생N → 명단 번호 · 키 없음 · 폰 우편함(코드 만들기 · 주소 모양 · 잇기 ping · 가져오기 + ack · 같은 글 두 번 안 넣기 · 받은 글 지우기 · HTML 답이면 배포 안내) · 인수인계 파일에 명단 · 출결 · 받은 글 없음 · 열쇠는 AI 키와 같은 칸 |
 | `t_mdtable.cjs` | `\|` · 코드 안의 \| · 코드 울타리 · ```markdown 으로 감싼 표 · 덜 나온 행 빼기 · 머리글 같은 표 잇기 · 수식(LaTeX) 안의 `\\` 지키기와 글자로 바꾸기(행렬 · 분수 · 첨자 · 기호, `$5` 같은 돈은 그대로) · `<br>` |
 | `t_markdown.cjs` | 굵게 · 기울임 · 코드 · 지움 · 스크립트는 글자로 · 링크는 http(s) 만 · 겹친 목록 · 칸 수가 다른 표 · 닫히지 않은 코드 · 수식 · 오래 걸리지 않음 |

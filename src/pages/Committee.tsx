@@ -216,7 +216,7 @@ export default function Committee({ onGo }: Props): JSX.Element {
       await loadCustomForms()
       await loadHwp()
       const s = await window.api.local.load()
-      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key))
+      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key || s.exaone_key))
     })()
   }, [loadTemplates, loadCustomForms, loadHwp])
 

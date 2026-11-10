@@ -29,9 +29,11 @@ const DEFAULTS: LocalSettings = {
   openai_key: '',
   gemini_key: '',
   claude_key: '',
+  exaone_key: '',
   openai_model: 'gpt-6-sol',
   gemini_model: 'gemini-3.6-flash',
   claude_model: 'claude-sonnet-5-5',
+  exaone_model: 'k-exaone_v2.5',
   feature_models: {},
   custom_models: {},
   hidden_models: {},
@@ -55,6 +57,7 @@ interface StoredShape {
   openai_model?: string
   gemini_model?: string
   claude_model?: string
+  exaone_model?: string
   feature_models?: Record<string, { provider?: string; model?: string }>
   custom_models?: Record<string, unknown>
   hidden_models?: Record<string, unknown>
@@ -64,13 +67,13 @@ interface StoredShape {
   open_at_login?: boolean
   start_hidden?: boolean
   /** base64로 인코딩된 암호문 */
-  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string }
+  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; exaone_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string }
   /** 암호화를 못 쓰는 환경일 때만 사용 */
-  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string }
+  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string; exaone_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string }
 }
 
 function coerceProvider(p: string | undefined): Provider {
-  return p === 'openai' || p === 'claude' ? p : 'gemini'
+  return p === 'openai' || p === 'claude' || p === 'exaone' ? p : 'gemini'
 }
 
 /** 저장된 값 중 형식이 맞는 것만 남긴다. 잘못된 항목은 조용히 무시. */
@@ -95,7 +98,7 @@ function coerceFeatureModels(raw: StoredShape['feature_models']): FeatureModels 
 function coerceModelList(raw: Record<string, unknown> | undefined): CustomModels & HiddenModels {
   if (!raw || typeof raw !== 'object') return {}
   const out: CustomModels = {}
-  for (const p of ['gemini', 'openai', 'claude'] as Provider[]) {
+  for (const p of ['gemini', 'openai', 'claude', 'exaone'] as Provider[]) {
     const list = raw[p]
     if (!Array.isArray(list)) continue
     const names: string[] = []
@@ -176,6 +179,7 @@ function readLocalSettings(): LocalSettings {
   const openai_key = useEnc ? decrypt(raw.enc?.openai_key) : (raw.plain?.openai_key ?? '')
   const gemini_key = useEnc ? decrypt(raw.enc?.gemini_key) : (raw.plain?.gemini_key ?? '')
   const claude_key = useEnc ? decrypt(raw.enc?.claude_key) : (raw.plain?.claude_key ?? '')
+  const exaone_key = useEnc ? decrypt(raw.enc?.exaone_key) : (raw.plain?.exaone_key ?? '')
   const neis_key = useEnc ? decrypt(raw.enc?.neis_key) : (raw.plain?.neis_key ?? '')
   const gcal_url = useEnc ? decrypt(raw.enc?.gcal_url) : (raw.plain?.gcal_url ?? '')
   const relay_url = useEnc ? decrypt(raw.enc?.relay_url) : (raw.plain?.relay_url ?? '')
@@ -186,9 +190,11 @@ function readLocalSettings(): LocalSettings {
     openai_key,
     gemini_key,
     claude_key,
+    exaone_key,
     openai_model: raw.openai_model || DEFAULTS.openai_model,
     gemini_model: raw.gemini_model || DEFAULTS.gemini_model,
     claude_model: raw.claude_model || DEFAULTS.claude_model,
+    exaone_model: raw.exaone_model || DEFAULTS.exaone_model,
     feature_models: coerceFeatureModels(raw.feature_models),
     custom_models: coerceModelList(raw.custom_models),
     hidden_models: coerceModelList(raw.hidden_models),
@@ -212,6 +218,7 @@ export function saveLocalSettings(next: LocalSettings): void {
     openai_model: next.openai_model || DEFAULTS.openai_model,
     gemini_model: next.gemini_model || DEFAULTS.gemini_model,
     claude_model: next.claude_model || DEFAULTS.claude_model,
+    exaone_model: next.exaone_model || DEFAULTS.exaone_model,
     feature_models: next.feature_models ?? {},
     custom_models: next.custom_models ?? {},
     hidden_models: next.hidden_models ?? {},
@@ -229,6 +236,7 @@ export function saveLocalSettings(next: LocalSettings): void {
       openai_key: enc(next.openai_key),
       gemini_key: enc(next.gemini_key),
       claude_key: enc(next.claude_key),
+      exaone_key: enc(next.exaone_key ?? ''),
       neis_key: enc(next.neis_key ?? ''),
       gcal_url: enc(next.gcal_url ?? ''),
       relay_url: enc(next.relay_url ?? ''),
@@ -239,6 +247,7 @@ export function saveLocalSettings(next: LocalSettings): void {
       openai_key: next.openai_key,
       gemini_key: next.gemini_key,
       claude_key: next.claude_key,
+      exaone_key: next.exaone_key ?? '',
       neis_key: next.neis_key ?? '',
       gcal_url: next.gcal_url ?? '',
       relay_url: next.relay_url ?? '',

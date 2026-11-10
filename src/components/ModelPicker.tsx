@@ -20,13 +20,15 @@ interface Props {
 const PROVIDER_LABEL: Record<Provider, string> = {
   gemini: 'Google Gemini',
   openai: 'OpenAI',
-  claude: 'Claude (Anthropic)'
+  claude: 'Claude (Anthropic)',
+  exaone: 'K-EXAONE (LG)'
 }
 
 /** 서비스에 키가 있는지 */
 function hasKey(s: LocalSettings, p: Provider): boolean {
   if (p === 'openai') return !!s.openai_key
   if (p === 'claude') return !!s.claude_key
+  if (p === 'exaone') return !!s.exaone_key
   return !!s.gemini_key
 }
 
@@ -34,16 +36,22 @@ function hasKey(s: LocalSettings, p: Provider): boolean {
 function defaultModel(s: LocalSettings, p: Provider): string {
   if (p === 'openai') return s.openai_model
   if (p === 'claude') return s.claude_model
+  if (p === 'exaone') return s.exaone_model
   return s.gemini_model
 }
 
-const ORDER: Provider[] = ['gemini', 'openai', 'claude']
+const ORDER: Provider[] = ['gemini', 'openai', 'claude', 'exaone']
 
 /**
  * 이 기능에 쓸 (서비스·모델). 저장된 선택이 있으면 그것, 없으면 전역 기본.
  * 그 서비스의 키가 없으면(키를 지웠거나 다른 서비스만 쓰는 경우) 키가 있는 서비스의 기본 모델로.
  */
-function initialChoice(s: LocalSettings, feature: AiFeature): ModelChoice {
+/** 사진 · PDF 를 읽어야 하는 기능 — 글만 읽는 K-EXAONE 은 고를 수 없다 */
+const TEXT_ONLY: Provider[] = ['exaone']
+const canUse = (feature: AiFeature, p: Provider): boolean => feature !== 'batch' || !TEXT_ONLY.includes(p)
+
+function initialChoice(s0: LocalSettings, feature: AiFeature): ModelChoice {
+  const s = feature === 'batch' ? { ...s0, exaone_key: '' } : s0
   const saved = s.feature_models?.[feature]
   if (saved?.model && hasKey(s, saved.provider)) return saved
   const wanted = saved?.provider ?? s.provider
@@ -83,8 +91,8 @@ export default function ModelPicker({
 
   const availableProviders = useMemo<Provider[]>(() => {
     if (!settings) return []
-    return ORDER.filter((p) => hasKey(settings, p))
-  }, [settings])
+    return ORDER.filter((p) => hasKey(settings, p) && canUse(feature, p))
+  }, [settings, feature])
 
   const applyChoice = async (
     next: ModelChoice,

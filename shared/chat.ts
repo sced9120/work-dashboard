@@ -80,7 +80,7 @@ export interface ChatStreamRequest {
   history: ChatSendTurn[]
   /** 이 대화에 올린 한글 파일 이름 (업무 도우미가 양식으로 쓸 수 있다) */
   formFiles?: string[]
-  model?: { provider: 'openai' | 'gemini' | 'claude'; model: string }
+  model?: { provider: 'openai' | 'gemini' | 'claude' | 'exaone'; model: string }
 }
 
 export interface ChatStreamReply {
