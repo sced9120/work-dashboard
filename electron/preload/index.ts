@@ -46,13 +46,31 @@ export interface RelayInfoShape {
   connected: boolean
   url: string
   phone: string
+  /** 이름표 열쇠 — 폰 주소 맨 뒤 #n= 에 붙인다 */
+  nkey: string
+  /** 이름표 열쇠를 새로 만들어 폰 주소가 바뀜 — QR 을 다시 찍어야 함 */
+  rescan: boolean
   script: string
+  /** 우편함 스크립트 판 (모르면 0) · 이 앱이 아는 최신 판 */
+  ver: number
+  latest: number
+}
+/** 폰에서 온 수업 관찰 · 출결을 넣었을 때 */
+export interface PhoneRouted {
+  obs: number
+  att: number
+  acts: string[]
 }
 import type { CatalogResult } from '../../shared/catalog'
 import type { ChatAttachment, ChatDelta, ChatMeta, ChatPreset, ChatRecord, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
 import type { OcrAnswer, OcrFile, OcrProgress, OcrRequest } from '../../shared/ocr'
 import type { MdTable } from '../../shared/mdtable'
 import type { BatchFolder, BatchOptions, BatchProgress, BatchRequest, BatchRow } from '../../shared/batch'
+import type { SeteukConfig, SeteukActivity, SeteukMode, SeteukProgress, SeteukOptions, SeteukRosters, SeteukRow, SeteukRows, SeteukStudent, SeteukStyle, SeteukWriteReply, SeteukWriteRequest } from '../../shared/seteuk'
+import type { SeteukCompressReply, SeteukCompressRequest, SeteukSumPatch, SeteukSumProgress, SeteukSums } from '../../shared/seteukSum'
+import type { NeisOptions, NeisPreviewReply } from '../../shared/seteukNeis'
+import type { XlsxPreview } from '../../shared/seteukXlsx'
+import type { SeteukReviewReply, SeteukReviewRequest } from '../../shared/seteukReview'
 import type { SchoolTimetable, TtRow } from '../../shared/timetable'
 import type {
   ComposeResult,
@@ -157,6 +175,58 @@ const api = {
     update: (id: number, j: JournalInput): Promise<void> =>
       ipcRenderer.invoke('journal:update', id, j),
     remove: (id: number): Promise<void> => ipcRenderer.invoke('journal:delete', id)
+  },
+  /** 세특 작성실 — 명단 · 활동 · 학생별 글은 이 PC 에만 둔다 */
+  seteuk: {
+    load: (): Promise<{ rosters: SeteukRosters; acts: SeteukActivity[]; rows: Record<string, SeteukRows>; style: SeteukStyle; options: SeteukOptions; config: SeteukConfig; demo: { filled: boolean; canFill: boolean } }> => ipcRenderer.invoke('seteuk:load'),
+    saveRoster: (mode: SeteukMode, list: SeteukStudent[]): Promise<SeteukStudent[]> => ipcRenderer.invoke('seteuk:roster', mode, list),
+    /** 키 없이 쓸 때 — AI 앱에 붙여 넣을 요청 글(규칙 + 이름을 가린 관찰 기록) */
+    request: (actId: string, sid: string): Promise<{ ok: boolean; text?: string; error?: string }> => ipcRenderer.invoke('seteuk:request', actId, sid),
+    /** 내 문체 — 예전에 쓴 세특과 문체 카드 */
+    saveStyle: (style: SeteukStyle): Promise<SeteukStyle> => ipcRenderer.invoke('seteuk:style', style),
+    /** 자동 고쳐쓰기 · 근거 확인 켜고 끄기 */
+    saveOptions: (o: SeteukOptions): Promise<SeteukOptions> => ipcRenderer.invoke('seteuk:options', o),
+    /** 내 규칙 — 끈 검사 · 내 금지어 · 더할 규칙 · 뺄 칸 */
+    saveConfig: (c: SeteukConfig): Promise<SeteukConfig> => ipcRenderer.invoke('seteuk:config', c),
+    /** AI 앱용 지침 — Gem · GPT · 프로젝트에 붙여 넣을 글 / Claude 스킬 zip 저장 */
+    gemText: (actId: string): Promise<{ ok: boolean; text?: string; error?: string }> => ipcRenderer.invoke('seteuk:gem', actId),
+    skillSave: (actId: string): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('seteuk:skill', actId),
+    /** 긴 학생 글에서 세특 요점만 뽑기 (짧은 글은 그대로) */
+    points: (items: { id: string; text: string }[], model: ModelChoice | null): Promise<{ ok: boolean; out: { id: string; text: string; error?: string }[] }> => ipcRenderer.invoke('seteuk:points', items, model),
+    /** 학생부 살펴보기 — 1 · 2학년은 이어 갈 탐구, 3학년은 짜임과 보완할 곳 */
+    review: (req: SeteukReviewRequest): Promise<SeteukReviewReply> => ipcRenderer.invoke('seteuk:review', req),
+    ground: (actId: string, sid: string, model: ModelChoice | null): Promise<{ ok: boolean; row?: SeteukRow; error?: string }> => ipcRenderer.invoke('seteuk:ground', actId, sid, model),
+    styleCard: (model: ModelChoice | null, dry: boolean): Promise<{ ok: boolean; card?: string; text?: string; error?: string }> => ipcRenderer.invoke('seteuk:styleCard', model, dry),
+    demoFill: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('seteuk:demoFill'),
+    demoClear: (): Promise<void> => ipcRenderer.invoke('seteuk:demoClear'),
+    saveActs: (list: SeteukActivity[]): Promise<SeteukActivity[]> => ipcRenderer.invoke('seteuk:acts', list),
+    saveRows: (actId: string, patch: Record<string, Partial<SeteukRow>>): Promise<void> => ipcRenderer.invoke('seteuk:rows', actId, patch),
+    write: (req: SeteukWriteRequest): Promise<SeteukWriteReply> => ipcRenderer.invoke('seteuk:write', req),
+    cancel: (job: string): Promise<void> => ipcRenderer.invoke('seteuk:cancel', job),
+    onProgress: (cb: (p: SeteukProgress) => void): (() => void) => {
+      const handler = (_e: unknown, p: SeteukProgress): void => cb(p)
+      ipcRenderer.on('seteuk:progress', handler)
+      return () => ipcRenderer.removeListener('seteuk:progress', handler)
+    },
+    /** 엑셀로 주고받기 — 고른 파일의 경로는 화면에 넘기지 않는다 */
+    xlsxExport: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('seteuk:xlsxExport'),
+    xlsxPick: (): Promise<XlsxPreview | null> => ipcRenderer.invoke('seteuk:xlsxPick'),
+    xlsxPreview: (id: string, overwrite: boolean): Promise<XlsxPreview> => ipcRenderer.invoke('seteuk:xlsxPreview', id, overwrite),
+    xlsxApply: (id: string, overwrite: boolean): Promise<XlsxPreview> => ipcRenderer.invoke('seteuk:xlsxApply', id, overwrite),
+    /** 취합 — 기록 영역마다 저장된 압축본 · 최종본 */
+    sums: (): Promise<Record<string, SeteukSums>> => ipcRenderer.invoke('seteuk:sums'),
+    saveSum: (rec: string, patch: SeteukSumPatch): Promise<void> => ipcRenderer.invoke('seteuk:sum', rec, patch),
+    compress: (req: SeteukCompressRequest): Promise<SeteukCompressReply> => ipcRenderer.invoke('seteuk:compress', req),
+    compressCancel: (job: string): Promise<void> => ipcRenderer.invoke('seteuk:compressCancel', job),
+    onSumProgress: (cb: (p: SeteukSumProgress) => void): (() => void) => {
+      const handler = (_e: unknown, p: SeteukSumProgress): void => cb(p)
+      ipcRenderer.on('seteuk:sumProgress', handler)
+      return () => ipcRenderer.removeListener('seteuk:sumProgress', handler)
+    },
+    /** 나이스 입력 양식 — 고른 파일의 경로는 화면에 넘기지 않는다 */
+    neisPick: (rec: string, opt: NeisOptions): Promise<NeisPreviewReply | null> => ipcRenderer.invoke('seteuk:neisPick', rec, opt),
+    neisPreview: (id: string, rec: string, opt: NeisOptions): Promise<NeisPreviewReply> => ipcRenderer.invoke('seteuk:neisPreview', id, rec, opt),
+    neisSave: (id: string, rec: string, opt: NeisOptions): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('seteuk:neisSave', id, rec, opt)
   },
   /** 자유 메모장 — 글 메모 · 자유 워크플로우 */
   memos: {
@@ -314,7 +384,15 @@ const api = {
     newKey: (): Promise<RelayInfoShape> => ipcRenderer.invoke('relay:newKey'),
     connect: (url: string): Promise<{ ok: boolean; error?: string; info?: RelayInfoShape }> => ipcRenderer.invoke('relay:connect', url),
     disconnect: (): Promise<RelayInfoShape> => ipcRenderer.invoke('relay:disconnect'),
-    pull: (): Promise<{ ok: boolean; added: number; error?: string }> => ipcRenderer.invoke('relay:pull')
+    /** QR 을 다시 찍었음 — '주소가 바뀜' 안내를 닫는다 */
+    seenQr: (): Promise<RelayInfoShape> => ipcRenderer.invoke('relay:seenQr'),
+    pull: (): Promise<{ ok: boolean; added: number; obs?: number; att?: number; error?: string }> => ipcRenderer.invoke('relay:pull'),
+    /** 폰에서 온 수업 관찰 · 출결을 제자리에 넣었을 때 */
+    onRouted: (cb: (r: PhoneRouted) => void): (() => void) => {
+      const handler = (_e: unknown, r: PhoneRouted): void => cb(r)
+      ipcRenderer.on('phone:routed', handler)
+      return () => ipcRenderer.removeListener('phone:routed', handler)
+    }
   },
   /** 날씨 위젯 (Open-Meteo, 키 없음) */
   weather: {
@@ -386,7 +464,9 @@ const api = {
   },
   ui: {
     /** 창 제목 줄 · 스크롤바 밝기. 'system' | 'light' | 'dark' */
-    setNativeTheme: (mode: string): Promise<void> => ipcRenderer.invoke('ui:nativeTheme', mode)
+    setNativeTheme: (mode: string): Promise<void> => ipcRenderer.invoke('ui:nativeTheme', mode),
+    /** 글자 크기 — 창 전체 배율 (0.9 ~ 1.25) */
+    setZoom: (factor: number): Promise<void> => ipcRenderer.invoke('ui:zoom', factor)
   },
   clipboard: {
     read: (): Promise<string> => ipcRenderer.invoke('clipboard:read'),

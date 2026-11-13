@@ -26,7 +26,18 @@ export interface UiPrefs {
   preset: string
   /** 화면 구성 — 예전 화면(왼쪽 메뉴) · 새 화면(위 탭 셋 · 만들기 · 물어보기 바, 미리 써 보기) */
   shell: ShellId
+  /** 글자 크기 — 화면 전체를 이 배율로 그린다(1 = 보통) */
+  fontScale: number
 }
+
+/** 고를 수 있는 글자 크기 */
+export const FONT_SCALES: { value: number; label: string }[] = [
+  { value: 0.9, label: '작게' },
+  { value: 1, label: '보통' },
+  { value: 1.1, label: '크게' },
+  { value: 1.25, label: '아주 크게' }
+]
+const okScale = (v: unknown): number => (typeof v === 'number' && FONT_SCALES.some((f) => f.value === v) ? v : 1)
 
 export type ShellId = 'classic' | 'new'
 
@@ -50,7 +61,7 @@ const PRESET_KEY = 'wd_ui_preset'
 const NEWSHELL_KEY = 'wd_ui_newshell'
 /** 새 디자인(HSOrbit, 3.6.2)으로 한 번 바꿨는지 — 그 뒤에는 고른 테마를 그대로 둔다 */
 const ORBIT_KEY = 'wd_ui_orbit'
-const DEFAULTS: UiPrefs = { theme: 'orbit', mode: 'system', navCollapsed: false, preset: '', shell: 'new' }
+const DEFAULTS: UiPrefs = { theme: 'orbit', mode: 'system', navCollapsed: false, preset: '', shell: 'new', fontScale: 1 }
 
 function read(): UiPrefs {
   try {
@@ -60,7 +71,8 @@ function read(): UiPrefs {
       mode: MODES.some((m) => m.id === v?.mode) ? (v!.mode as ModePref) : DEFAULTS.mode,
       navCollapsed: typeof v?.navCollapsed === 'boolean' ? v.navCollapsed : DEFAULTS.navCollapsed,
       preset: typeof v?.preset === 'string' ? v.preset : '',
-      shell: v?.shell === 'classic' ? 'classic' : 'new'
+      shell: v?.shell === 'classic' ? 'classic' : 'new',
+      fontScale: okScale(v?.fontScale)
     }
   } catch {
     return { ...DEFAULTS }
@@ -149,6 +161,8 @@ export function applyTheme(): void {
   }
   // 창 제목 줄 · 스크롤바도 같은 밝기로. 예전 버전 preload 에는 없으므로 없으면 넘어간다.
   void window.api?.ui?.setNativeTheme?.(prefs.mode)
+  // 글자 크기 — 창 전체 배율로 바꿔야 표 · 단추 · 여백이 함께 커져 어긋나지 않는다
+  void window.api?.ui?.setZoom?.(prefs.fontScale)
 }
 
 darkQuery.addEventListener('change', () => {

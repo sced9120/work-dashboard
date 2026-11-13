@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import QRCode from 'qrcode'
 import type { ModelChoice } from '../../shared/types'
 import { BLANK_DEADLINE, BLANK_EVENT } from '../../shared/types'
 import type { AttPick, InboxItem, TodoPick } from '../../shared/messenger'
 import type { AttReason, AttRecord, AttType, Roster } from '../../shared/attendance'
 import { ATT_REASONS, ATT_RECORDS_KEY, ATT_ROSTER_KEY, ATT_TYPES, defaultProof, readRecords, readRoster, upsertRecords } from '../../shared/attendance'
-import type { RelayInfoShape } from '../../electron/preload/index'
+import RelayCard from '../components/RelayCard'
 import type { PageId } from '../App'
 import ModelPicker from '../components/ModelPicker'
 import Icon from '../components/Icon'
@@ -277,154 +276,12 @@ export default function Messenger({ onGo }: { onGo: (p: PageId) => void }): JSX.
         </section>
       </div>
 
-      <RelayCard />
+      <RelayCard
+        tab="text"
+        title="폰에서 보내기"
+        desc="폰에서 메신저 · 카톡 글을 보내면 몇 분 안에 위 '폰에서 온 글' 로 옵니다"
+        howTo={<p className="small">카톡 · 메신저 글을 길게 눌러 복사 → 폰 화면의 [글 보내기] 탭에 붙여 넣고 [보내기]. 카톡은 다른 프로그램이 대화를 읽을 길을 열어 두지 않아 복사 한 번은 직접 하셔야 합니다.</p>}
+      />
     </div>
-  )
-}
-
-/* ---------- 폰에서 보내기 설정 ---------- */
-
-function RelayCard(): JSX.Element {
-  const toast = useToast()
-  const [info, setInfo] = useState<RelayInfoShape | null>(null)
-  const [open, setOpen] = useState(false)
-  const [url, setUrl] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [qr, setQr] = useState('')
-
-  useEffect(() => {
-    void (async () => setInfo(await window.api.relay.info()))()
-  }, [])
-  useEffect(() => {
-    if (!info?.phone) return setQr('')
-    void QRCode.toDataURL(info.phone, { margin: 1, width: 200, color: { dark: '#353532', light: '#ffffff' } }).then(setQr)
-  }, [info?.phone])
-
-  if (!info) return <></>
-
-  const copy = async (v: string, what: string): Promise<void> => {
-    await window.api.clipboard.write(v)
-    toast(`${what}을 복사했습니다.`, 'ok')
-  }
-  const connect = async (): Promise<void> => {
-    setBusy(true)
-    setError('')
-    const r = await window.api.relay.connect(url)
-    setBusy(false)
-    if (!r.ok || !r.info) return setError(r.error ?? '잇지 못했습니다.')
-    setInfo(r.info)
-    toast('폰과 이었습니다.', 'ok')
-  }
-  const pull = async (): Promise<void> => {
-    setBusy(true)
-    const r = await window.api.relay.pull()
-    setBusy(false)
-    if (!r.ok) return toast(r.error ?? '가져오지 못했습니다.', 'err')
-    toast(r.added ? `폰에서 온 글 ${r.added}개를 가져왔습니다.` : '새로 온 글이 없습니다.')
-  }
-
-  return (
-    <section className="card relay-card">
-      <div className="relay-head">
-        <span>
-          <b>폰에서 보내기</b>
-          <span className="muted small"> — 폰에서 메신저 · 카톡 글을 보내면 몇 분 안에 위 '폰에서 온 글' 로 옵니다</span>
-        </span>
-        <span className="spacer" />
-        {info.connected ? (
-          <>
-            <span className="badge badge-accent">이어짐</span>
-            <button className="btn btn-sm" onClick={() => void pull()} disabled={busy}>
-              지금 가져오기
-            </button>
-          </>
-        ) : null}
-        <button className="btn btn-sm btn-ghost" onClick={() => setOpen((v) => !v)}>
-          {open ? '닫기' : info.connected ? '설정' : '설정하기'}
-        </button>
-      </div>
-
-      {open && (
-        <div className="relay-body">
-          {info.connected ? (
-            <div className="relay-phone">
-              {qr && <img src={qr} width={160} height={160} alt="폰으로 찍을 QR 코드" />}
-              <div>
-                <p className="small">
-                  폰 카메라로 QR 을 찍어 열고, 브라우저 메뉴의 <b>[홈 화면에 추가]</b> 로 두면 앱처럼 씁니다.
-                  카톡 · 메신저 글을 길게 눌러 복사 → 그 화면에 붙여 넣고 [보내기].
-                </p>
-                <p className="small muted">
-                  이 주소를 아는 사람은 글을 보낼 수 있으니 남에게 알려 주지 마세요. 보낸 글은 PC 가 가져가면 선생님 구글 계정에서도 지워집니다(안 가져가면 14일 뒤).
-                </p>
-                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                  <button className="btn btn-sm" onClick={() => void copy(info.phone, '폰 주소')}>
-                    폰 주소 복사
-                  </button>
-                  <button
-                    className="btn btn-sm btn-ghost"
-                    onClick={() =>
-                      void (async () => {
-                        if (!window.confirm('폰과 끊을까요? 다시 쓰려면 코드를 새로 만들어 붙여 넣어야 합니다.')) return
-                        setInfo(await window.api.relay.disconnect())
-                      })()
-                    }
-                  >
-                    끊기
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <ol className="relay-steps small">
-              <li>
-                <b>코드 만들기</b> — 이 PC 만 아는 열쇠가 든 코드를 만듭니다.{' '}
-                <button
-                  className="btn btn-sm"
-                  onClick={() =>
-                    void (async () => {
-                      if (info.hasKey && !window.confirm('새 열쇠로 코드를 다시 만들까요? 예전에 배포한 주소는 더 쓰지 못합니다.')) return
-                      setInfo(await window.api.relay.newKey())
-                    })()
-                  }
-                >
-                  {info.hasKey ? '다시 만들기' : '코드 만들기'}
-                </button>
-                {info.hasKey && (
-                  <button className="btn btn-sm btn-primary" style={{ marginLeft: 6 }} onClick={() => void copy(info.script, '코드')}>
-                    코드 복사
-                  </button>
-                )}
-              </li>
-              <li>
-                <button className="link" onClick={() => void window.api.shell.open('https://script.google.com/home/projects/create')}>
-                  script.google.com ↗
-                </button>{' '}
-                에서 선생님 구글 계정으로 새 프로젝트를 만들고, 들어 있는 글을 지운 뒤 복사한 코드를 붙여 넣고 저장합니다.
-              </li>
-              <li>
-                오른쪽 위 <b>[배포 → 새 배포]</b> → 유형 <b>웹 앱</b> → 실행: <b>나</b>, 액세스 권한: <b>모든 사용자</b> → [배포].
-                처음에는 구글이 권한을 물어봅니다(선생님 계정의 스크립트 저장소만 씁니다).
-              </li>
-              <li>
-                나온 <b>웹 앱 URL</b> 을 붙여 넣고 잇기:
-                <div className="row" style={{ gap: 6, marginTop: 6 }}>
-                  <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" aria-label="웹 앱 URL" style={{ flex: 1 }} />
-                  <button className="btn btn-primary btn-sm" onClick={() => void connect()} disabled={busy || !url.trim() || !info.hasKey}>
-                    {busy ? '확인 중…' : '잇기'}
-                  </button>
-                </div>
-                {error && <p className="note note-danger small">{error}</p>}
-              </li>
-            </ol>
-          )}
-          <p className="muted small">
-            카톡은 다른 프로그램이 대화를 읽을 수 있는 길을 열어 두지 않아, 글을 복사해 붙여 넣는 한 번은 직접 하셔야 합니다.
-            PC 카톡이면 복사해서 위 칸에 바로 붙여 넣으면 됩니다. 학교 구글 계정(Workspace)은 관리자가 '모든 사용자' 배포를 막아 두었을 수 있어 개인 계정을 권합니다.
-          </p>
-        </div>
-      )}
-    </section>
   )
 }

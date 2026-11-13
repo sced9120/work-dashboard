@@ -48,7 +48,8 @@ const DEFAULTS: LocalSettings = {
   neis_key: '',
   gcal_url: '',
   relay_url: '',
-  relay_key: ''
+  relay_key: '',
+  relay_nkey: ''
 }
 
 interface StoredShape {
@@ -67,9 +68,9 @@ interface StoredShape {
   open_at_login?: boolean
   start_hidden?: boolean
   /** base64로 인코딩된 암호문 */
-  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; exaone_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string }
+  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; exaone_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string; relay_nkey?: string }
   /** 암호화를 못 쓰는 환경일 때만 사용 */
-  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string; exaone_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string }
+  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string; exaone_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string; relay_nkey?: string }
 }
 
 function coerceProvider(p: string | undefined): Provider {
@@ -80,7 +81,7 @@ function coerceProvider(p: string | undefined): Provider {
 function coerceFeatureModels(raw: StoredShape['feature_models']): FeatureModels {
   if (!raw || typeof raw !== 'object') return {}
   const out: FeatureModels = {}
-  const keys: AiFeature[] = ['analyze', 'summary', 'scenario', 'chat', 'batch']
+  const keys: AiFeature[] = ['analyze', 'summary', 'scenario', 'chat', 'batch', 'seteuk']
   for (const k of keys) {
     const v = raw[k]
     if (v && typeof v.model === 'string' && v.model.trim()) {
@@ -184,6 +185,7 @@ function readLocalSettings(): LocalSettings {
   const gcal_url = useEnc ? decrypt(raw.enc?.gcal_url) : (raw.plain?.gcal_url ?? '')
   const relay_url = useEnc ? decrypt(raw.enc?.relay_url) : (raw.plain?.relay_url ?? '')
   const relay_key = useEnc ? decrypt(raw.enc?.relay_key) : (raw.plain?.relay_key ?? '')
+  const relay_nkey = useEnc ? decrypt(raw.enc?.relay_nkey) : (raw.plain?.relay_nkey ?? '')
 
   return {
     provider: coerceProvider(raw.provider),
@@ -206,7 +208,8 @@ function readLocalSettings(): LocalSettings {
     neis_key,
     gcal_url,
     relay_url,
-    relay_key
+    relay_key,
+    relay_nkey
   }
 }
 
@@ -240,7 +243,8 @@ export function saveLocalSettings(next: LocalSettings): void {
       neis_key: enc(next.neis_key ?? ''),
       gcal_url: enc(next.gcal_url ?? ''),
       relay_url: enc(next.relay_url ?? ''),
-      relay_key: enc(next.relay_key ?? '')
+      relay_key: enc(next.relay_key ?? ''),
+      relay_nkey: enc(next.relay_nkey ?? '')
     }
   } else {
     out.plain = {
@@ -251,7 +255,8 @@ export function saveLocalSettings(next: LocalSettings): void {
       neis_key: next.neis_key ?? '',
       gcal_url: next.gcal_url ?? '',
       relay_url: next.relay_url ?? '',
-      relay_key: next.relay_key ?? ''
+      relay_key: next.relay_key ?? '',
+      relay_nkey: next.relay_nkey ?? ''
     }
   }
 

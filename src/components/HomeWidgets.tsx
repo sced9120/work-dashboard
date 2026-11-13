@@ -304,8 +304,12 @@ export function HelpWidget({ onGo }: { onGo: (p: PageId) => void }): JSX.Element
 
 export function TasksWidget({ tasks, onChanged, onGo }: { tasks: Task[]; onChanged: () => void; onGo: (p: PageId) => void }): JSX.Element {
   const thisMonth = new Date().getMonth() + 1
-  const list = sortTasks(tasks.filter((t) => [thisMonth, 99].includes(monthOf(t.task_date_display))))
-  if (!list.length) {
+  const [showDone, setShowDone] = useState(false)
+  const all = sortTasks(tasks.filter((t) => [thisMonth, 99].includes(monthOf(t.task_date_display))))
+  // 체크한 업무는 목록에서 빠진다 — 아래 [완료 n개 보기]로 다시 꺼낸다
+  const done = all.filter((t) => t.is_completed === 1).length
+  const list = showDone ? all : all.filter((t) => t.is_completed !== 1)
+  if (!all.length) {
     return (
       <div className="muted small">
         이 달에 잡힌 업무가 없습니다.{' '}
@@ -335,6 +339,12 @@ export function TasksWidget({ tasks, onChanged, onGo }: { tasks: Task[]; onChang
           </span>
         </label>
       ))}
+      {!list.length && <div className="muted small">이 달 업무를 모두 마쳤습니다.</div>}
+      {done > 0 && (
+        <button className="link small done-toggle" onClick={() => setShowDone((v) => !v)}>
+          {showDone ? '완료한 업무 숨기기' : `완료 ${done}개 보기`}
+        </button>
+      )}
     </div>
   )
 }

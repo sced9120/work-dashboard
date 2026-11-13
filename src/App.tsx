@@ -23,6 +23,7 @@ import Data from './pages/Data'
 import Settings from './pages/Settings'
 import Tools from './pages/Tools'
 import Memos from './pages/Memos'
+import Seteuk from './pages/Seteuk'
 import Ocr from './pages/Ocr'
 import Icon from './components/Icon'
 import TourHost from './components/Tour'
@@ -65,6 +66,7 @@ export type PageId =
   | '메신저'
   | '출결'
   | '이번주'
+  | '세특'
 
 function Shell(): JSX.Element {
   const ui = useUiPrefs()
@@ -337,6 +339,7 @@ function Shell(): JSX.Element {
       {page === '메신저' && <Messenger onGo={setPage} />}
       {page === '출결' && <Attendance onGo={setPage} />}
       {page === '이번주' && <Week onGo={setPage} />}
+      {page === '세특' && <Seteuk onGo={setPage} />}
     </>
   )
 

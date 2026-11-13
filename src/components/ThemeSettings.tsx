@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { CatalogTheme } from '../../shared/catalog'
 import { useCatalog } from '../lib/catalog'
-import { MODES, THEMES, choosePreset, resolvedMode, setUiPrefs, useUiPrefs } from '../lib/theme'
+import { FONT_SCALES, MODES, THEMES, choosePreset, resolvedMode, setUiPrefs, useUiPrefs } from '../lib/theme'
 
 /** 받은 테마 미리보기 — 그 모양(base)의 미리보기에 색만 바꿔 칠한다 */
 function prevStyle(t: CatalogTheme, mode: 'light' | 'dark'): CSSProperties {
@@ -116,6 +116,18 @@ export default function ThemeSettings(): JSX.Element {
             : '윈도우 설정과 상관없이 고른 밝기로 보입니다.'}{' '}
           내 시간표 그림과 발표자료 미리보기는 출력물 모양을 그대로 보여 주려고 늘 원래 색으로 둡니다.
         </div>
+      </div>
+
+      <div className="field theme-field">
+        <label>글자 크기</label>
+        <div className="theme-seg" role="radiogroup" aria-label="글자 크기">
+          {FONT_SCALES.map((f) => (
+            <button key={f.value} role="radio" aria-checked={ui.fontScale === f.value} className={ui.fontScale === f.value ? 'on' : ''} onClick={() => setUiPrefs({ fontScale: f.value })}>
+              <span style={{ fontSize: `${Math.round(13 * f.value)}px` }}>{f.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="hint">프로그램 전체의 글자와 단추 · 표를 함께 키우거나 줄입니다. 이 PC에만 저장됩니다.</div>
       </div>
 
       <label className="theme-check">

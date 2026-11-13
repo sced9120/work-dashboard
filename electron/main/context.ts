@@ -20,6 +20,8 @@ import {
   withDated,
   withTimes
 } from '../../shared/timetable'
+import { ATT_RECORDS_KEY, ATT_ROSTER_KEY, readRecords, readRoster, summarize } from '../../shared/attendance'
+import type { AttRecord } from '../../shared/attendance'
 import * as db from './db'
 import { hasNeisKey, linkedSchool, mealsBetween, scheduleCached } from './neis'
 import { loadTimetable } from './timetable'
@@ -182,5 +184,48 @@ export async function schoolContext(question: string, today: string): Promise<Co
     }
   }
 
+  const att = attendanceContext(q, today)
+  if (att) out.push(att)
+
   return out
+}
+
+/**
+ * 담임 반 출결 — 출결을 묻는 질문에만. 학생은 번호로 싣는다(이름은 이 PC 에만).
+ * 질문에 명단의 이름이 들어 있으면 그 학생만 '이름 = 번호' 로 알려 준다(이름은 질문에 이미 들어 있다).
+ */
+export function attendanceContext(q: string, today: string): ContextSource | null {
+  if (!/출결|결석|지각|조퇴|결과\s*(?:처리|몇)|출석|결석계|병결|아파|아픈|서류|증빙|진단서|체험\s*학습|빠진|안\s*온|늦게|일찍\s*간/.test(q)) return null
+  const roster = readRoster(db.getSetting(ATT_ROSTER_KEY, ''))
+  if (!roster.students.length) return null
+  const recs = readRecords(db.getSetting(ATT_RECORDS_KEY, '[]'))
+  const line = (r: AttRecord): string =>
+    `${md(r.date)} ${r.no}번 ${r.type}(${r.reason})${r.note ? ` — ${r.note}` : ''}${r.proof === '필요' ? ' [서류 아직]' : ''}${r.neis ? '' : ' [나이스 아직]'}${r.id.startsWith('ph-') ? ' [폰으로 넣음]' : ''}`
+  const todays = recs.filter((r) => r.date === today)
+  const recent = recs.filter((r) => r.date >= addDays(today, -30) && r.date <= addDays(today, 14) && r.date !== today)
+  const proof = recs.filter((r) => r.proof === '필요').length
+  const neis = recs.filter((r) => !r.neis).length
+  const sums = [...summarize(recs).values()]
+    .sort((a, b) => a.no - b.no)
+    .map((s) => {
+      const parts = (Object.entries(s.counts) as [string, Record<string, number>][])
+        .map(([type, by]) => {
+          const inner = Object.entries(by).map(([r, n]) => `${r}${n}`).join(' ')
+          return inner ? `${type} ${inner}` : ''
+        })
+        .filter(Boolean)
+      return `${s.no}번: ${parts.join(', ')}`
+    })
+  const named = roster.students.filter((s) => s.name.length >= 2 && q.includes(s.name)).map((s) => `${s.name} = ${s.no}번`)
+  const text = [
+    `우리 반 ${roster.cls || ''} 출결 기록 (${roster.students.length}명, 학생은 번호로 적습니다 — 이름은 이 PC 에만 있으니 번호로 답하세요)`,
+    named.length ? `질문에 나온 학생: ${named.join(', ')}` : '',
+    `오늘(${md(today)}): ${todays.length ? '\n' + todays.map(line).join('\n') : '기록 없음 — 모두 출석이거나 아직 넣지 않음'}`,
+    recent.length ? `최근 30일:\n${recent.slice(0, 60).map(line).join('\n')}` : '최근 30일: 기록 없음',
+    `챙길 것: 서류 아직 ${proof}건 · 나이스 아직 ${neis}건`,
+    sums.length ? `올해 학생별 합계:\n${sums.join('\n')}` : ''
+  ]
+    .filter(Boolean)
+    .join('\n')
+  return { label: `우리 반 출결 기록${roster.cls ? `: ${roster.cls}` : ''}`, text, room: 3500 }
 }

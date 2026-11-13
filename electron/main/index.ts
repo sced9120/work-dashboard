@@ -35,6 +35,13 @@ import { clearGcalCache, exportIcs, gcalEvents, gcalTest } from './gcal'
 import { getCatalog } from './catalog'
 import { addPaths, cancelOcr, clearOcr, continueOcr, pickFiles, runOcr, saveXlsx } from './ocr'
 import { addFolder, cancelBatch, pickFolder, runBatch, saveBatch } from './batch'
+import { seteukCancel, seteukDemoClear, seteukDemoFill, seteukLoad, seteukRequest, seteukSaveActs, seteukSaveRoster, seteukSaveRows, seteukGemText, seteukGround, seteukPoints, seteukReview, seteukSaveConfig, seteukSkillSave, seteukSaveOptions, seteukSaveStyle, seteukStyleCard, seteukWrite } from './seteuk'
+import type { SeteukActivity, SeteukConfig, SeteukMode, SeteukOptions, SeteukRow, SeteukStudent, SeteukStyle, SeteukWriteRequest } from '../../shared/seteuk'
+import { seteukCompress, seteukCompressCancel, seteukNeisPick, seteukNeisPreview, seteukNeisSave, seteukSaveSum, seteukSums } from './seteukSum'
+import type { SeteukCompressRequest, SeteukSumPatch } from '../../shared/seteukSum'
+import type { NeisOptions } from '../../shared/seteukNeis'
+import type { SeteukReviewRequest } from '../../shared/seteukReview'
+import { seteukXlsxApply, seteukXlsxExport, seteukXlsxPick, seteukXlsxPreview } from './seteukXlsx'
 import type { BatchOptions, BatchRequest, BatchRow } from '../../shared/batch'
 import { deleteChat, getChat, listChats, listPresets, renameChat, saveChat, savePresets } from './chats'
 import type { ChatAttachment, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
@@ -46,7 +53,7 @@ import type { TtRow } from '../../shared/timetable'
 import { STD_EXAMPLE, aiReadTimetable, importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
 import { schoolContext } from './context'
 import { schoolPlace, searchPlaces, weatherAt } from './weather'
-import { extractMessages, inboxList, inboxRemove, maskMessages, relayConnect, relayDisconnect, relayInfo, relayNewKey, relayPull, startRelayWatch, stopRelayWatch } from './messenger'
+import { extractMessages, inboxList, inboxRemove, maskMessages, relayConnect, relayDisconnect, relayInfo, relayNewKey, relayPull, relaySeenQr, startRelayWatch, stopRelayWatch } from './messenger'
 import { ymd } from '../../shared/neis'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
 import type {
@@ -319,6 +326,37 @@ function registerIpc(): void {
   ipcMain.handle('batch:save', (_e, rows: BatchRow[], options: BatchOptions, title: string, format: string) =>
     saveBatch(mainWindow, rows, options, String(title ?? ''), format === 'csv' ? 'csv' : 'xlsx')
   )
+
+  /* ---------- 세특 작성실 (명단 · 활동 · 관찰 기록 → 초안 → 최종본) ---------- */
+  ipcMain.handle('seteuk:load', () => seteukLoad())
+  ipcMain.handle('seteuk:roster', (_e, mode: SeteukMode, list: SeteukStudent[]) => seteukSaveRoster(mode, list))
+  ipcMain.handle('seteuk:request', (_e, actId: string, sid: string) => seteukRequest(String(actId), String(sid)))
+  ipcMain.handle('seteuk:style', (_e, style: SeteukStyle) => seteukSaveStyle(style))
+  ipcMain.handle('seteuk:options', (_e, o: SeteukOptions) => seteukSaveOptions(o))
+  ipcMain.handle('seteuk:config', (_e, c: SeteukConfig) => seteukSaveConfig(c))
+  ipcMain.handle('seteuk:gem', (_e, actId: string) => seteukGemText(String(actId)))
+  ipcMain.handle('seteuk:skill', (_e, actId: string) => seteukSkillSave(mainWindow, String(actId)))
+  ipcMain.handle('seteuk:points', (_e, items: { id: string; text: string }[], model: ModelChoice | null) => seteukPoints(items, model))
+  ipcMain.handle('seteuk:review', (_e, req: SeteukReviewRequest) => seteukReview(req))
+  ipcMain.handle('seteuk:ground', (_e, actId: string, sid: string, model: ModelChoice | null) => seteukGround(String(actId), String(sid), model))
+  ipcMain.handle('seteuk:styleCard', (_e, model: ModelChoice | null, dry: boolean) => seteukStyleCard(model, dry === true))
+  ipcMain.handle('seteuk:demoFill', () => seteukDemoFill())
+  ipcMain.handle('seteuk:demoClear', () => seteukDemoClear())
+  ipcMain.handle('seteuk:acts', (_e, list: SeteukActivity[]) => seteukSaveActs(list))
+  ipcMain.handle('seteuk:rows', (_e, actId: string, patch: Record<string, Partial<SeteukRow>>) => seteukSaveRows(String(actId), patch))
+  ipcMain.handle('seteuk:write', (_e, req: SeteukWriteRequest) => seteukWrite(req, (p) => send('seteuk:progress', p)))
+  ipcMain.handle('seteuk:cancel', (_e, job: string) => seteukCancel(String(job)))
+  ipcMain.handle('seteuk:xlsxExport', () => seteukXlsxExport(mainWindow))
+  ipcMain.handle('seteuk:xlsxPick', () => seteukXlsxPick(mainWindow))
+  ipcMain.handle('seteuk:xlsxPreview', (_e, id: string, overwrite: boolean) => seteukXlsxPreview(String(id), overwrite === true))
+  ipcMain.handle('seteuk:xlsxApply', (_e, id: string, overwrite: boolean) => seteukXlsxApply(String(id), overwrite === true))
+  ipcMain.handle('seteuk:sums', () => seteukSums())
+  ipcMain.handle('seteuk:sum', (_e, rec: string, patch: SeteukSumPatch) => seteukSaveSum(String(rec), patch))
+  ipcMain.handle('seteuk:compress', (_e, req: SeteukCompressRequest) => seteukCompress(req, (p) => send('seteuk:sumProgress', p)))
+  ipcMain.handle('seteuk:compressCancel', (_e, job: string) => seteukCompressCancel(String(job)))
+  ipcMain.handle('seteuk:neisPick', (_e, rec: string, opt: NeisOptions) => seteukNeisPick(mainWindow, String(rec), opt))
+  ipcMain.handle('seteuk:neisPreview', (_e, id: string, rec: string, opt: NeisOptions) => seteukNeisPreview(String(id), String(rec), opt))
+  ipcMain.handle('seteuk:neisSave', (_e, id: string, rec: string, opt: NeisOptions) => seteukNeisSave(mainWindow, String(id), String(rec), opt))
 
   /* ---------- 알림 ---------- */
   ipcMain.handle('notify:checkNow', () => checkDeadlinesNow())
@@ -981,6 +1019,7 @@ function registerIpc(): void {
   ipcMain.handle('relay:newKey', () => relayNewKey())
   ipcMain.handle('relay:connect', (_e, url: string) => relayConnect(String(url ?? '')))
   ipcMain.handle('relay:disconnect', () => relayDisconnect())
+  ipcMain.handle('relay:seenQr', () => relaySeenQr())
   ipcMain.handle('relay:pull', () => relayPull())
 
   /* ---------- 날씨 (Open-Meteo · Nominatim) ---------- */
@@ -1076,6 +1115,12 @@ function registerIpc(): void {
   // 화면 테마의 밝기를 창 제목 줄 · 스크롤바에도 맞춘다 (고른 값은 화면 쪽 localStorage 에 있다)
   ipcMain.handle('ui:nativeTheme', (_e, mode: string) => {
     nativeTheme.themeSource = mode === 'light' || mode === 'dark' ? mode : 'system'
+  })
+  // 설정 → 화면 테마 → 글자 크기. 보낸 창의 배율만 바꾼다(정해 둔 값만)
+  ipcMain.handle('ui:zoom', (e, factor: number) => {
+    const f = Number(factor)
+    if (![0.9, 1, 1.1, 1.25].includes(f)) return
+    e.sender.setZoomFactor(f)
   })
   // file:// 로 띄운 창에서는 navigator.clipboard 가 막히므로 메인에서 처리한다.
   ipcMain.handle('clipboard:read', () => clipboard.readText().slice(0, 20000))

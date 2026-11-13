@@ -20,6 +20,7 @@ import { docsOf,
   removeChat,
   renameChat,
   runPlan,
+  planSummary,
   savePreset,
   sendChat,
   setInstruction,
@@ -491,7 +492,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
   const attach = async (): Promise<void> => addPaths(await window.api.chats.pick())
 
   const after = (r: SendResult): void => {
-    if (r.inserted) toast(`${r.inserted.events ? `일정 ${r.inserted.events}건` : ''}${r.inserted.events && r.inserted.tasks ? ' · ' : ''}${r.inserted.tasks ? `업무 ${r.inserted.tasks}건` : ''} 을 넣었습니다.`, 'ok')
+    if (r.inserted) toast(planSummary(r.inserted), 'ok')
     else if (!r.ok && r.error) toast(r.error, 'err')
   }
 
@@ -521,7 +522,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
       return
     }
     const n = await runPlan(id, at, items)
-    toast(`${n.events ? `일정 ${n.events}건` : ''}${n.events && n.tasks ? ' · ' : ''}${n.tasks ? `업무 ${n.tasks}건` : ''} 을 넣었습니다.`, 'ok')
+    toast(planSummary(n), 'ok')
   }
 
   const copy = async (text: string): Promise<void> => {

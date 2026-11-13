@@ -5797,3 +5797,1342 @@ body {
 
 .cal-ev.deadline { background: color-mix(in srgb, #d97706 28%, #ffffff); color: #6e3a05; }
 :root[data-mode='dark'] .cal-ev.deadline { background: color-mix(in srgb, #f59e0b 36%, var(--surface-solid)); color: #fde9c4; }
+
+/* ================= 업무 도우미 말상자 · 옆 대화창 (3.7) =================
+ * 말상자는 평소 작게 떠 있다가(아래에서 띄움) 마우스를 올리거나 글을 치면 넓어진다.
+ * 넓어지면 보내기 단추 옆에 [창으로] 가 튀어나온다. 물으면 오른쪽에 대화창이 열린다. */
+.nshell > .ns-main.has-ask {
+  padding-bottom: 120px;
+}
+.ns-ask {
+  bottom: 30px;
+  width: 248px;
+  padding: 5px 5px 5px 14px;
+  transition: width 260ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms ease, border-color 200ms ease, transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+.ns-ask.wide {
+  width: min(720px, calc(100% - 48px));
+  transform: translateX(-50%) translateY(-4px);
+}
+.ns-ask input[type='text'] {
+  min-height: 36px;
+}
+.ns-ask:not(.wide) .ns-ask-find {
+  width: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+}
+.ns-ask-find {
+  transition: width 200ms ease, opacity 160ms ease, background-color 140ms ease;
+}
+.ns-ask-go {
+  width: 36px;
+  height: 36px;
+}
+.ns-ask-win {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  animation: ask-win-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.ns-ask-win:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+@keyframes ask-win-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px) scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(2px) scale(1.08);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* 옆 대화창 — 오른쪽에 떠 있고, 열려 있으면 본문이 그만큼 비켜 준다 */
+.ask-side {
+  position: absolute;
+  z-index: 34;
+  top: 84px;
+  right: 16px;
+  bottom: 104px;
+  width: min(420px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 16px);
+  background: var(--surface);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.06);
+  animation: ask-side-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes ask-side-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.nshell:has(.ask-side) > .ns-main {
+  padding-right: min(452px, 40vw);
+}
+.ask-side-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 10px 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.ask-side-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--accent);
+}
+.ask-side-title b {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ask-side-x {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ask-side-x:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.ask-side-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  overflow-y: auto;
+}
+.ask-side-empty {
+  margin: auto 0;
+  text-align: center;
+}
+.ask-msg {
+  max-width: 92%;
+  padding: 9px 12px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.ask-me {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  white-space: pre-wrap;
+}
+.ask-ai {
+  align-self: flex-start;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.ask-ai.ask-err {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.ask-ai > :first-child {
+  margin-top: 0;
+}
+.ask-ai > :last-child {
+  margin-bottom: 0;
+}
+.ask-more {
+  display: block;
+  margin-top: 6px;
+}
+.ask-side-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ns-ask,
+  .ns-ask-find {
+    transition: none;
+  }
+  .ns-ask-win,
+  .ask-side {
+    animation: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .ask-side {
+    background: var(--surface);
+  }
+}
+
+/* 업무 도우미 창 — 입력칸을 창 바닥에서 띄워 떠 있게 (3.7) */
+.main.main-chat {
+  padding-bottom: 0;
+}
+.main-chat .chat-composer-wrap {
+  padding: 8px 12px 26px;
+}
+.main-chat .chat-composer {
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+.main-chat .chat-foot-hint {
+  margin-top: 8px;
+}
+
+/* 옆 대화창 — 도우미가 내민 일감(일정 · 업무 · 출결) 바로 넣기 */
+.ask-plan {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.ask-plan ul {
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ask-plan .plan-kind {
+  display: inline-block;
+  padding: 0 6px;
+  margin-right: 4px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.ask-plan-btns {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- 3.7.0 — 세특 작성실 · 폰 연결 · 할 일 숨기기 (styles.css 에서 옮김) ---------- */
+/* ---------- 세특 작성실 ---------- */
+
+.stk-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.stk-acts .tab {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stk-save {
+  min-width: 56px;
+  text-align: right;
+}
+
+.stk-panel {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+
+.stk-panel p {
+  margin: 0 0 8px;
+}
+
+.stk-roster {
+  width: 100%;
+  height: 150px;
+  margin-bottom: 8px;
+  font-family: inherit;
+}
+
+.stk-actbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.stk-cfg {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 14px;
+}
+
+.stk-cfg label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.stk-cfg label > span {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stk-cfg textarea {
+  height: 64px;
+}
+
+.stk-cfg .stk-wide {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.stk-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.stk-prog {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.stk-prog .progress {
+  flex: 1;
+}
+
+.stk-count {
+  margin: 10px 0 8px;
+}
+
+.stk-scroll {
+  overflow-x: auto;
+}
+
+.stk-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.stk-table th {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-strong);
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: left;
+}
+
+.stk-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.stk-table .c-chk {
+  width: 34px;
+  text-align: center;
+}
+
+.stk-table .c-who {
+  width: 104px;
+}
+
+.stk-table td.c-who b,
+.stk-table td.c-who span {
+  display: block;
+}
+
+.stk-table tr.on td {
+  background: var(--accent-soft);
+}
+
+.stk-table textarea,
+.stk-ai {
+  display: block;
+  width: 100%;
+  height: 96px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.stk-table tr.on textarea,
+.stk-table tr.on .stk-ai {
+  height: 190px;
+}
+
+.stk-ai {
+  padding: 8px 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.stk-ai.none {
+  color: var(--muted);
+}
+
+.stk-under {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 26px;
+  margin-top: 4px;
+}
+
+.stk-over,
+.stk-err {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.stk-err {
+  margin: 4px 0 0;
+  font-weight: 400;
+}
+
+.stk-badge {
+  width: fit-content;
+  margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.stk-badge.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.stk-badge.check {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.stk-badge.block {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.stk-issues {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.stk-issues li {
+  padding: 5px 0;
+  border-top: 1px dashed var(--border);
+}
+
+.stk-issues li b {
+  margin-right: 4px;
+  color: var(--warn);
+}
+
+.stk-issues li.block b {
+  color: var(--danger);
+}
+
+.stk-issues .fix {
+  color: var(--ok);
+}
+
+.stk-issues .why {
+  display: block;
+  color: var(--muted);
+}
+
+.stk-tools > select {
+  width: auto;
+  min-width: 96px;
+}
+
+.stk-tools .model-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+.stk-tools .model-picker-label {
+  margin-bottom: 0;
+}
+
+.stk-import-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.stk-import .memo-filter {
+  margin: 0;
+}
+
+.stk-import .row,
+.stk-import .note {
+  margin-bottom: 8px;
+}
+
+.stk-files,
+.stk-found-list {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.stk-files li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.stk-agree {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.stk-found {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.stk-found-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.stk-found-list li {
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.stk-found-list li b {
+  margin-right: 6px;
+}
+
+/* 취합 · 나이스 */
+
+.stk-view {
+  width: fit-content;
+  margin: 0 0 12px;
+}
+
+.stk-parts p {
+  margin: 0 0 4px;
+}
+
+.stk-parts b {
+  margin-right: 4px;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.stk-sum .c-who .stk-badge + .stk-badge {
+  margin-top: 3px;
+}
+
+.stk-badge.st-same {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.stk-badge.st-over {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.stk-badge.st-ai {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.stk-badge.st-edit {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.stk-main > .stk-panel {
+  margin-bottom: 10px;
+}
+
+/* 엑셀로 주고받기 */
+
+.stk-view .stk-xlsx-btn {
+  margin-left: 8px;
+}
+
+.stk-xlsx {
+  margin-bottom: 14px;
+}
+
+.stk-xlsx p {
+  margin: 0 0 8px;
+}
+
+.stk-xlsx-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px 24px;
+}
+
+/* 세특 작성실 — 모드 · 처음 안내 · 쓰는 규칙 (오르빗 카드 · 알약 단추 톤을 그대로 쓴다) */
+
+.ocr-modes.stk-modes {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: none;
+}
+
+.stk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.stk-bar .stk-view {
+  margin: 0;
+}
+
+.stk-side,
+.stk-intro,
+.stk-first {
+  margin-bottom: 14px;
+}
+
+.stk-side > .stk-panel {
+  margin-top: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.stk-intro ol {
+  margin: 8px 0 12px;
+  padding-left: 20px;
+  line-height: 1.9;
+}
+
+.stk-demo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.stk-first .stk-panel {
+  margin-top: 10px;
+}
+
+.stk-first-demo {
+  margin: 10px 0 0;
+}
+
+.stk-rules {
+  max-height: 340px;
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+/* AI 초안은 고칠 수 있는 칸이지만 최종본과 구분되게 점선 테두리 */
+.stk-table textarea.stk-ai {
+  padding: 8px 10px;
+  border-style: dashed;
+  background: var(--surface-2);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 표의 강조는 테마의 옅은 면 색으로 — 파란 띠가 생기지 않게 */
+.stk-table tr.on td {
+  background: var(--surface-2);
+}
+
+.stk-table tr.on textarea.stk-ai {
+  background: var(--surface-3, var(--surface-2));
+}
+
+.stk-panel {
+  border-radius: 12px;
+}
+
+.stk-table th {
+  font-weight: 600;
+}
+
+/* 세특 작성실 — 내 문체 · 예시 */
+
+.stk-style-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px 22px;
+}
+
+.stk-style-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.stk-style-label .muted {
+  font-weight: 400;
+}
+
+.stk-sample textarea {
+  display: block;
+  width: 100%;
+  height: 92px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.stk-style textarea.stk-card {
+  display: block;
+  width: 100%;
+  height: 190px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.stk-style .stk-import-head .stk-agree {
+  margin: 0;
+}
+
+.stk-example {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px dashed var(--border);
+}
+
+.stk-example p {
+  flex: 1;
+  margin: 0;
+}
+
+.stk-example b {
+  margin-right: 4px;
+}
+
+/* 세특 작성실 — 자동 고쳐쓰기 · 근거 확인 */
+
+.stk-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.stk-ground {
+  margin-top: 4px;
+}
+
+.stk-ground-ok {
+  margin: 4px 0 0;
+}
+
+.stk-table td.c-who .stk-badge + .stk-badge {
+  margin-top: 3px;
+}
+
+/* 세특 작성실 — 학생부 살펴보기 */
+
+.stk-review-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px 14px;
+  margin: 8px 0;
+}
+
+.stk-review-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stk-review-form label > span {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stk-review textarea.stk-review-text {
+  display: block;
+  width: 100%;
+  height: 200px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.stk-review-banned {
+  margin-bottom: 8px;
+}
+
+.stk-review-out {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.stk-review-md {
+  max-height: 520px;
+  overflow: auto;
+  padding: 4px 2px;
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+
+/* 세특 작성실 — 내 규칙 */
+
+.stk-rules-tabs {
+  width: fit-content;
+  margin: 6px 0 10px;
+}
+
+.stk-rules-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stk-rules-body > p {
+  margin: 0;
+}
+
+.stk-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.stk-switch input {
+  margin-top: 3px;
+}
+
+.stk-switch b {
+  display: block;
+  font-size: 13px;
+}
+
+.stk-switch small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.stk-switch .stk-badge {
+  display: inline-block;
+  margin: 0 0 0 4px;
+  vertical-align: 1px;
+}
+
+.stk-rules-set textarea.stk-extra {
+  display: block;
+  width: 100%;
+  height: 92px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.stk-myword {
+  display: grid;
+  grid-template-columns: minmax(200px, 2fr) 150px minmax(140px, 1.2fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.stk-rule-group {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.stk-rule-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 6px 18px;
+  margin: 4px 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.stk-rule-list li.off {
+  opacity: 0.55;
+}
+
+.stk-rule-words {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 340px;
+}
+
+.stk-rules-preview {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.stk-rules-preview .stk-rules {
+  margin: 8px 0;
+}
+
+/* 할 일 목록 — 완료한 것 보기 · 숨기기 */
+.done-toggle {
+  display: inline-block;
+  margin-top: 6px;
+}
+
+/* 세특 작성실 — 문서 스캔 · 최종본만 · 명단 빼기 */
+
+.stk-scan > .page-head {
+  display: none;
+}
+
+.stk-table.final-only {
+  min-width: 0;
+}
+
+.stk-table.final-only textarea {
+  height: 72px;
+}
+
+.stk-table.final-only tr.on textarea {
+  height: 140px;
+}
+
+.stk-roster-now {
+  margin-bottom: 10px;
+}
+
+.stk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.stk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 4px 1px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12.5px;
+}
+
+.stk-chip button {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stk-chip button:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.stk-danger-text {
+  color: var(--danger);
+}
+
+/* 세특 작성실 — 분량 수직선 · 프롬프트 만들기 */
+
+.stk-fill {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stk-fill-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.stk-fill-head > span:first-child {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stk-fill input[type='range'] {
+  width: 100%;
+  height: 6px;
+  margin: 8px 0 2px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--surface-3, var(--border)) var(--fill, 0%));
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.stk-fill input[type='range']::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  -webkit-appearance: none;
+}
+
+.stk-fill-ticks {
+  display: flex;
+  justify-content: space-between;
+}
+
+.stk-fill-ticks button {
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.stk-fill-ticks button.on {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.stk-actbar .spacer {
+  flex: 1;
+}
+
+.stk-maker {
+  margin-top: 12px;
+}
+
+.stk-maker-cols {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) minmax(320px, 1.15fr);
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.stk-maker-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stk-maker-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stk-maker-edit label > span {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stk-maker-edit textarea {
+  height: 72px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.stk-maker-edit textarea.stk-maker-structure {
+  height: 120px;
+}
+
+.stk-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.stk-maker-view {
+  max-height: 620px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.stk-maker-part {
+  position: relative;
+  margin-bottom: 6px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.stk-maker-part pre {
+  margin: 0;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.stk-maker-part.locked {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.stk-maker-part.mine {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.stk-maker-tag {
+  float: right;
+  margin-left: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.stk-maker-part.mine .stk-maker-tag {
+  color: var(--accent);
+}
+
+@media (max-width: 980px) {
+  .stk-maker-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 세특 작성실 — 입력 항목 · 성취수준 · 교과 역량 */
+
+.stk-comp {
+  margin: -4px 0 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--border-strong);
+  white-space: pre-wrap;
+}
+
+.stk-cols input[type='text'] {
+  width: 100%;
+}
+
+.stk-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stk-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.stk-fields label > span {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stk-table .stk-fields textarea {
+  height: 44px;
+}
+
+.stk-table tr.on .stk-fields textarea {
+  height: 72px;
+}
+
+.stk-grade {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+
+/* 세특 작성실 — 보고서 요점 · 다른 AI 앱에 저장 */
+
+.stk-points {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.stk-points input {
+  margin-top: 3px;
+}
+
+.stk-export {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-strong);
+}
+
+.stk-export-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stk-export p {
+  margin: 0;
+}
+
+/* 폰 연결 카드 — 세특 작성실 · 출결 기록 */
+.relay-how {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.relay-upgrade ol {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stk-phone {
+  margin-bottom: 12px;
+}
+
+/* 세특 작성실 — 수업반 */
+.stk-group-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.stk-group-tabs button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.stk-group-tabs button.on {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+
+.stk-group-tabs button.on .muted {
+  color: inherit;
+  opacity: 0.7;
+}
+
+.stk-groups-now {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+
+.stk-group-name {
+  display: grid;
+  grid-template-columns: auto minmax(0, 320px) 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.stk-group-name > span:first-child {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .stk-group-name {
+    grid-template-columns: 1fr;
+  }
+}

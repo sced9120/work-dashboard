@@ -58,7 +58,7 @@ export type Provider = 'openai' | 'gemini' | 'claude' | 'exaone'
  * AI 기능별로 어떤 서비스·모델을 쓸지.
  * 각 기능에서 개별 선택할 수 있고, 저장돼 다음에도 이어진다.
  */
-export type AiFeature = 'analyze' | 'summary' | 'scenario' | 'chat' | 'batch'
+export type AiFeature = 'analyze' | 'summary' | 'scenario' | 'chat' | 'batch' | 'seteuk'
 
 export interface ModelChoice {
   provider: Provider
@@ -114,6 +114,8 @@ export interface LocalSettings {
   /** 폰에서 보내기 — 선생님 구글 계정의 Apps Script 웹 앱 주소와 열쇠 (shared/relay.ts). 이 PC 에만 둔다 */
   relay_url: string
   relay_key: string
+  /** 폰 화면의 학생 이름을 잠그는 열쇠 — 폰 주소의 # 뒤에만 실린다(구글로 가지 않음) */
+  relay_nkey?: string
 }
 
 export interface ExtractedDoc {

@@ -10,6 +10,8 @@
  */
 
 import type { CalEventInput, TaskInput } from './types'
+import { ATT_REASONS, ATT_TYPES } from './attendance'
+import type { AttReason, AttType } from './attendance'
 
 /**
  * 도우미가 "이 양식에 맞춰 한글 파일로 만들까요?" 하고 내미는 부탁.
@@ -25,8 +27,10 @@ export interface DocRequest {
 
 /** 도우미가 적어 보낸 일감 하나 (펼치기 전) */
 export interface AgentAction {
-  kind: '일정' | '업무'
+  kind: '일정' | '업무' | '출결'
   title: string
+  /* 출결 — 담임 반 출결 기록 (학생은 번호로) */
+  att?: AttInput
   /* 일정 */
   from?: string
   to?: string
@@ -44,11 +48,21 @@ export interface AgentAction {
 
 /** 펼친 뒤 실제로 넣을 한 건 */
 export interface PlanItem {
-  kind: '일정' | '업무'
+  kind: '일정' | '업무' | '출결'
   /** 화면에 보일 한 줄 */
   label: string
   event?: CalEventInput
   task?: TaskInput
+  att?: AttInput
+}
+
+/** 도우미가 넣자고 내민 출결 한 건 */
+export interface AttInput {
+  date: string
+  no: number
+  type: AttType
+  reason: AttReason
+  note: string
 }
 
 /** 한 번에 만들 수 있는 최대 건수. 실수로 몇 년치가 쏟아지지 않게 막는다. */
@@ -91,6 +105,14 @@ export function parseActions(raw: unknown): AgentAction[] {
 
   for (const item of list) {
     const o = item as Record<string, unknown>
+    if (str(o.종류) === '출결') {
+      const no = Math.floor(Number(o.번호))
+      const type = str(o.구분) as AttType
+      if (!isDay(o.날짜) || !(no >= 1 && no <= 99) || !(ATT_TYPES as readonly string[]).includes(type)) continue
+      const reason = ((ATT_REASONS as readonly string[]).includes(str(o.사유)) ? str(o.사유) : '기타') as AttReason
+      out.push({ kind: '출결', title: `${no}번 ${type}`, att: { date: o.날짜 as string, no, type, reason, note: str(o.메모).slice(0, 200) } })
+      continue
+    }
     const kind = str(o.종류) === '업무' ? '업무' : '일정'
     const title = str(o.제목)
     if (!title) continue
@@ -149,6 +171,11 @@ function readWeekdays(v: unknown): number[] {
  * 시작일부터 종료일까지 이어지는 일정 한 건이다.
  */
 export function expandAction(a: AgentAction): PlanItem[] {
+  if (a.kind === '출결') {
+    if (!a.att) return []
+    const x = a.att
+    return [{ kind: '출결', label: `${dayLabel(x.date)} · ${x.no}번 ${x.type}(${x.reason})${x.note ? ` — ${x.note}` : ''}`, att: x }]
+  }
   if (a.kind === '업무') {
     return [
       {
@@ -374,6 +401,8 @@ ${CLOSE}
 - 하루짜리면 시작일과 종료일을 같게, 여러 날에 걸치면 다르게 적습니다.
 - 업무 로드맵에 넣는 것이면 {"종류":"업무","제목":"","시기":"9월 3주","절차":"","포인트":""} 입니다.
 - 색은 blue·green·orange·red·purple·gray 중 하나입니다.
+- 담임 반 **출결 기록**에 넣는 것이면 {"종류":"출결","날짜":"${today}","번호":7,"구분":"결석","사유":"질병","메모":""} 입니다.
+  구분은 결석·지각·조퇴·결과, 사유는 질병·미인정·기타·출석인정 중 하나. 학생은 **번호**로 적습니다(번호를 모르면 되물으세요).
 - **날짜나 제목이 분명하지 않으면 묶음을 붙이지 말고 되물으세요.**
 - 지우거나 고치는 일은 할 수 없습니다. 부탁받으면 어디서 직접 하면 되는지 알려 주세요.
 - 묻기만 하는 질문에는 묶음을 붙이지 마세요.`

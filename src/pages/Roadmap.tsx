@@ -41,6 +41,8 @@ export default function Roadmap(): JSX.Element {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [adding, setAdding] = useState(false)
   const [query, setQuery] = useState('')
+  /** 완료한 업무도 보기 — 처음엔 숨긴다 */
+  const [showDone, setShowDone] = useState(false)
 
   const load = useCallback(async () => {
     const [list, raw, rawPins] = await Promise.all([
@@ -122,12 +124,13 @@ export default function Roadmap(): JSX.Element {
     const q = query.trim().toLowerCase()
     return sortTasks(
       tasks.filter((t) => {
+        if (!showDone && t.is_completed === 1 && t.id !== openId) return false
         if (tab !== 'all' && monthOf(t.task_date_display) !== tab) return false
         if (!q) return true
         return `${t.title} ${t.draft_full} ${t.key_points} ${t.workflow}`.toLowerCase().includes(q)
       })
     )
-  }, [tasks, tab, query])
+  }, [tasks, tab, query, showDone, openId])
 
   const save = async (id: number, value: TaskInput): Promise<void> => {
     await window.api.tasks.update(id, value)
@@ -220,6 +223,10 @@ export default function Roadmap(): JSX.Element {
             placeholder="업무 검색 (제목, 본문, 절차)"
             style={{ flex: 1, minWidth: 200 }}
           />
+          <label className="row" style={{ gap: 6, cursor: 'pointer' }}>
+            <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--accent)' }} />
+            <span className="small">완료한 업무도 보기{tasks.some((x) => x.is_completed === 1) ? ` (${tasks.filter((x) => x.is_completed === 1).length})` : ''}</span>
+          </label>
           <button className="btn btn-primary" onClick={() => setAdding((v) => !v)}>
             {adding ? '닫기' : '＋ 업무 직접 추가'}
           </button>

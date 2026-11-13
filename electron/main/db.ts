@@ -1120,7 +1120,7 @@ export function cleanupYear(plan: CleanupPlan): CleanupResult {
  * 업무가 아니라 지금 담당자 한 사람의 것이라 인수인계 파일에 넣지 않는 설정.
  * 학교 시간표에는 선생님들 이름이 들어 있고, 내 이름 · 내 시간표 · 우리 반은 다음 담당자와 다르다.
  */
-const PERSONAL_SETTINGS = ['timetable_school', 'timetable_me', 'timetable_manual', 'timetable_alias', 'my_class', 'timetable_peers', 'timetable_dated', 'att_roster', 'att_records', 'msg_inbox']
+const PERSONAL_SETTINGS = ['timetable_school', 'timetable_me', 'timetable_manual', 'timetable_alias', 'my_class', 'timetable_peers', 'timetable_dated', 'att_roster', 'att_records', 'msg_inbox', 'relay_seen', 'relay_ver']
 
 export async function exportTo(targetPath: string, includePersonal = false): Promise<void> {
   if (!SQL) SQL = await initSqlJs({ wasmBinary: loadWasm() })
@@ -1129,6 +1129,8 @@ export async function exportTo(targetPath: string, includePersonal = false): Pro
   // 자유 메모장은 '다음 담당자에게도 넘기기' 를 켠 것만
   copy.run('DELETE FROM memos WHERE share IS NOT 1')
   copy.run(`DELETE FROM settings WHERE key IN (${PERSONAL_SETTINGS.map(() => '?').join(',')})`, PERSONAL_SETTINGS)
+  // 세특 작성실의 명단 · 관찰 기록 · 글은 학생 개인정보라 넘기지 않는다
+  copy.run("DELETE FROM settings WHERE substr(key, 1, 7) = 'seteuk_'")
   // 지운 줄은 파일의 빈 쪽에 글자가 그대로 남는다. 다시 짜서 지운 것이 파일에 남지 않게 한다.
   copy.run('VACUUM')
   fs.writeFileSync(targetPath, Buffer.from(copy.export()))

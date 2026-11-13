@@ -3,6 +3,8 @@ import type { ChatAttachment, ChatMeta, ChatMode, ChatMsgBase, ChatPreset, ChatR
 import { BUILTIN_PRESETS, chatTitle } from '../../shared/chat'
 import type { DocRequest, PlanItem } from '../../shared/agent'
 import { buildPlan, splitAnswer } from '../../shared/agent'
+import { ATT_RECORDS_KEY, defaultProof, readRecords, upsertRecords } from '../../shared/attendance'
+import type { AttRecord } from '../../shared/attendance'
 import type { FormRef, HwpForm, HwpKind } from '../../shared/hwpform'
 import type { ModelChoice } from '../../shared/types'
 
@@ -307,7 +309,7 @@ export interface SendResult {
   ok: boolean
   error?: string
   /** 묻지 않고 바로 넣었으면 몇 건 */
-  inserted?: { events: number; tasks: number }
+  inserted?: { events: number; tasks: number; att: number }
 }
 
 async function ask(id: string, rec: Rec, ctx: { jobTitle: string; model: ModelChoice | null }): Promise<SendResult> {
@@ -446,13 +448,26 @@ export function stopChat(id: string): void {
  * 일감을 실제로 넣는다. 여기서 처음으로 자료가 바뀐다.
  * 넣을 것을 인자로 받는다 — 방금 받은 답을 곧바로 넣는 경우에 아직 담기지 않은 것을 뒤지지 않게.
  */
-export async function runPlan(id: string, index: number, items: PlanItem[]): Promise<{ events: number; tasks: number }> {
+export async function runPlan(id: string, index: number, items: PlanItem[]): Promise<{ events: number; tasks: number; att: number }> {
   const events = items.filter((x) => x.event).map((x) => x.event!)
   const tasks = items.filter((x) => x.task).map((x) => x.task!)
+  const atts = items.filter((x) => x.att).map((x) => x.att!)
   for (const e of events) await window.api.events.add(e)
   if (tasks.length) await window.api.tasks.addMany(tasks)
+  if (atts.length) {
+    // 출결 기록 화면과 같은 곳(DB 설정)에 같은 방식으로 — 같은 날 · 학생 · 구분이면 새것으로
+    const list = readRecords(await window.api.setting.get(ATT_RECORDS_KEY, '[]'))
+    const add: AttRecord[] = atts.map((a) => ({ id: `${a.date}-${a.no}-${a.type}`, date: a.date, no: a.no, type: a.type, reason: a.reason, note: a.note, proof: defaultProof(a.reason), neis: false }))
+    await window.api.setting.set(ATT_RECORDS_KEY, JSON.stringify(upsertRecords(list, add)))
+    window.dispatchEvent(new CustomEvent('att:changed'))
+  }
   updateMsg(id, index, { planDone: '넣음', planCount: items.length })
-  return { events: events.length, tasks: tasks.length }
+  return { events: events.length, tasks: tasks.length, att: atts.length }
+}
+
+/** 넣은 건수를 한 줄로 */
+export function planSummary(n: { events: number; tasks: number; att: number }): string {
+  return [n.events && `일정 ${n.events}건`, n.tasks && `업무 ${n.tasks}건`, n.att && `출결 ${n.att}건`].filter(Boolean).join(' · ') + '을 넣었습니다.'
 }
 
 /* ---------- 지침 모음 ---------- */

@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { PageId } from '../App'
 import type { NavPrefs } from '../lib/nav'
 import { isShown } from '../lib/nav'
-import { queueChat, queueSearch } from '../lib/chatBridge'
-import { newChat } from '../lib/chatStore'
+import AskDock from './AskDock'
 import Icon from './Icon'
 import { OrbitMark } from './Brand'
 import type { IconName } from './Icon'
@@ -18,7 +17,7 @@ import type { IconName } from './Icon'
  * 탭 밖의 화면(만들기 · 도우미 · 검색 · 설정)은 위에 [‹ 돌아가기] 를 달아 어디서 왔는지 돌아갈 수 있게 한다.
  */
 
-type TabId = 'today' | 'week' | 'work'
+type TabId = 'today' | 'week' | 'work' | 'seteuk'
 
 interface Sub {
   page: PageId
@@ -48,7 +47,9 @@ const TABS: { id: TabId; label: string; subs: Sub[] }[] = [
       { page: '도움자료', label: '도움자료' },
       { page: '데이터', label: '인수인계 · 백업' }
     ]
-  }
+  },
+  // 세특은 학기 말에 몰아서 오래 쓰는 화면이라 만들기 안에 두지 않고 위 탭으로 바로 간다
+  { id: 'seteuk', label: '세특 작성실', subs: [{ page: '세특', label: '세특 작성실' }] }
 ]
 
 interface MakeItem {
@@ -150,8 +151,6 @@ export default function NewShell(props: Props): JSX.Element {
   const { page, onGo, navp } = props
   const tab = tabOf(page)
   const [makeOpen, setMakeOpen] = useState(false)
-  const [q, setQ] = useState('')
-  const askRef = useRef<HTMLInputElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   useSurface(mainRef, page)
   const makeRef = useRef<HTMLDivElement>(null)
@@ -163,15 +162,6 @@ export default function NewShell(props: Props): JSX.Element {
     lastSub.current[tab] = page
     back.current = page
   }
-
-  useEffect(() => {
-    const focus = (): void => {
-      askRef.current?.focus()
-      askRef.current?.select()
-    }
-    window.addEventListener('wd:focus-ask', focus)
-    return () => window.removeEventListener('wd:focus-ask', focus)
-  }, [])
 
   // 만들기 팝업: 바깥을 누르거나 Esc 면 닫고, 열면 첫 항목에 커서
   useEffect(() => {
@@ -198,26 +188,6 @@ export default function NewShell(props: Props): JSX.Element {
   const go = (p: PageId): void => {
     setMakeOpen(false)
     onGo(p)
-  }
-
-  const ask = (e: FormEvent): void => {
-    e.preventDefault()
-    const text = q.trim()
-    if (!text) {
-      askRef.current?.focus()
-      return
-    }
-    // 새 대화를 열고 입력칸에 옮겨 적는다 — 보내기 전에 한 번 더 볼 수 있다
-    newChat()
-    queueChat(text)
-    setQ('')
-    onGo('도우미')
-  }
-  const find = (): void => {
-    const text = q.trim()
-    if (text) queueSearch(text)
-    setQ('')
-    onGo('검색')
   }
 
   const curTab = TABS.find((t) => t.id === tab)
@@ -341,28 +311,7 @@ export default function NewShell(props: Props): JSX.Element {
         </div>
       </main>
 
-      {showAsk && (
-        <form className="ns-ask" onSubmit={ask}>
-          <span className="ns-ask-ico" aria-hidden="true">
-            <Icon name="spark" size={17} />
-          </span>
-          {props.chatBusy && <i className="nav-busy ns-ask-busy" aria-label="도우미가 답을 쓰는 중" />}
-          <input
-            ref={askRef}
-            type="text"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="업무 도우미에게 묻거나 찾기 (Ctrl+K)"
-            aria-label="업무 도우미에게 묻거나 찾기"
-          />
-          <button type="button" className="ns-ask-find" onClick={find} aria-label="통합 검색에서 찾기" title="통합 검색에서 찾기">
-            <Icon name="search" size={16} />
-          </button>
-          <button type="submit" className="ns-ask-go" aria-label="업무 도우미에게 보내기" title="업무 도우미 화면으로 옮겨 적습니다">
-            <Icon name="up" size={16} />
-          </button>
-        </form>
-      )}
+      <AskDock page={page} onGo={onGo} jobTitle={props.jobTitle} />
     </div>
   )
 }

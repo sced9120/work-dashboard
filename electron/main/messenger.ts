@@ -12,13 +12,14 @@ import { ATT_ROSTER_KEY, readRoster } from '../../shared/attendance'
 import type { Student } from '../../shared/attendance'
 import type { InboxItem, MsgResult } from '../../shared/messenger'
 import { MSG_INBOX_KEY, messengerPrompt, parseMsgResult } from '../../shared/messenger'
-import { newRelayKey, normalizeRelayUrl, parsePull, phoneUrl, relayScript } from '../../shared/relay'
+import { RELAY_VERSION, isNameKey, newNameKey, newRelayKey, normalizeRelayUrl, parsePull, phoneUrl, relayScript, splitParts, versionOf } from '../../shared/relay'
 import { ymd } from '../../shared/neis'
 import { askJson } from './ai'
 import { buildAliases, findNameCandidates, leakCheck, maskText, unmaskText } from './anonymize'
 import * as db from './db'
 import { httpFetch } from './http'
 import { loadLocalSettings, saveLocalSettings } from './secrets'
+import { phoneBoard, routeRelay, sealNames } from './phone'
 
 /* ---------- 가리기 ---------- */
 
@@ -111,28 +112,84 @@ export interface RelayInfo {
   /** 웹 앱 주소까지 이어졌는지 */
   connected: boolean
   url: string
-  /** 폰에서 열 주소 (이어졌을 때만) */
+  /** 폰에서 열 주소 (이어졌을 때만) — ?k= 까지. 탭은 &tab=, 이름표 열쇠는 맨 뒤 #n= 로 붙인다 */
   phone: string
+  /** 이름표 열쇠 — 폰 주소의 # 뒤에만 쓴다 */
+  nkey: string
+  /** 이름표 열쇠를 새로 만들어 폰 주소가 바뀌었다 — QR 을 다시 찍어야 학번 · 이름이 보인다 */
+  rescan: boolean
   script: string
+  /** 우편함 스크립트의 판 (모르면 0). latest 보다 낮으면 수업 관찰 · 출결을 못 쓴다 */
+  ver: number
+  latest: number
+}
+
+/** 마지막으로 본 우편함 스크립트 판 */
+const RELAY_VER_KEY = 'relay_ver'
+const seenVer = (): number => Number(db.getSetting(RELAY_VER_KEY, '0')) || 0
+function setVer(v: number): void {
+  if (v && v !== seenVer()) db.setSetting(RELAY_VER_KEY, String(v))
+}
+/** 이번에 켠 뒤 마지막으로 올린 판 — 같으면 다시 올리지 않는다 */
+let lastBoard = ''
+
+/** 이름표 열쇠를 새로 만들어 폰 주소가 바뀌었다는 표시 (QR 을 다시 찍으면 지운다) */
+const RELAY_RESCAN_KEY = 'relay_rescan'
+const rand = (n: number): Uint8Array => new Uint8Array(randomBytes(n))
+
+/** 이름표 열쇠 — 우편함 열쇠가 있는데 없으면(3.7.0 전 설정) 만든다. 이미 이어 둔 폰은 주소가 바뀌므로 다시 찍으라고 알린다 */
+function ensureNameKey(): string {
+  const s = loadLocalSettings()
+  if (!s.relay_key) return ''
+  if (s.relay_nkey && isNameKey(s.relay_nkey)) return s.relay_nkey
+  const nkey = newNameKey(rand)
+  saveLocalSettings({ ...s, relay_nkey: nkey })
+  if (normalizeRelayUrl(s.relay_url ?? '')) db.setSetting(RELAY_RESCAN_KEY, '1')
+  lastBoard = ''
+  return nkey
 }
 
 export function relayInfo(): RelayInfo {
+  const nkey = ensureNameKey()
   const s = loadLocalSettings()
   const key = s.relay_key ?? ''
   const url = normalizeRelayUrl(s.relay_url ?? '')
-  return { hasKey: !!key, connected: !!(key && url), url, phone: key && url ? phoneUrl(url, key) : '', script: key ? relayScript(key) : '' }
+  const connected = !!(key && url)
+  return {
+    hasKey: !!key,
+    connected,
+    url,
+    phone: connected ? phoneUrl(url, key) : '',
+    nkey: connected ? nkey : '',
+    rescan: connected && db.getSetting(RELAY_RESCAN_KEY, '') === '1',
+    script: key ? relayScript(key) : '',
+    ver: connected ? seenVer() : 0,
+    latest: RELAY_VERSION
+  }
 }
 
-/** 새 열쇠 — 예전 주소는 더는 쓰지 못하므로 비운다 */
+/** QR 을 다시 찍었다(또는 주소를 복사했다) — 안내를 닫는다 */
+export function relaySeenQr(): RelayInfo {
+  db.setSetting(RELAY_RESCAN_KEY, '')
+  return relayInfo()
+}
+
+/** 새 열쇠 — 예전 주소는 더는 쓰지 못하므로 비운다. 이름표 열쇠도 새로 */
 export function relayNewKey(): RelayInfo {
   const s = loadLocalSettings()
-  saveLocalSettings({ ...s, relay_key: newRelayKey((n) => new Uint8Array(randomBytes(n))), relay_url: '' })
+  saveLocalSettings({ ...s, relay_key: newRelayKey(rand), relay_nkey: newNameKey(rand), relay_url: '' })
+  db.setSetting(RELAY_VER_KEY, '0')
+  db.setSetting(RELAY_RESCAN_KEY, '')
+  lastBoard = ''
   return relayInfo()
 }
 
 export function relayDisconnect(): RelayInfo {
   const s = loadLocalSettings()
-  saveLocalSettings({ ...s, relay_key: '', relay_url: '' })
+  saveLocalSettings({ ...s, relay_key: '', relay_nkey: '', relay_url: '' })
+  db.setSetting(RELAY_VER_KEY, '0')
+  db.setSetting(RELAY_RESCAN_KEY, '')
+  lastBoard = ''
   return relayInfo()
 }
 
@@ -157,11 +214,15 @@ async function call(url: string, params: Record<string, string>): Promise<unknow
 export async function relayConnect(rawUrl: string): Promise<{ ok: boolean; error?: string; info?: RelayInfo }> {
   const url = normalizeRelayUrl(rawUrl)
   if (!url) return { ok: false, error: '웹 앱 주소 모양이 아닙니다. https://script.google.com/macros/s/…/exec 를 붙여 넣어 주세요.' }
+  // 이름표 열쇠는 잇기 전에 만들어 둔다 — 이은 뒤 만들면 '주소가 바뀜' 안내가 뜬다
+  ensureNameKey()
   const s = loadLocalSettings()
   if (!s.relay_key) return { ok: false, error: '먼저 [코드 만들기] 를 눌러 주세요.' }
   try {
     const v = (await call(url, { k: s.relay_key, op: 'ping' })) as { ok?: boolean }
     if (v?.ok !== true) return { ok: false, error: '웹 앱이 알 수 없는 답을 보냈습니다.' }
+    db.setSetting(RELAY_VER_KEY, String(versionOf(v)))
+    lastBoard = ''
   } catch (e) {
     return { ok: false, error: (e as Error).message === 'This operation was aborted' ? '웹 앱이 답하지 않습니다(시간 넘김).' : (e as Error).message }
   }
@@ -171,24 +232,90 @@ export async function relayConnect(rawUrl: string): Promise<{ ok: boolean; error
 
 let pulling = false
 
-/** 폰에서 온 글을 가져와 받은 글함에 넣고, 우편함에서는 지운다 */
-export async function relayPull(): Promise<{ ok: boolean; added: number; error?: string }> {
+export interface PullResult {
+  ok: boolean
+  /** 받은 글함에 넣은 글 */
+  added: number
+  /** 세특 관찰 기록에 붙인 것 · 출결 기록에 넣거나 지운 것 */
+  obs?: number
+  att?: number
+  error?: string
+}
+
+/** 이미 넣은 우편 id (마지막 500개) */
+const RELAY_SEEN_KEY = 'relay_seen'
+function readSeen(): string[] {
+  try {
+    const v = JSON.parse(db.getSetting(RELAY_SEEN_KEY, '[]')) as unknown
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+/** 글 하나를 조각으로 나눠 op=put 으로 올린다 (속성 하나 9KB 한도) */
+async function putParts(url: string, key: string, name: 'board' | 'names', text: string): Promise<boolean> {
+  const parts = splitParts(text)
+  for (let i = 0; i < parts.length; i++) {
+    const r = (await call(url, { k: key, op: 'put', name, i: String(i), n: String(parts.length), b: parts[i] })) as { ok?: boolean }
+    if (r?.ok !== true) return false
+  }
+  return true
+}
+
+/**
+ * 폰 판 · 이름표를 올린다 — 스크립트가 2판 이상이고, 지난번과 달라졌을 때만.
+ * 판에는 이름이 없고, 이름표는 이 PC 에서 잠근 글만 간다(열쇠는 폰 주소의 # 뒤).
+ */
+async function pushBoard(url: string, key: string): Promise<void> {
+  if (seenVer() < 2) return
+  const nkey = ensureNameKey()
+  if (!nkey) return
+  const { board, names } = phoneBoard()
+  const b = JSON.stringify(board)
+  const n = JSON.stringify(names)
+  const sig = JSON.stringify([b, n, nkey])
+  if (sig === lastBoard) return
+  if (!(await putParts(url, key, 'board', b))) return
+  if (!(await putParts(url, key, 'names', sealNames(n, nkey)))) return
+  lastBoard = sig
+}
+
+/**
+ * 폰에서 온 것을 가져와 제자리에 넣고, 우편함에서는 지운다.
+ * 글 → 받은 글함, 수업 관찰 → 세특 관찰 기록, 출결 → 출결 기록. 넣은 뒤에만 지운다.
+ */
+export async function relayPull(): Promise<PullResult> {
   const s = loadLocalSettings()
   const url = normalizeRelayUrl(s.relay_url ?? '')
   if (!url || !s.relay_key) return { ok: true, added: 0 }
   if (pulling) return { ok: true, added: 0 }
   pulling = true
   try {
-    const items = parsePull(await call(url, { k: s.relay_key, op: 'pull' }))
+    await pushBoard(url, s.relay_key).catch(() => undefined)
+    const res = await call(url, { k: s.relay_key, op: 'pull' })
+    const items = parsePull(res)
     if (!items) return { ok: false, added: 0, error: '웹 앱이 알 수 없는 답을 보냈습니다.' }
-    if (!items.length) return { ok: true, added: 0 }
+    const ver = versionOf(res)
+    if (ver !== seenVer()) {
+      setVer(ver)
+      // 스크립트를 새 판으로 바꾼 것을 처음 알았으면 판을 바로 올린다
+      await pushBoard(url, s.relay_key).catch(() => undefined)
+    }
+    if (!items.length) return { ok: true, added: 0, obs: 0, att: 0 }
+    // 지우기(ack)가 실패해 같은 것이 다시 와도 두 번 넣지 않는다
+    const seen = readSeen()
+    const routed = routeRelay(items.filter((x) => !seen.includes(x.id)))
+    db.setSetting(RELAY_SEEN_KEY, JSON.stringify([...seen, ...items.map((x) => x.id)].slice(-500)))
     const have = inboxList()
-    const fresh = items.filter((x) => !have.some((h) => h.id === x.id))
-    inboxSave([...have, ...fresh])
-    // 받은 글함에 넣은 뒤에만 우편함에서 지운다
+    const fresh = routed.inbox.filter((x) => !have.some((h) => h.id === x.id)).map((x) => ({ id: x.id, t: x.t, text: x.text }))
+    if (fresh.length) inboxSave([...have, ...fresh])
     await call(url, { k: s.relay_key, op: 'ack', ids: items.map((x) => x.id).join(',') }).catch(() => undefined)
     if (fresh.length) notify()
-    return { ok: true, added: fresh.length }
+    if (routed.obs || routed.att) {
+      for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('phone:routed', { obs: routed.obs, att: routed.att, acts: routed.acts })
+    }
+    return { ok: true, added: fresh.length, obs: routed.obs, att: routed.att }
   } catch (e) {
     return { ok: false, added: 0, error: (e as Error).message }
   } finally {

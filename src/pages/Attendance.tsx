@@ -3,6 +3,7 @@ import type { AttProof, AttReason, AttRecord, AttType, Roster } from '../../shar
 import { ATT_REASONS, ATT_RECORDS_KEY, ATT_ROSTER_KEY, ATT_TYPES, MARK, defaultProof, parseRoster, readRecords, readRoster, recordsTsv, summarize, upsertRecords } from '../../shared/attendance'
 import type { PageId } from '../App'
 import Icon from '../components/Icon'
+import RelayCard from '../components/RelayCard'
 import { todayStr } from '../lib/util'
 import { useToast } from '../lib/toast'
 
@@ -47,6 +48,19 @@ export default function Attendance({ onGo }: { onGo: (p: PageId) => void }): JSX
       setRecords(readRecords(await window.api.setting.get(ATT_RECORDS_KEY, '[]')))
       if (!r.students.length) setEditRoster(true)
     })()
+  }, [])
+
+  // 폰 · 업무 도우미가 출결을 넣으면 다시 읽는다
+  useEffect(() => {
+    const again = (): void => void (async () => setRecords(readRecords(await window.api.setting.get(ATT_RECORDS_KEY, '[]'))))()
+    const off = window.api.relay.onRouted((r) => {
+      if (r.att) again()
+    })
+    window.addEventListener('att:changed', again)
+    return () => {
+      off()
+      window.removeEventListener('att:changed', again)
+    }
   }, [])
 
   const saveRecords = (next: AttRecord[]): void => {
@@ -112,6 +126,21 @@ export default function Attendance({ onGo }: { onGo: (p: PageId) => void }): JSX
           </button>
         </div>
       </div>
+
+      {roster.students.length > 0 && (
+        <RelayCard
+          tab="att"
+          title="폰으로 출결 체크"
+          desc="조회 시간에 폰으로 번호만 누르면 오늘 날짜로 여기에 들어옵니다"
+          howTo={
+            <ol className="small relay-how">
+              <li>폰 화면의 <b>[출결]</b> 탭에서 결석 · 지각 · 조퇴 · 결과인 학생 번호만 누릅니다.</li>
+              <li>폰에는 번호와 이름이 함께 보이지만 구글에는 이 PC 에서 잠근 글만 갑니다. 구분 · 사유를 고르고 메모를 적어 [보내기]. 잘못 보냈으면 그 번호를 다시 눌러 고치거나 [지우기].</li>
+              <li>3분 안에 이 표에 들어오고, 서류 · 나이스 입력을 챙길 목록에도 잡힙니다. 업무 도우미에게 &quot;오늘 출결 정리해 줘&quot; 처럼 물어도 됩니다.</li>
+            </ol>
+          }
+        />
+      )}
 
       {editRoster && (
         <RosterCard
