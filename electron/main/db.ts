@@ -200,17 +200,45 @@ function today(): string {
 let deferDepth = 0
 let dirtyWhileDeferred = false
 
+/**
+ * 저장 모으기 (3.8.0~) — 잇달아 바뀌면(세특을 적는 동안 · 여러 건 고치기) 0.4초 동안 모았다가 한 번만 쓴다.
+ * 계속 바뀌어도 2초에 한 번은 쓴다. 끌 때 · 내보내기 · 백업 · 불러오기 전에는 flushDb() 로 바로 쓴다.
+ * sql.js 는 DB 전체를 다시 써서, 공문이 쌓여 파일이 커질수록 한 번 쓰는 값이 커진다(30MB 에 약 0.1초).
+ */
+const SAVE_DELAY = 400
+const SAVE_MAX_WAIT = 2000
+let saveTimer: NodeJS.Timeout | null = null
+let pendingSince = 0
+
+function writeNow(): void {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = null
+  pendingSince = 0
+  if (!db) return
+  const data = Buffer.from(db.export())
+  const target = dbPath()
+  const tmp = `${target}.tmp`
+  fs.writeFileSync(tmp, data)
+  fs.renameSync(tmp, target)
+}
+
 function persist(): void {
   if (!db) return
   if (deferDepth > 0) {
     dirtyWhileDeferred = true
     return
   }
-  const data = Buffer.from(db.export())
-  const target = dbPath()
-  const tmp = `${target}.tmp`
-  fs.writeFileSync(tmp, data)
-  fs.renameSync(tmp, target)
+  const now = Date.now()
+  if (!pendingSince) pendingSince = now
+  if (now - pendingSince >= SAVE_MAX_WAIT) return writeNow()
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(writeNow, SAVE_DELAY)
+  saveTimer.unref?.()
+}
+
+/** 모아 둔 저장을 바로 쓴다 — 끌 때 · 업데이트 설치 전 · 내보내기 전 */
+export function flushDb(): void {
+  if (saveTimer || pendingSince) writeNow()
 }
 
 /** fn 이 도는 동안 저장을 미루고, 끝날 때 한 번만 저장한다. */
@@ -1123,6 +1151,7 @@ export function cleanupYear(plan: CleanupPlan): CleanupResult {
 const PERSONAL_SETTINGS = ['timetable_school', 'timetable_me', 'timetable_manual', 'timetable_alias', 'my_class', 'timetable_peers', 'timetable_dated', 'att_roster', 'att_records', 'msg_inbox', 'relay_seen', 'relay_ver']
 
 export async function exportTo(targetPath: string, includePersonal = false): Promise<void> {
+  flushDb()
   if (!SQL) SQL = await initSqlJs({ wasmBinary: loadWasm() })
   const copy = new SQL.Database(need().export())
   if (!includePersonal) copy.run('DELETE FROM deadlines')
@@ -1158,7 +1187,7 @@ export async function importFrom(
   db = incoming
   migrate(db)
   seedIfEmpty(db)
-  persist()
+  writeNow()
 
   const t = db.exec('SELECT COUNT(*) FROM tasks')
   const n = db.exec('SELECT COUNT(*) FROM notices')
@@ -1170,6 +1199,109 @@ export async function importFrom(
   }
 }
 
+/* ---------- 날마다 자동 백업 (3.8.0~) ---------- */
+
+/** 날마다 백업을 몇 개 둘지 — 오래된 것부터 지운다(정리전 · 초기화전 · 자동백업 같은 다른 백업은 건드리지 않는다) */
+export const DAILY_KEEP = 7
+const DAILY_PREFIX = '날마다_'
+
+const ymdLocal = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+/**
+ * 오늘 날짜의 백업이 없으면 지금 자료를 backups/날마다_YYYY-MM-DD.db 로 남기고, 날마다 백업은 최근 7개만 둔다.
+ * 켤 때와 몇 시간마다 부른다(창을 켜 둔 채 날이 바뀌어도). 이미 있으면 아무것도 하지 않는다.
+ */
+export function dailyBackup(now = new Date()): { made: boolean; file: string } {
+  if (!db) return { made: false, file: '' }
+  const dir = backupDir()
+  const file = path.join(dir, `${DAILY_PREFIX}${ymdLocal(now)}.db`)
+  let made = false
+  if (!fs.existsSync(file)) {
+    const tmp = `${file}.tmp`
+    fs.writeFileSync(tmp, Buffer.from(db.export()))
+    fs.renameSync(tmp, file)
+    made = true
+  }
+  const daily = fs
+    .readdirSync(dir)
+    .filter((f) => f.startsWith(DAILY_PREFIX) && f.endsWith('.db'))
+    .sort()
+    .reverse()
+  for (const old of daily.slice(DAILY_KEEP)) {
+    try {
+      fs.unlinkSync(path.join(dir, old))
+    } catch {
+      /* 다른 프로그램이 잡고 있으면 다음에 */
+    }
+  }
+  return { made, file }
+}
+
+/** 지금 바로 백업 — [지금 백업] 단추. 날마다 백업과 따로 '직접_시각.db' 로 남는다 */
+export function backupNow(): string {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const file = path.join(backupDir(), `직접_${stamp}.db`)
+  fs.writeFileSync(file, Buffer.from(need().export()))
+  return file
+}
+
+export interface BackupEntry {
+  file: string
+  /** 날마다 · 직접 · 불러오기 전 · 초기화 전 · 정리 전 · 되돌리기 전 */
+  kind: string
+  /** 파일을 쓴 때 (ms) */
+  at: number
+  sizeKb: number
+}
+
+const KINDS: [string, string][] = [
+  [DAILY_PREFIX, '날마다'],
+  ['직접_', '직접'],
+  ['자동백업_', '불러오기 전'],
+  ['초기화전_', '초기화 전'],
+  ['정리전_', '정리 전'],
+  ['되돌리기전_', '되돌리기 전']
+]
+
+export function listBackups(): BackupEntry[] {
+  const dir = backupDir()
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.db'))
+    .map((f) => {
+      const st = fs.statSync(path.join(dir, f))
+      return { file: f, kind: KINDS.find(([p]) => f.startsWith(p))?.[1] ?? '그 밖', at: st.mtimeMs, sizeKb: Math.round(st.size / 1024) }
+    })
+    .sort((a, b) => b.at - a.at)
+}
+
+/**
+ * 백업 하나로 되돌린다. 백업 폴더 안의 .db 파일만 받는다(경로를 섞어 보내도 폴더 밖은 열지 않는다).
+ * 되돌리기 전 지금 상태는 '되돌리기전_시각.db' 로 남겨 되돌린 것도 다시 되돌릴 수 있다.
+ */
+export async function restoreBackup(name: string): Promise<{ ok: boolean; message: string }> {
+  const base = path.basename(String(name ?? ''))
+  if (!base.endsWith('.db') || base !== name) return { ok: false, message: '백업 파일 이름이 맞지 않습니다.' }
+  const file = path.join(backupDir(), base)
+  if (!fs.existsSync(file)) return { ok: false, message: '그 백업 파일이 없습니다.' }
+  if (!SQL) SQL = await initSqlJs({ wasmBinary: loadWasm() })
+  let incoming: Database
+  try {
+    incoming = new SQL.Database(fs.readFileSync(file))
+    incoming.exec('SELECT COUNT(*) FROM sqlite_master')
+  } catch {
+    return { ok: false, message: '백업 파일이 망가져 열 수 없습니다. 다른 날짜를 골라 주세요.' }
+  }
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  fs.writeFileSync(path.join(backupDir(), `되돌리기전_${stamp}.db`), Buffer.from(need().export()))
+  db?.close()
+  db = incoming
+  migrate(db)
+  seedIfEmpty(db)
+  writeNow()
+  return { ok: true, message: `${base} 의 상태로 되돌렸습니다. 되돌리기 전 상태는 백업 폴더에 '되돌리기전_' 으로 남겼습니다.` }
+}
+
 export function clearAll(): void {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   fs.writeFileSync(path.join(backupDir(), `초기화전_${stamp}.db`), Buffer.from(need().export()))
@@ -1179,12 +1311,12 @@ export function clearAll(): void {
   need().run('DELETE FROM journal')
   need().run('DELETE FROM events')
   need().run('DELETE FROM memos')
-  persist()
   seedIfEmpty(need())
-  persist()
+  writeNow()
 }
 
 export function dbInfo(): { path: string; backups: string; sizeKb: number } {
+  flushDb()
   const file = dbPath()
   return {
     path: file,

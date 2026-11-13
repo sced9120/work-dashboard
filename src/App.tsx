@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import type { UpdateInfo } from '../shared/types'
 import { ConfirmProvider } from './lib/confirm'
 import { ToastProvider } from './lib/toast'
@@ -6,33 +6,16 @@ import Onboarding from './pages/Onboarding'
 import Home from './pages/Home'
 import Roadmap from './pages/Roadmap'
 import CalendarPage from './pages/CalendarPage'
-import Workflows from './pages/Workflows'
-import Guide from './pages/Guide'
-import Learn from './pages/Learn'
 import Search from './pages/Search'
-import Chat from './pages/Chat'
-import Committee from './pages/Committee'
-import HelpDocs from './pages/HelpDocs'
-import Timetable from './pages/Timetable'
-import Slides from './pages/Slides'
-import Deadlines from './pages/Deadlines'
-import Journal from './pages/Journal'
 import LearnBanner from './components/LearnBanner'
 import UpdateNotice, { alreadySeen, markSeen, phaseOf } from './components/UpdateNotice'
-import Data from './pages/Data'
-import Settings from './pages/Settings'
-import Tools from './pages/Tools'
-import Memos from './pages/Memos'
-import Seteuk from './pages/Seteuk'
-import Ocr from './pages/Ocr'
 import Icon from './components/Icon'
 import TourHost from './components/Tour'
 import NewShell, { focusAsk } from './components/NewShell'
-import Messenger from './pages/Messenger'
-import Attendance from './pages/Attendance'
 import Week from './pages/Week'
 import { OrbitMark } from './components/Brand'
 import TodayBoard from './components/TodayBoard'
+import { AppGuard, PageGuard } from './components/ErrorBoundary'
 import { AI_ITEM, DATA_ITEM, isShown, requestMenuEdit, sidebarNav, useNavPrefs } from './lib/nav'
 import { setUiPrefs, useUiPrefs } from './lib/theme'
 import { hasUnseenNew, loadCatalog, useCatalog } from './lib/catalog'
@@ -42,6 +25,46 @@ import { setOcrNotifier, useOcrTabs } from './lib/ocrStore'
 import { setBatchNotifier, useBatch } from './lib/batchStore'
 import { newChat, useChats } from './lib/chatStore'
 import { useToast } from './lib/toast'
+
+/*
+ * 자주 쓰지 않는 화면은 열 때 불러온다(3.8.0~) — 켜지는 시간을 줄이려고.
+ * 첫 화면(홈 · 이번 주 · 달력)과 다른 곳에서 함께 쓰는 화면(로드맵 · 검색)은 처음부터 싣는다.
+ * 켠 뒤 한가할 때 자주 쓰는 것부터 미리 받아 두어, 처음 열 때도 기다리지 않게 한다.
+ */
+const Workflows = lazy(() => import('./pages/Workflows'))
+const Guide = lazy(() => import('./pages/Guide'))
+const Learn = lazy(() => import('./pages/Learn'))
+const Chat = lazy(() => import('./pages/Chat'))
+const Committee = lazy(() => import('./pages/Committee'))
+const HelpDocs = lazy(() => import('./pages/HelpDocs'))
+const Timetable = lazy(() => import('./pages/Timetable'))
+const Slides = lazy(() => import('./pages/Slides'))
+const Deadlines = lazy(() => import('./pages/Deadlines'))
+const Journal = lazy(() => import('./pages/Journal'))
+const Data = lazy(() => import('./pages/Data'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Tools = lazy(() => import('./pages/Tools'))
+const Memos = lazy(() => import('./pages/Memos'))
+const Seteuk = lazy(() => import('./pages/Seteuk'))
+const Ocr = lazy(() => import('./pages/Ocr'))
+const Messenger = lazy(() => import('./pages/Messenger'))
+const Attendance = lazy(() => import('./pages/Attendance'))
+const WARM = [() => import('./pages/Seteuk'), () => import('./pages/Chat'), () => import('./pages/Settings'), () => import('./pages/Attendance'), () => import('./pages/Messenger')]
+function warmPages(): void {
+  const idle = (cb: () => void): void => {
+    const w = window as Window & { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }
+    if (w.requestIdleCallback) w.requestIdleCallback(cb, { timeout: 4000 })
+    else setTimeout(cb, 1500)
+  }
+  setTimeout(() => WARM.forEach((f, i) => setTimeout(() => idle(() => void f().catch(() => undefined)), i * 400)), 3000)
+}
+
+const PageLoading = (): JSX.Element => (
+  <div className="page-loading" role="status" aria-live="polite">
+    <span className="page-loading-dot" />
+    화면을 여는 중…
+  </div>
+)
 
 export type PageId =
   | '홈'
@@ -77,6 +100,8 @@ function Shell(): JSX.Element {
   const batchBusy = useBatch().busy
   const ocrBusy = useOcrTabs().tabs.some((t) => t.busy) || batchBusy
   const chatBusy = Object.keys(useChats().live).length > 0
+  // 자주 쓰는 화면을 켠 뒤 한가할 때 미리 받아 둔다
+  useEffect(() => warmPages(), [])
   // 스캔 문서 → 엑셀 화면 밖에서 읽기가 끝나면 알린다
   useEffect(() => {
     setOcrNotifier((message, ok) => toast(message, ok ? 'ok' : 'err'))
@@ -316,7 +341,8 @@ function Shell(): JSX.Element {
   )
 
   const pages = (
-    <>
+    <PageGuard page={page} onHome={() => setPage('홈')}>
+      <Suspense fallback={<PageLoading />}>
       {page === '홈' && (ui.shell === 'new' ? <TodayBoard jobTitle={jobTitle} onGo={setPage} /> : <Home jobTitle={jobTitle} onGo={setPage} />)}
       {page === '달력' && <CalendarPage onGo={setPage} />}
       {page === '시간표' && <Timetable onGo={setPage} />}
@@ -340,7 +366,8 @@ function Shell(): JSX.Element {
       {page === '출결' && <Attendance onGo={setPage} />}
       {page === '이번주' && <Week onGo={setPage} />}
       {page === '세특' && <Seteuk onGo={setPage} />}
-    </>
+      </Suspense>
+    </PageGuard>
   )
 
   const overlays = (
@@ -559,10 +586,12 @@ function Shell(): JSX.Element {
 
 export default function App(): JSX.Element {
   return (
-    <ToastProvider>
-      <ConfirmProvider>
-      <Shell />
-      </ConfirmProvider>
-    </ToastProvider>
+    <AppGuard>
+      <ToastProvider>
+        <ConfirmProvider>
+          <Shell />
+        </ConfirmProvider>
+      </ToastProvider>
+    </AppGuard>
   )
 }

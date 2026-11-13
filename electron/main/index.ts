@@ -13,6 +13,7 @@ import {
 import path from 'node:path'
 import os from 'node:os'
 import * as db from './db'
+import { installCrashHandlers, logDir, logError, logRendererError } from './errlog'
 import { encryptionAvailable, loadLocalSettings, saveLocalSettings } from './secrets'
 import { extractFile } from './extract'
 import {
@@ -204,6 +205,15 @@ function createWindow(): void {
   })
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
+  // 본창은 오르빗 화면만 띄운다 — 바깥 페이지가 본창에 들어오면 화면용 통로(window.api)를 쓸 수 있게 되므로 막고, 바깥 브라우저로 보낸다
+  const ownPage = (url: string): boolean => (devUrl ? url.startsWith(devUrl) : url.startsWith('file://'))
+  const guard = (e: Electron.Event, url: string): void => {
+    if (ownPage(url)) return
+    e.preventDefault()
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
+  }
+  mainWindow.webContents.on('will-navigate', guard)
+  mainWindow.webContents.on('will-redirect', guard)
   if (devUrl) {
     mainWindow.loadURL(devUrl)
   } else {
@@ -1038,6 +1048,24 @@ function registerIpc(): void {
 
   /* ---------- 백업 / 복구 ---------- */
   ipcMain.handle('data:info', () => db.dbInfo())
+  // 백업 목록 · 지금 백업 · 되돌리기 (3.8.0~)
+  ipcMain.handle('backup:list', () => db.listBackups())
+  ipcMain.handle('backup:now', () => {
+    try {
+      const file = db.backupNow()
+      return { ok: true, message: `지금 상태를 백업했습니다: ${path.basename(file)}` }
+    } catch (e) {
+      return { ok: false, message: `백업하지 못했습니다. (${e instanceof Error ? e.message : e})` }
+    }
+  })
+  ipcMain.handle('backup:restore', async (_e, name: string) => {
+    try {
+      return await db.restoreBackup(String(name ?? ''))
+    } catch (e) {
+      logError('백업 되돌리기', e)
+      return { ok: false, message: `되돌리지 못했습니다. (${e instanceof Error ? e.message : e})` }
+    }
+  })
 
   ipcMain.handle('data:export', async (_e, includePersonal = false) => {
     if (!mainWindow) return { ok: false, message: '창을 찾을 수 없습니다.' }
@@ -1108,6 +1136,12 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('data:openFolder', (_e, target: string) => shell.openPath(target))
+  // 오류 기록 — 화면에서 난 오류를 logs/error.log 에, [오류 기록 폴더 열기]
+  ipcMain.handle('log:error', (_e, p: { where?: string; message?: string; stack?: string }) => logRendererError(p ?? {}))
+  ipcMain.handle('log:open', async () => {
+    fs.mkdirSync(logDir(), { recursive: true })
+    return shell.openPath(logDir())
+  })
   ipcMain.handle('shell:open', (_e, url: string) => {
     if (/^https?:\/\//i.test(url)) return shell.openExternal(url)
     return Promise.resolve('')
@@ -1123,8 +1157,11 @@ function registerIpc(): void {
     e.sender.setZoomFactor(f)
   })
   // file:// 로 띄운 창에서는 navigator.clipboard 가 막히므로 메인에서 처리한다.
-  ipcMain.handle('clipboard:read', () => clipboard.readText().slice(0, 20000))
-  ipcMain.handle('clipboard:write', (_e, text: string) => clipboard.writeText(text))
+  // Electron 44 부터 clipboard 는 Promise 를 돌려준다(W3C navigator.clipboard 와 같은 모양)
+  ipcMain.handle('clipboard:read', async () => String((await clipboard.readText()) ?? '').slice(0, 20000))
+  ipcMain.handle('clipboard:write', async (_e, text: string) => {
+    await clipboard.writeText(String(text ?? ''))
+  })
   ipcMain.handle('app:version', () => app.getVersion())
   // 의견 보내기 설문지에 미리 채울 윈도우 버전 (예: Windows 10.0.26200 — 22000 이상이면 윈도우 11)
   ipcMain.handle('app:os', () => `${os.type() === 'Windows_NT' ? 'Windows' : os.type()} ${os.release()}`)
@@ -1145,6 +1182,8 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', () => showWindow())
 }
+
+installCrashHandlers(() => mainWindow)
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
@@ -1170,6 +1209,17 @@ app.whenReady().then(async () => {
   applyLocalSettings()
   startRelayWatch()
 
+  // 날마다 자동 백업 — 켤 때 한 번, 켜 둔 채 날이 바뀌어도 되게 3시간마다 (오늘 것이 있으면 그냥 넘어간다)
+  const backupTick = (): void => {
+    try {
+      db.dailyBackup()
+    } catch (e) {
+      logError('날마다 백업', e)
+    }
+  }
+  setTimeout(backupTick, 15_000).unref?.()
+  setInterval(backupTick, 3 * 60 * 60 * 1000).unref?.()
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -1177,10 +1227,25 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   quitting = true
+  // 모아 둔 저장을 먼저 쓴다 (업데이트 설치로 끌 때도 이 길을 지난다)
+  try {
+    db.flushDb()
+  } catch (e) {
+    logError('끌 때 저장', e)
+  }
   stopDeadlineWatch()
   stopRelayWatch()
   // OCR 로 Gemini 에 올려 둔 큰 파일이 있으면 지운다 (기다리지는 않는다 — 남아도 이틀 뒤 저절로 지워진다)
   void clearOcr()
+})
+
+// before-quit 을 거치지 않고 끝나는 경우(트레이 · OS 종료)도 저장한다
+app.on('will-quit', () => {
+  try {
+    db.flushDb()
+  } catch (e) {
+    logError('끌 때 저장', e)
+  }
 })
 
 app.on('window-all-closed', () => {

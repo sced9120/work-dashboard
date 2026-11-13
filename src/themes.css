@@ -7136,3 +7136,113 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* 오류 화면 — 화면 하나에서 오류가 나도 앱은 그대로 (3.8.0~) */
+.err-guard {
+  max-width: 640px;
+  margin: 48px auto;
+  padding: 28px 28px 22px;
+  text-align: left;
+}
+
+.err-guard-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--surface);
+  background: var(--danger);
+  margin-bottom: 12px;
+}
+
+.err-guard h2 {
+  margin: 0 0 6px;
+  font-size: 19px;
+}
+
+.err-guard p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.err-guard-btns {
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.err-guard pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 12px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.err-app {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--bg);
+}
+
+/* 백업 목록 (3.8.0~) */
+.backup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.backup-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+
+.backup-list li:first-child {
+  border-top: 0;
+}
+
+.backup-when {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 화면을 여는 중 (열 때 불러오는 화면, 3.8.0~) */
+.page-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.page-loading-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: page-loading-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes page-loading-pulse {
+  from { opacity: 0.25; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-loading-dot { animation: none; }
+}

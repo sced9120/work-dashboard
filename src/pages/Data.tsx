@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useToast } from '../lib/toast'
 import Briefing from '../components/Briefing'
 import YearCleanup from '../components/YearCleanup'
+import BackupCard from '../components/BackupCard'
 
 interface Props {
   onChanged: () => Promise<void>
@@ -140,6 +141,8 @@ export default function Data({ onChanged }: Props): JSX.Element {
           </button>
         </div>
       </div>
+
+      <BackupCard folder={info?.backups ?? ''} onRestored={() => setTimeout(() => window.location.reload(), 800)} />
 
       <YearCleanup onChanged={async () => { await load(); await onChanged() }} />
 

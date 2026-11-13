@@ -179,7 +179,7 @@ export const TOURS: Record<PageId, Tour> = {
       { sel: H1, title: '업무 도우미', body: '맡은 업무에 대해 묻고, 일정 · 업무를 넣어 달라고 하거나 학교 양식으로 문서를 만들어 달라고 할 수 있습니다. 지침을 주고 그냥 대화할 수도 있습니다.' },
       { sel: '.main .chat-side', title: '대화 목록', body: '보낸 대화는 여기에 남습니다. [＋ 새 채팅] 으로 새로 시작하고, 마우스를 올리면 이름 바꾸기 · 지우기가 나옵니다. 대화는 이 PC 에만 두고 인수인계 파일에는 넣지 않습니다.', optional: true },
       { sel: '.main .chat-modes', title: '두 가지 모드', body: '업무 도우미는 보관한 공문 · 업무 · 일지 · 시간표를 근거로 답합니다. 일반 대화는 보관 자료 없이, 위에 적은 지침(예: 세특 쓰기)을 따라 대화합니다.', optional: true },
-      { sel: '.main label', text: '이 대화에 쓸 모델', up: 'div', title: '모델 고르기', body: '이 대화에 쓸 AI를 고릅니다. 비워 두면 설정의 기본값을 씁니다.', optional: true },
+      { sel: '.main .model-picker-label', text: '모델', exact: true, up: 'div', title: '모델 고르기', body: '이 대화에 쓸 AI를 고릅니다. 비워 두면 설정의 기본값을 씁니다.', optional: true },
       { sel: '.main button', text: '놓치면 안 되는 기한', title: '예시 질문', body: '눌러서 바로 물어볼 수 있는 예시입니다. 내 업무에 맞게 고쳐 쓰세요.', optional: true },
       { sel: '.main button', text: '파일', exact: true, title: '파일 올리기', body: '공문 · 한글 · 사진 · 스캔 PDF 를 올립니다. 창 위로 끌어 놓아도 됩니다. 사진 · 스캔본은 AI 가 그림으로 읽습니다.', optional: true },
       { sel: '.main textarea.chat-input', title: '묻기', body: 'Enter로 보내고 Shift+Enter로 줄을 바꿉니다. 답은 받는 대로 보이고, [멈추기] 로 멈출 수 있습니다. 다른 화면으로 가도 받던 답은 이 대화에 남습니다.' }

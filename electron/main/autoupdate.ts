@@ -10,6 +10,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app, type BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
+import { flushDb } from './db'
 
 /**
  * 자동 설치가 가능한 환경인가.
@@ -123,5 +124,11 @@ export async function downloadUpdate(): Promise<{ ok: boolean; error?: string }>
 export function installUpdate(): void {
   // isSilent=false 로 두어 설치 화면을 보여 준다. 조용히 끝나면
   // 사용자가 무슨 일이 벌어졌는지 알 수 없다.
+  // 모아 둔 저장을 먼저 쓴다(설치가 프로그램을 바로 끈다)
+  try {
+    flushDb()
+  } catch {
+    /* 기록은 before-quit 에서 한 번 더 */
+  }
   setImmediate(() => autoUpdater.quitAndInstall(false, true))
 }

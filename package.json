@@ -1,6 +1,6 @@
 {
   "name": "work-dashboard",
-  "version": "3.7.0",
+  "version": "3.8.0",
   "description": "업무데스크 오르빗 — 선생님의 하루가 도는 곳 (HSOrbit)",
   "main": "./out/main/index.js",
   "author": "정현서",
@@ -31,7 +31,7 @@
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@types/sql.js": "^1.4.9",
-    "electron": "^33.3.1",
+    "electron": "^44.11.3",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
     "kordoc": "4.15.7",

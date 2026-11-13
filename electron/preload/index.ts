@@ -459,8 +459,19 @@ const api = {
     clear: (): Promise<ActionResult> => ipcRenderer.invoke('data:clear'),
     openFolder: (target: string): Promise<string> => ipcRenderer.invoke('data:openFolder', target)
   },
+  /** 백업 — 날마다 자동 · 지금 백업 · 이 때로 되돌리기 */
+  backup: {
+    list: (): Promise<{ file: string; kind: string; at: number; sizeKb: number }[]> => ipcRenderer.invoke('backup:list'),
+    now: (): Promise<ActionResult> => ipcRenderer.invoke('backup:now'),
+    restore: (file: string): Promise<ActionResult> => ipcRenderer.invoke('backup:restore', file)
+  },
   shell: {
     open: (url: string): Promise<string | void> => ipcRenderer.invoke('shell:open', url)
+  },
+  /** 오류 기록 — %APPDATA%\work-dashboard\logs\error.log (이 PC 에만) */
+  log: {
+    error: (where: string, message: string, stack = ''): Promise<void> => ipcRenderer.invoke('log:error', { where, message, stack }),
+    openFolder: (): Promise<string> => ipcRenderer.invoke('log:open')
   },
   ui: {
     /** 창 제목 줄 · 스크롤바 밝기. 'system' | 'light' | 'dark' */
