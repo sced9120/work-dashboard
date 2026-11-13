@@ -27,6 +27,10 @@ node -r ./tests/hook.cjs ./tests/run_phone.cjs # 폰 연결 v2 — 수업 관찰
 node -r ./tests/hook.cjs ./tests/run_errlog.cjs # 오류 기록 (logs/error.log)
 node -r ./tests/hook.cjs ./tests/run_backup.cjs # 날마다 자동 백업 · 지금 백업 · 되돌리기
 node -r ./tests/hook.cjs ./tests/run_dbsave.cjs # 저장 모으기 (0.4초 · 2초 · 바로 쓰기)
+node tests/t_attproof.cjs                            # 출결 서류 기한 (빌드 없이)
+node tests/t_relayform.cjs                           # 우편함 v3 — 설문지 응답 시트 읽기 (빌드 없이)
+node -r ./tests/hook.cjs ./tests/run_relayform.cjs # 설문지 응답 가져오기 (relay:form)
+node -r ./tests/hook.cjs ./tests/run_dataloc.cjs # 자료 폴더 고르기 · 잠금
 node -r ./tests/hook.cjs ./tests/run_seteuk_review.cjs # 세특 작성실 — 서술 흐름 · 학생부 살펴보기
 node -r ./tests/hook.cjs ./tests/run_seteuk_config.cjs # 세특 작성실 — 내 규칙이 초안 · 고쳐쓰기에 쓰임
 node tests/t_mdtable.cjs                           # 답에서 표 뽑기 · 이어 붙이기 · 수식 (빌드 없이)
@@ -67,6 +71,10 @@ Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron
 | `run_errlog.cjs` | 화면 오류 적기(시각 · 어디서 · 판 · 여러 줄) · 모양이 틀린 값 · null · 한 건 4,000자 · 500KB 넘으면 error.1.log · 폴더 열기 |
 | `run_backup.cjs` | 켠 뒤 오늘 백업 · 최근 7개만(다른 종류는 남김) · 지금 백업 · 목록(새것부터 · 종류) · 되돌리기(값이 돌아옴 · 되돌리기 전 백업) · 폴더 밖 · 하위 경로 · 없는 파일 · 망가진 백업 거절 |
 | `run_dbsave.cjs` | 잇달아 50번 바꾸면 파일 쓰기 2~3번 · 0.4초 뒤 파일에 · 계속 바뀌어도 2초에 한 번 · data:info 전에 바로 씀 |
+| `t_attproof.cjs` | 평일 n일 뒤(주말 건너뜀) · 기한 일수 1~30 · 서류 아직인 것만 · 기한 순 · 알림 글은 번호로만 |
+| `t_relayform.cjs` | 스크립트 v3 · 기능마다 필요한 판 · 가짜 SpreadsheetApp 으로 form_(머리글 · 새 행만 · ID 모양 · 열 수 없는 시트 · 열쇠 · 300행 · 시트 내용을 남기지 않음) · 답 읽기 · 주소 → ID · 머리글 다듬기(이메일 · 점수 · 연락처 뺌) · 학번으로 맞추기 |
+| `run_relayform.cjs` | 이어지지 않음 · v2 스크립트는 새 판 안내 · v3 이어 받기(300행 넘음) · 시트 ID 와 시각만 보냄 · 판 기억 · 시트 주소가 아님 · 스크립트 까닭 |
+| `run_dataloc.cjs` | 정해 둔 폴더로 켜기 · 잠금(이 PC 이름) · 저장은 그 폴더 · 백업은 이 PC · 다른 PC 가 쓰는 폴더 거절 · 빈 폴더로 옮기기 · 자료 있는 폴더(그 자료 쓰기 · 지금 자료 백업) · 오래된 잠금 · 취소 · 지금 폴더 · 기본으로 되돌리기 |
 | `run_seteuk_review.cjs` | 서술 흐름(교과 · 동아리 = 탐구 장면, 자율 · 진로 = 역할 장면, 행발 = 되풀이된 행동, 끝맺음은 한 일 · 결론) · 프롬프트 길이 · 압축도 같은 흐름 · 살펴보기(1 · 2학년 이어 갈 탐구 / 3학년 짜임, 기재요령 · 지어내지 않기 · 대필 금지 · 책 제목 · 대학 기준이라 말하지 않기, 세 명단 이름 가림, 가명 되돌림, 키 없이, 학년 · 길이 · 오류) |
 | `run_seteuk_config.cjs` | 내 규칙 저장 · 다시 읽기 · 초안 규칙에 더한 줄 · 내 금지어 · 끈 칸 · 내 금지어(고침)는 자동 고쳐쓰기가 고침 · 처음 설정으로 |
 | `run_messenger.cjs` | 가리기(명단 학생 → 학생N · 성 없는 이름 · 다른 사람 → 사람A · 전화번호, 겹치는 이름은 그대로) · AI 에는 가린 글만 · 답의 가명 되돌리기 · 학생N → 명단 번호 · 키 없음 · 폰 우편함(코드 만들기 · 주소 모양 · 잇기 ping · 가져오기 + ack · 같은 글 두 번 안 넣기 · 받은 글 지우기 · HTML 답이면 배포 안내) · 인수인계 파일에 명단 · 출결 · 받은 글 없음 · 열쇠는 AI 키와 같은 칸 |

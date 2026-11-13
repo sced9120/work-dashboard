@@ -91,8 +91,30 @@ const SCHEMA = [
 let SQL: SqlJsStatic | null = null
 let db: Database | null = null
 
+/** 자료 파일이 있는 폴더 — 비어 있으면 이 PC 의 기본 폴더(userData). 다른 폴더는 켤 때 setDataDir 로 (datalocation.ts, 3.7.1~) */
+let dataDir = ''
+export function setDataDir(dir: string): void {
+  dataDir = dir
+}
+export const currentDataDir = (): string => dataDir || app.getPath('userData')
+
 function dbPath(): string {
-  return path.join(app.getPath('userData'), 'work-dashboard.db')
+  return path.join(currentDataDir(), 'work-dashboard.db')
+}
+
+/** 지금 자료를 다른 곳에 그대로 쓴다 — 자료 폴더를 옮길 때 */
+export function writeCopyTo(file: string): void {
+  const tmp = `${file}.tmp`
+  fs.writeFileSync(tmp, Buffer.from(need().export()))
+  fs.renameSync(tmp, file)
+}
+
+/** 다른 곳의 자료 파일을 백업 폴더로 복사해 둔다 — 덮어쓰기 전에 */
+export function backupFile(file: string, label: string): string {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const to = path.join(backupDir(), `${label}_${stamp}.db`)
+  fs.copyFileSync(file, to)
+  return to
 }
 
 function backupDir(): string {

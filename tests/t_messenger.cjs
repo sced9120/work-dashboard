@@ -86,7 +86,7 @@ ok(parsed, '폰 화면의 스크립트가 문법에 맞음')
 ok(script.includes("'\\n'") && script.includes('/^\\d+$/'), '역슬래시가 그대로 (줄바꿈 · 정규식)')
 
 // v2 — 수업 관찰 · 출결 · 판 (수업반 · 학생 id) · 잠근 이름표
-ok(code.includes('(v2)') && R.RELAY_VERSION === 2 && JSON.parse(gas.doGet({ parameter: { k: key, op: 'ping' } }).s).v === 2, '판 2')
+ok(code.includes('(v3)') && R.RELAY_VERSION === 3 && JSON.parse(gas.doGet({ parameter: { k: key, op: 'ping' } }).s).v === 3, '판 3 (관찰 · 출결은 2 부터, 설문지는 3)')
 const gas2 = new Function(...Object.keys(fake), code + '\nreturn { doGet, sendItem };')(...Object.values(fake))
 const roster = [
   { id: '1-3', cls: '1', no: '3', group: '1반' },

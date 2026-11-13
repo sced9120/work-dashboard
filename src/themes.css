@@ -7246,3 +7246,66 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .page-loading-dot { animation: none; }
 }
+
+/* 출결 서류 기한 (3.7.1~) */
+.att-todo-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.att-proof-days {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.att-proof-days input {
+  width: 56px;
+}
+
+.att-proof-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.att-proof-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+
+.att-proof-row:first-child {
+  border-top: 0;
+}
+
+/* 구글 설문지 가져오기 (3.7.1~) */
+.stk-form-url {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 2px;
+}
+
+.stk-form-url > span {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* 자료 폴더 (3.7.1~) */
+.data-loc-path {
+  word-break: break-all;
+  margin-bottom: 8px;
+}
+
+.data-loc-notes {
+  margin: 6px 0 10px;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

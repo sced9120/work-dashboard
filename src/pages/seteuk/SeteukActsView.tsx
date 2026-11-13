@@ -281,7 +281,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                     최종본 열 복사
                   </button>
                 </div>
-                {importOpen && <SeteukImport students={shown} onApply={importNotes} onClose={() => setImportOpen(false)} />}
+                {importOpen && <SeteukImport students={shown} actId={act?.id ?? ''} onApply={importNotes} onClose={() => setImportOpen(false)} />}
                 {prog && (
                   <div className="stk-prog" role="status">
                     <div className="progress">

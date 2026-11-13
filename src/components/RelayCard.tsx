@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import QRCode from 'qrcode'
 import type { RelayInfoShape } from '../../electron/preload/index'
 import { useToast } from '../lib/toast'
+import { RELAY_NEEDS } from '../../shared/relay'
 
 /**
  * 폰 연결 — 선생님 구글 계정의 Apps Script 우편함 하나로 폰과 이 PC 를 잇는다.
@@ -13,6 +14,8 @@ import { useToast } from '../lib/toast'
  */
 interface Props {
   tab: 'obs' | 'att' | 'text'
+  /** 이 기능에 필요한 스크립트 판 — 비우면 tab 에 맞춰 (글 1 · 관찰 · 출결 2 · 설문지 3) */
+  needs?: number
   title: string
   /** 머리줄 옆에 붙는 한 줄 */
   desc: ReactNode
@@ -23,7 +26,7 @@ interface Props {
   className?: string
 }
 
-export default function RelayCard({ tab, title, desc, howTo, startOpen = false, className = '' }: Props): JSX.Element {
+export default function RelayCard({ tab, needs, title, desc, howTo, startOpen = false, className = '' }: Props): JSX.Element {
   const toast = useToast()
   const [info, setInfo] = useState<RelayInfoShape | null>(null)
   const [open, setOpen] = useState(startOpen)
@@ -45,7 +48,8 @@ export default function RelayCard({ tab, title, desc, howTo, startOpen = false, 
 
   if (!info) return <></>
 
-  const outdated = info.connected && info.ver > 0 && info.ver < info.latest
+  const need = needs ?? RELAY_NEEDS[tab]
+  const outdated = info.connected && info.ver > 0 && info.ver < need
   const unknown = info.connected && info.ver === 0
 
   const copy = async (v: string, what: string): Promise<void> => {
@@ -95,10 +99,10 @@ export default function RelayCard({ tab, title, desc, howTo, startOpen = false, 
 
       {open && (
         <div className="relay-body">
-          {info.connected && (outdated || unknown) && tab !== 'text' && (
+          {info.connected && (outdated || unknown) && need > 1 && (
             <div className="note note-warn small relay-upgrade">
               <b>{outdated ? `폰 화면이 예전 판(v${info.ver})입니다.` : '폰 화면의 판을 아직 모릅니다.'}</b>{' '}
-              {outdated ? '수업 관찰 · 출결을 쓰려면 코드를 한 번 바꿔 주세요. 주소와 QR 은 그대로입니다.' : '[지금 가져오기] 를 한 번 누르면 확인합니다. v1 이면 아래처럼 코드를 바꿔 주세요.'}
+              {outdated ? `이 기능을 쓰려면 코드를 새 판(v${info.latest})으로 한 번 바꿔 주세요. 주소와 QR 은 그대로입니다.${need >= 3 ? ' 처음 한 번 구글이 스프레드시트 읽기 권한을 물어봅니다.' : ''}` : '[지금 가져오기] 를 한 번 누르면 확인합니다. 예전 판이면 아래처럼 코드를 바꿔 주세요.'}
               <ol>
                 <li>
                   <button className="btn btn-sm btn-primary" onClick={() => void copy(info.script, '새 코드')}>

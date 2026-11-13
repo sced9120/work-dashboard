@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AttProof, AttReason, AttRecord, AttType, Roster } from '../../shared/attendance'
-import { ATT_REASONS, ATT_RECORDS_KEY, ATT_ROSTER_KEY, ATT_TYPES, MARK, defaultProof, parseRoster, readRecords, readRoster, recordsTsv, summarize, upsertRecords } from '../../shared/attendance'
+import { ATT_PROOF_DAYS_KEY, ATT_REASONS, ATT_RECORDS_KEY, ATT_ROSTER_KEY, ATT_TYPES, MARK, addSchoolDays, defaultProof, parseRoster, readProofDays, readRecords, readRoster, recordsTsv, summarize, upsertRecords } from '../../shared/attendance'
+import { daysLeft, ddayLabel } from './Deadlines'
 import type { PageId } from '../App'
 import Icon from '../components/Icon'
 import RelayCard from '../components/RelayCard'
@@ -39,6 +40,7 @@ export default function Attendance({ onGo }: { onGo: (p: PageId) => void }): JSX
   const [month, setMonth] = useState(today.slice(0, 7))
   const [editRoster, setEditRoster] = useState(false)
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [proofDays, setProofDays] = useState(5)
 
   useEffect(() => {
     void (async () => {
@@ -46,6 +48,7 @@ export default function Attendance({ onGo }: { onGo: (p: PageId) => void }): JSX
       if (!r.cls) r.cls = (await window.api.setting.get('my_class')) || ''
       setRoster(r)
       setRecords(readRecords(await window.api.setting.get(ATT_RECORDS_KEY, '[]')))
+      setProofDays(readProofDays(await window.api.setting.get(ATT_PROOF_DAYS_KEY, '')))
       if (!r.students.length) setEditRoster(true)
     })()
   }, [])
@@ -297,8 +300,28 @@ export default function Attendance({ onGo }: { onGo: (p: PageId) => void }): JSX
 
       {todo.length > 0 && (
         <section className="card att-todo">
-          <b>챙길 것 {todo.length}</b>
-          <span className="muted small"> — 서류를 아직 안 받았거나 나이스에 넣지 않은 기록</span>
+          <div className="att-todo-head">
+            <span>
+              <b>챙길 것 {todo.length}</b>
+              <span className="muted small"> — 서류를 아직 안 받았거나 나이스에 넣지 않은 기록</span>
+            </span>
+            <label className="small att-proof-days" title="서류를 받을 기한. 학교 규정에 맞춰 정하세요. 절차 기한 화면 · 기한 알림에도 같은 날짜로 나옵니다">
+              서류 기한: 출결 뒤 평일
+              <input
+                type="number"
+                min={1}
+                max={30}
+                value={proofDays}
+                onChange={(e) => {
+                  const v = readProofDays(e.target.value)
+                  setProofDays(v)
+                  void window.api.setting.set(ATT_PROOF_DAYS_KEY, String(v))
+                }}
+                aria-label="서류 기한 (평일 며칠)"
+              />
+              일
+            </label>
+          </div>
           <div className="att-todo-list">
             {todo.map((r) => (
               <div key={r.id} className="att-todo-row">
@@ -311,6 +334,16 @@ export default function Attendance({ onGo }: { onGo: (p: PageId) => void }): JSX
                 </span>
                 <span className="att-todo-note muted small">{r.note}</span>
                 <span className="spacer" />
+                {r.proof === '필요' &&
+                  (() => {
+                    const due = addSchoolDays(r.date, proofDays)
+                    const left = daysLeft(due) ?? 0
+                    return (
+                      <span className={`badge ${left < 0 ? 'badge-danger' : left <= 2 ? 'badge-warn' : ''}`} title={`서류 기한 ${due}`}>
+                        서류 {md(due)}까지 · {ddayLabel(due)}
+                      </span>
+                    )
+                  })()}
                 {r.proof === '필요' && (
                   <button className="btn btn-sm" onClick={() => patch(r.id, { proof: '냄' })}>
                     서류 받음

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Deadline, DeadlineInput } from '../../shared/types'
 import { BLANK_DEADLINE, DEADLINE_PRESETS } from '../../shared/types'
 import { useToast } from '../lib/toast'
+import { ATT_PROOF_DAYS_KEY, ATT_RECORDS_KEY, proofTodos, readProofDays, readRecords } from '../../shared/attendance'
+import type { AttRecord, ProofTodo } from '../../shared/attendance'
 
 /** 오늘 기준 남은 날. 지났으면 음수. */
 export function daysLeft(due: string): number | null {
@@ -37,9 +39,24 @@ export default function Deadlines(): JSX.Element {
   const [adding, setAdding] = useState(false)
   const [showDone, setShowDone] = useState(false)
 
+  // 출결 서류 — 출결 기록에서 서류를 아직 받지 않은 것 (3.7.1~). 여기서 [서류 받음] 을 누르면 출결 기록에도 그대로
+  const [proofs, setProofs] = useState<ProofTodo[]>([])
+  const loadProofs = useCallback(async () => {
+    const recs = readRecords(await window.api.setting.get(ATT_RECORDS_KEY, '[]'))
+    setProofs(proofTodos(recs, readProofDays(await window.api.setting.get(ATT_PROOF_DAYS_KEY, ''))))
+  }, [])
+  const gotProof = async (rec: AttRecord): Promise<void> => {
+    const recs = readRecords(await window.api.setting.get(ATT_RECORDS_KEY, '[]'))
+    await window.api.setting.set(ATT_RECORDS_KEY, JSON.stringify(recs.map((r) => (r.id === rec.id ? { ...r, proof: '냄' } : r))))
+    window.dispatchEvent(new CustomEvent('att:changed'))
+    await loadProofs()
+    toast(`${rec.no}번 서류를 받은 것으로 했습니다.`, 'ok')
+  }
+
   const load = useCallback(async () => {
     setItems(await window.api.deadlines.list())
-  }, [])
+    await loadProofs()
+  }, [loadProofs])
 
   useEffect(() => {
     void load()
@@ -91,6 +108,31 @@ export default function Deadlines(): JSX.Element {
         여기 적은 내용은 <b>인수인계 파일에 들어가지 않습니다.</b> 사안·학생 정보가 섞이기 쉬운
         곳이라 기본으로 빼고 내보냅니다. 필요하면 [인수인계 · 백업]에서 포함하도록 바꿀 수 있습니다.
       </div>
+
+      {proofs.length > 0 && (
+        <div className="card att-proofs" style={{ marginBottom: 14 }}>
+          <div className="card-title">
+            출결 서류 {proofs.length}건 <span className="muted small">— 출결 기록에서 서류를 아직 받지 않은 것 (기한은 출결 기록 화면에서 정한 평일 수)</span>
+          </div>
+          <div className="att-proof-list">
+            {proofs.map((p) => (
+              <div key={p.rec.id} className="att-proof-row">
+                <span className={urgencyClass(p.due, 0)}>{ddayLabel(p.due)}</span>
+                <span>
+                  {p.rec.no}번 {p.rec.type}({p.rec.reason})
+                </span>
+                <span className="muted small">
+                  {p.rec.date.slice(5).replace('-', '/')} 출결 · {p.due.slice(5).replace('-', '/')}까지
+                </span>
+                <span className="spacer" />
+                <button className="btn btn-sm" onClick={() => void gotProof(p.rec)}>
+                  서류 받음
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {(overdue > 0 || soon > 0) && (
         <div className="card" style={{ marginBottom: 14 }}>

@@ -14,6 +14,7 @@ import path from 'node:path'
 import os from 'node:os'
 import * as db from './db'
 import { installCrashHandlers, logDir, logError, logRendererError } from './errlog'
+import { DB_NAME, defaultDir, looksSynced, otherLock, releaseLock, resolveLocation, takeLock, writeLocation } from './datalocation'
 import { encryptionAvailable, loadLocalSettings, saveLocalSettings } from './secrets'
 import { extractFile } from './extract'
 import {
@@ -54,7 +55,7 @@ import type { TtRow } from '../../shared/timetable'
 import { STD_EXAMPLE, aiReadTimetable, importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
 import { schoolContext } from './context'
 import { schoolPlace, searchPlaces, weatherAt } from './weather'
-import { extractMessages, inboxList, inboxRemove, maskMessages, relayConnect, relayDisconnect, relayInfo, relayNewKey, relayPull, relaySeenQr, startRelayWatch, stopRelayWatch } from './messenger'
+import { extractMessages, inboxList, inboxRemove, maskMessages, relayConnect, relayDisconnect, relayForm, relayInfo, relayNewKey, relayPull, relaySeenQr, startRelayWatch, stopRelayWatch } from './messenger'
 import { ymd } from '../../shared/neis'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
 import type {
@@ -1031,6 +1032,8 @@ function registerIpc(): void {
   ipcMain.handle('relay:disconnect', () => relayDisconnect())
   ipcMain.handle('relay:seenQr', () => relaySeenQr())
   ipcMain.handle('relay:pull', () => relayPull())
+  // 구글 설문지 응답 시트 — 새 응답만 (3.7.1~)
+  ipcMain.handle('relay:form', (_e, sheetUrl: string, after: number) => relayForm(String(sheetUrl ?? ''), Number(after) || 0))
 
   /* ---------- 날씨 (Open-Meteo · Nominatim) ---------- */
   ipcMain.handle('weather:at', (_e, lat: number, lon: number, force: boolean) => weatherAt(Number(lat), Number(lon), force === true))
@@ -1048,6 +1051,73 @@ function registerIpc(): void {
 
   /* ---------- 백업 / 복구 ---------- */
   ipcMain.handle('data:info', () => db.dbInfo())
+  // 자료 폴더 (3.7.1~)
+  ipcMain.handle('data:location', () => {
+    const dir = db.currentDataDir()
+    return { dir, custom: dir !== defaultDir(), defaultDir: defaultDir(), synced: looksSynced(dir) }
+  })
+  ipcMain.handle('data:chooseLocation', async () => {
+    if (!mainWindow) return { ok: false, message: '창을 찾을 수 없습니다.' }
+    const pick = await dialog.showOpenDialog(mainWindow, { title: '자료를 둘 폴더 고르기 (USB · OneDrive 등)', properties: ['openDirectory', 'createDirectory'] })
+    if (pick.canceled || !pick.filePaths[0]) return { ok: false, message: '취소했습니다.' }
+    const target = pick.filePaths[0]
+    if (path.resolve(target) === path.resolve(db.currentDataDir())) return { ok: false, message: '지금 쓰는 폴더입니다.' }
+    try {
+      fs.writeFileSync(path.join(target, '.orbit-write-test'), 'x')
+      fs.unlinkSync(path.join(target, '.orbit-write-test'))
+    } catch {
+      return { ok: false, message: '그 폴더에 쓸 수 없습니다. 다른 폴더를 골라 주세요.' }
+    }
+    const other = otherLock(target)
+    if (other) return { ok: false, message: `'${other.pc}' 에서 그 폴더의 자료를 쓰는 중입니다. 그 PC 의 오르빗을 끈 뒤 다시 해 주세요.` }
+    const there = path.join(target, DB_NAME)
+    if (fs.existsSync(there)) {
+      const r = await dialog.showMessageBox(mainWindow, {
+        type: 'question',
+        title: '그 폴더에 자료가 이미 있습니다',
+        message: '그 폴더에 오르빗 자료가 이미 있습니다. 어느 쪽을 쓸까요?',
+        detail: '[그 폴더의 자료 쓰기] — 다른 PC 에서 옮겨 둔 자료로 엽니다. 이 PC 의 지금 자료는 백업 폴더에 남깁니다.\n[지금 자료로 덮어쓰기] — 그 폴더의 자료를 백업 폴더에 남기고, 이 PC 의 지금 자료로 바꿉니다.',
+        buttons: ['그 폴더의 자료 쓰기', '지금 자료로 덮어쓰기', '취소'],
+        defaultId: 0,
+        cancelId: 2,
+        noLink: true
+      })
+      if (r.response === 2) return { ok: false, message: '취소했습니다.' }
+      if (r.response === 0) db.backupNow()
+      else {
+        db.backupFile(there, '덮어쓰기전')
+        db.writeCopyTo(there)
+      }
+    } else {
+      db.writeCopyTo(there)
+    }
+    writeLocation(target)
+    setTimeout(relaunchForData, 300)
+    return { ok: true, message: '자료 폴더를 바꿨습니다. 오르빗을 다시 시작합니다.' }
+  })
+  ipcMain.handle('data:resetLocation', async () => {
+    if (!mainWindow) return { ok: false, message: '창을 찾을 수 없습니다.' }
+    if (db.currentDataDir() === defaultDir()) return { ok: false, message: '이미 이 PC 의 기본 폴더를 씁니다.' }
+    const r = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      title: '이 PC 의 기본 폴더로 되돌리기',
+      message: '이 PC 의 기본 폴더로 되돌립니다. 어느 자료를 쓸까요?',
+      detail: '[지금 자료를 이 PC 로 가져오기] — 지금 쓰는 자료를 이 PC 로 옮깁니다(이 PC 에 있던 예전 자료는 백업 폴더에).\n[이 PC 에 있던 자료로] — 이 PC 에 예전부터 있던 자료로 돌아갑니다. 지금 폴더의 자료는 그대로 둡니다.',
+      buttons: ['지금 자료를 이 PC 로 가져오기', '이 PC 에 있던 자료로', '취소'],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true
+    })
+    if (r.response === 2) return { ok: false, message: '취소했습니다.' }
+    const local = path.join(defaultDir(), DB_NAME)
+    if (r.response === 0) {
+      if (fs.existsSync(local)) db.backupFile(local, '되돌리기전_이PC')
+      db.writeCopyTo(local)
+    }
+    writeLocation('')
+    setTimeout(relaunchForData, 300)
+    return { ok: true, message: '이 PC 의 기본 폴더로 되돌렸습니다. 오르빗을 다시 시작합니다.' }
+  })
   // 백업 목록 · 지금 백업 · 되돌리기 (3.8.0~)
   ipcMain.handle('backup:list', () => db.listBackups())
   ipcMain.handle('backup:now', () => {
@@ -1188,8 +1258,17 @@ installCrashHandlers(() => mainWindow)
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
 
+  // 자료 폴더 (3.7.1~) — 정해 둔 폴더가 없으면 묻고, 다른 PC 가 쓰는 중이면 알린다
+  const where = pickDataDir()
+  if (!where) {
+    app.quit()
+    return
+  }
+  db.setDataDir(where)
+
   try {
     await db.openDb()
+    takeLock(where)
   } catch (e) {
     // 조용히 죽으면 사용자가 원인을 알 수 없으니 창을 띄워 알려 준다.
     dialog.showErrorBox(
@@ -1233,6 +1312,7 @@ app.on('before-quit', () => {
   } catch (e) {
     logError('끌 때 저장', e)
   }
+  releaseLock()
   stopDeadlineWatch()
   stopRelayWatch()
   // OCR 로 Gemini 에 올려 둔 큰 파일이 있으면 지운다 (기다리지는 않는다 — 남아도 이틀 뒤 저절로 지워진다)
@@ -1246,7 +1326,65 @@ app.on('will-quit', () => {
   } catch (e) {
     logError('끌 때 저장', e)
   }
+  releaseLock()
 })
+
+/**
+ * 이번에 열 자료 폴더를 정한다. 끝내기를 고르면 ''.
+ *  · 정해 둔 폴더가 없으면(USB 를 안 꽂음 · 동기화 전) [다시 찾기] · [이 PC 의 기본 자료로] · [끝내기]
+ *  · 다른 PC 가 10분 안에 쓰고 있었으면 [다시 확인] · [그래도 열기] · [끝내기]
+ */
+function pickDataDir(): string {
+  for (let tries = 0; tries < 20; tries++) {
+    const loc = resolveLocation()
+    if (loc.missing) {
+      const r = dialog.showMessageBoxSync({
+        type: 'warning',
+        title: '자료 폴더를 찾을 수 없습니다',
+        message: `정해 둔 자료 폴더를 찾을 수 없습니다.\n${loc.missing}`,
+        detail: 'USB 를 꽂았는지, 클라우드 폴더가 동기화됐는지 보고 [다시 찾기]를 누르세요.\n[이 PC 의 기본 자료로 열기]는 이번에만 이 PC 에 있던 자료로 엽니다(정해 둔 폴더는 그대로 둡니다).',
+        buttons: ['다시 찾기', '이 PC 의 기본 자료로 열기', '끝내기'],
+        defaultId: 0,
+        cancelId: 2,
+        noLink: true
+      })
+      if (r === 0) continue
+      if (r === 2) return ''
+      return defaultDir()
+    }
+    const other = loc.custom ? otherLock(loc.dir) : null
+    if (other) {
+      const mins = Math.max(1, Math.round((Date.now() - other.at) / 60000))
+      const r = dialog.showMessageBoxSync({
+        type: 'warning',
+        title: '다른 PC 에서 쓰는 중일 수 있습니다',
+        message: `'${other.pc}' 에서 ${mins}분 전까지 이 자료를 쓰고 있었습니다.`,
+        detail: '두 PC 에서 함께 열면 나중에 저장한 쪽이 앞의 내용을 덮어씁니다.\n그 PC 의 오르빗을 완전히 끄고(트레이의 [완전히 종료]) [다시 확인]을 누르세요. 그 PC 가 이미 꺼져 있다면 [그래도 열기].',
+        buttons: ['다시 확인', '그래도 열기', '끝내기'],
+        defaultId: 0,
+        cancelId: 2,
+        noLink: true
+      })
+      if (r === 0) continue
+      if (r === 2) return ''
+    }
+    return loc.dir
+  }
+  return ''
+}
+
+/** 자료 폴더를 바꾼 뒤 — 저장 · 잠금 정리 후 다시 시작 */
+function relaunchForData(): void {
+  try {
+    db.flushDb()
+  } catch (e) {
+    logError('다시 시작 전 저장', e)
+  }
+  releaseLock()
+  quitting = true
+  app.relaunch()
+  app.exit(0)
+}
 
 app.on('window-all-closed', () => {
   if (process.platform === 'darwin') return

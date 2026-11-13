@@ -387,6 +387,12 @@ const api = {
     /** QR 을 다시 찍었음 — '주소가 바뀜' 안내를 닫는다 */
     seenQr: (): Promise<RelayInfoShape> => ipcRenderer.invoke('relay:seenQr'),
     pull: (): Promise<{ ok: boolean; added: number; obs?: number; att?: number; error?: string }> => ipcRenderer.invoke('relay:pull'),
+    /** 구글 설문지 응답 시트에서 after(ms) 보다 뒤의 응답만 (스크립트 v3) */
+    form: (
+      sheetUrl: string,
+      after: number
+    ): Promise<{ ok: boolean; error?: string; needVer?: number; data?: { title: string; head: string[]; rows: string[][]; times: number[]; last: number; more: boolean } }> =>
+      ipcRenderer.invoke('relay:form', sheetUrl, after),
     /** 폰에서 온 수업 관찰 · 출결을 제자리에 넣었을 때 */
     onRouted: (cb: (r: PhoneRouted) => void): (() => void) => {
       const handler = (_e: unknown, r: PhoneRouted): void => cb(r)
@@ -458,6 +464,12 @@ const api = {
     import: (): Promise<ActionResult> => ipcRenderer.invoke('data:import'),
     clear: (): Promise<ActionResult> => ipcRenderer.invoke('data:clear'),
     openFolder: (target: string): Promise<string> => ipcRenderer.invoke('data:openFolder', target)
+  },
+  /** 자료 폴더 (3.7.1~) — USB · OneDrive 같은 곳에 두고 학교 · 집 PC 에서 함께 */
+  dataLocation: {
+    get: (): Promise<{ dir: string; custom: boolean; defaultDir: string; synced: boolean }> => ipcRenderer.invoke('data:location'),
+    choose: (): Promise<ActionResult> => ipcRenderer.invoke('data:chooseLocation'),
+    reset: (): Promise<ActionResult> => ipcRenderer.invoke('data:resetLocation')
   },
   /** 백업 — 날마다 자동 · 지금 백업 · 이 때로 되돌리기 */
   backup: {

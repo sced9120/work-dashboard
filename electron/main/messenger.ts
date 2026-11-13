@@ -12,7 +12,8 @@ import { ATT_ROSTER_KEY, readRoster } from '../../shared/attendance'
 import type { Student } from '../../shared/attendance'
 import type { InboxItem, MsgResult } from '../../shared/messenger'
 import { MSG_INBOX_KEY, messengerPrompt, parseMsgResult } from '../../shared/messenger'
-import { RELAY_VERSION, isNameKey, newNameKey, newRelayKey, normalizeRelayUrl, parsePull, phoneUrl, relayScript, splitParts, versionOf } from '../../shared/relay'
+import { RELAY_NEEDS, RELAY_VERSION, isNameKey, newNameKey, newRelayKey, normalizeRelayUrl, parseForm, parsePull, phoneUrl, relayScript, sheetIdOf, splitParts, versionOf } from '../../shared/relay'
+import type { FormPull } from '../../shared/relay'
 import { ymd } from '../../shared/neis'
 import { askJson } from './ai'
 import { buildAliases, findNameCandidates, leakCheck, maskText, unmaskText } from './anonymize'
@@ -285,6 +286,52 @@ async function pushBoard(url: string, key: string): Promise<void> {
  * 폰에서 온 것을 가져와 제자리에 넣고, 우편함에서는 지운다.
  * 글 → 받은 글함, 수업 관찰 → 세특 관찰 기록, 출결 → 출결 기록. 넣은 뒤에만 지운다.
  */
+/**
+ * 구글 설문지 응답 시트에서 after 보다 뒤의 응답만 받는다 (스크립트 v3, 3.7.1~).
+ * 시트 주소만 보내고 PC 의 명단 · 글은 보내지 않는다. 300행이 넘으면 이어서 다섯 번까지 더 받는다.
+ */
+export async function relayForm(sheetUrl: string, after: number): Promise<{ ok: boolean; error?: string; needVer?: number; data?: FormPull }> {
+  const s = loadLocalSettings()
+  const url = normalizeRelayUrl(s.relay_url ?? '')
+  if (!url || !s.relay_key) return { ok: false, error: '먼저 폰 연결(우편함)을 이어 주세요.', needVer: RELAY_NEEDS.form }
+  const id = sheetIdOf(sheetUrl)
+  if (!id) return { ok: false, error: '응답 시트 주소 모양이 아닙니다. 설문지 [응답] 탭의 스프레드시트 아이콘으로 연 시트의 주소를 붙여 넣어 주세요.' }
+  let since = Math.max(0, Math.floor(Number(after) || 0))
+  let title = ''
+  let head: string[] = []
+  const rows: string[][] = []
+  const times: number[] = []
+  let last = since
+  let more = false
+  try {
+    for (let round = 0; round < 6; round++) {
+      const res = (await call(url, { k: s.relay_key, op: 'form', sheet: id, after: String(since) })) as { ok?: boolean; error?: string; v?: number }
+      const v = versionOf(res)
+      if (v) setVer(v)
+      if (v && v < RELAY_NEEDS.form) return { ok: false, needVer: RELAY_NEEDS.form, error: `폰 연결 코드가 예전 판(v${v})입니다. 설문지를 읽으려면 새 코드(v${RELAY_NEEDS.form})로 바꿔 주세요.` }
+      if (res?.ok !== true) return { ok: false, error: res?.error || '응답 시트를 읽지 못했습니다.' }
+      const part = parseForm(res)
+      if (!part) return { ok: false, error: '응답 시트의 답 모양이 맞지 않습니다.' }
+      if (!head.length) {
+        title = part.title
+        head = part.head
+      }
+      rows.push(...part.rows)
+      times.push(...part.times)
+      last = Math.max(last, part.last)
+      more = part.more
+      if (!part.more || part.last <= since) break
+      since = part.last
+    }
+  } catch (e) {
+    const m = (e as Error).message
+    // v2 스크립트는 op=form 을 모르면 폰 화면(HTML)을 돌려준다 → call 이 '웹 앱이 답하지 않습니다' 로 던진다
+    if (seenVer() < RELAY_NEEDS.form) return { ok: false, needVer: RELAY_NEEDS.form, error: '폰 연결 코드를 새 판(v3)으로 바꿔야 설문지를 읽을 수 있습니다.' }
+    return { ok: false, error: m === 'This operation was aborted' ? '응답 시트가 답하지 않습니다(시간 넘김).' : m }
+  }
+  return { ok: true, data: { title, head, rows, times, last, more } }
+}
+
 export async function relayPull(): Promise<PullResult> {
   const s = loadLocalSettings()
   const url = normalizeRelayUrl(s.relay_url ?? '')

@@ -8,6 +8,7 @@
 import { app, Notification } from 'electron'
 import * as db from './db'
 import { loadLocalSettings } from './secrets'
+import { ATT_PROOF_DAYS_KEY, ATT_RECORDS_KEY, proofTitle, proofTodos, readProofDays, readRecords } from '../../shared/attendance'
 
 /** 켜져 있는 동안 몇 시간마다 다시 살펴볼지 */
 const RECHECK_HOURS = 6
@@ -42,6 +43,16 @@ interface DueItem {
   sub: string
 }
 
+/** 출결 서류 기한이 알림 날 수 안에 든 것 */
+function attProofDue(withinDays: number): DueItem[] {
+  const days = readProofDays(db.getSetting(ATT_PROOF_DAYS_KEY, ''))
+  const now = new Date()
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return proofTodos(readRecords(db.getSetting(ATT_RECORDS_KEY, '[]')), days)
+    .filter((t) => Math.round((new Date(`${t.due}T00:00:00`).getTime() - midnight.getTime()) / 86400000) <= withinDays)
+    .map((t) => ({ key: `att-${t.rec.id}`, title: proofTitle(t.rec), due: t.due, sub: `${Number(t.rec.date.slice(5, 7))}/${Number(t.rec.date.slice(8, 10))} 출결` }))
+}
+
 /** 기한을 살펴보고 알림을 띄운다. 조건이 아니면 아무 것도 하지 않는다. */
 export function checkDeadlinesNow(): void {
   const s = loadLocalSettings()
@@ -64,7 +75,9 @@ export function checkDeadlinesNow(): void {
         title: e.title,
         due: e.end_date || e.event_date,
         sub: e.start_time
-      }))
+      })),
+      // 출결 서류 — 아직 받지 않은 것 (3.7.1~). 학생은 번호로만
+      ...attProofDue(s.notify_days)
     ]
   } catch {
     // 아직 DB가 열리지 않았거나 읽을 수 없는 상태. 다음 차례에 다시 본다.

@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { answersToTables } from '../../shared/mdtable'
 import { fmtBytes } from '../../shared/ocr'
 import type { OcrAnswer, OcrFile } from '../../shared/ocr'
-import { SETEUK_OCR_NOTE, matchNotes, sheetFromPaste, studentLabel } from '../../shared/seteuk'
+import { SETEUK_OCR_NOTE, formToSheet, matchNotes, sheetFromPaste, studentLabel } from '../../shared/seteuk'
 import type { SeteukImport as Found, SeteukImportHit, SeteukSheet, SeteukStudent } from '../../shared/seteuk'
 import { POINTS_MIN_CHARS } from '../../shared/seteukExport'
 import { useToast } from '../lib/toast'
+import RelayCard from './RelayCard'
 
 /**
  * 세특 작성실 — 관찰 기록 가져오기.
@@ -21,13 +22,35 @@ const MAX_MORE = 6
 interface Props {
   /** 지금 표에 보이는 학생 (반을 골랐으면 그 반만) — 이 안에서 맞춘다 */
   students: SeteukStudent[]
+  /** 구글 설문지 — 활동마다 응답 시트 주소와 '어디까지 가져왔는지'를 기억한다 */
+  actId?: string
   onApply: (hits: SeteukImportHit[]) => void
   onClose: () => void
 }
 
-type Mode = 'scan' | 'paste'
+type Mode = 'scan' | 'paste' | 'form'
 
-export default function SeteukImport({ students, onApply, onClose }: Props): JSX.Element {
+/** 구글 설문지 — 활동마다 (seteuk_ 로 시작해 인수인계 파일에는 넣지 않는다) */
+const formKey = (actId: string): string => `seteuk_form_${actId}`
+interface FormMeta {
+  sheet: string
+  last: number
+  title: string
+}
+const readMeta = (raw: string): FormMeta => {
+  try {
+    const v = JSON.parse(raw || '{}') as Partial<FormMeta>
+    return { sheet: typeof v.sheet === 'string' ? v.sheet : '', last: Number(v.last) || 0, title: typeof v.title === 'string' ? v.title : '' }
+  } catch {
+    return { sheet: '', last: 0, title: '' }
+  }
+}
+const whenMs = (ms: number): string => {
+  const d = new Date(ms)
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+export default function SeteukImport({ students, actId = '', onApply, onClose }: Props): JSX.Element {
   const toast = useToast()
   const [mode, setMode] = useState<Mode>('scan')
   const [files, setFiles] = useState<OcrFile[]>([])
@@ -58,11 +81,53 @@ export default function SeteukImport({ students, onApply, onClose }: Props): JSX
     }
   }, [])
 
+  // 구글 설문지 (3.7.1~)
+  const [meta, setMeta] = useState<FormMeta>({ sheet: '', last: 0, title: '' })
+  const [formUrl, setFormUrl] = useState('')
+  const [form, setForm] = useState<{ sheet: SeteukSheet; last: number; title: string; count: number } | null>(null)
+  const [needVer, setNeedVer] = useState(0)
+  useEffect(() => {
+    if (!actId) return
+    void (async () => {
+      const m = readMeta(await window.api.setting.get(formKey(actId), ''))
+      setMeta(m)
+      setFormUrl(m.sheet)
+    })()
+  }, [actId])
+  const pullForm = async (fromStart = false): Promise<void> => {
+    if (busy || !formUrl.trim()) return
+    setBusy(true)
+    setError('')
+    setNeedVer(0)
+    setForm(null)
+    const r = await window.api.relay.form(formUrl.trim(), fromStart ? 0 : meta.sheet === formUrl.trim() ? meta.last : 0)
+    if (!alive.current) return
+    setBusy(false)
+    if (!r.ok || !r.data) {
+      if (r.needVer) setNeedVer(r.needVer)
+      return setError(r.error ?? '응답 시트를 읽지 못했습니다.')
+    }
+    const d = r.data
+    if (!d.rows.length) {
+      toast(meta.last && !fromStart ? `지난번(${whenMs(meta.last)}) 뒤로 새 응답이 없습니다.` : '응답이 아직 없습니다.')
+      return
+    }
+    setForm({ sheet: formToSheet(d.head, d.rows), last: d.last, title: d.title, count: d.rows.length })
+  }
+
   const pasted = useMemo(() => (mode === 'paste' ? sheetFromPaste(paste) : null), [mode, paste])
   const found: Found | null = useMemo(() => {
+    if (mode === 'form') {
+      if (!form) return null
+      const today = new Date()
+      const tag = `[설문 ${today.getMonth() + 1}/${today.getDate()}]`
+      const f = matchNotes([form.sheet], students)
+      // 학생이 쓴 글이라 교사 관찰과 가르는 머리표를 붙인다
+      return { ...f, hits: f.hits.map((h) => ({ ...h, text: `${tag} ${h.text}` })) }
+    }
     const src = mode === 'paste' ? (pasted ? [pasted] : null) : sheets
     return src ? matchNotes(src, students) : null
-  }, [mode, pasted, sheets, students])
+  }, [mode, pasted, sheets, students, form])
 
   const pick = async (): Promise<void> => {
     const got = await window.api.ocr.pick()
@@ -125,6 +190,11 @@ export default function SeteukImport({ students, onApply, onClose }: Props): JSX
       setShrinking(false)
     }
     onApply(hits)
+    if (mode === 'form' && form && actId) {
+      const next = { sheet: formUrl.trim(), last: form.last, title: form.title }
+      setMeta(next)
+      void window.api.setting.set(formKey(actId), JSON.stringify(next))
+    }
     toast(
       `${hits.length}명의 관찰 기록에 넣었습니다.` +
         (points && longs ? ` 긴 글 ${longs - failed}편은 요점만 넣었습니다.` : '') +
@@ -147,6 +217,9 @@ export default function SeteukImport({ students, onApply, onClose }: Props): JSX
           <button role="radio" aria-checked={mode === 'scan'} className={mode === 'scan' ? 'on' : ''} onClick={() => setMode('scan')} disabled={busy}>
             스캔 · 사진에서
           </button>
+          <button role="radio" aria-checked={mode === 'form'} className={mode === 'form' ? 'on' : ''} onClick={() => setMode('form')} disabled={busy || !actId}>
+            구글 설문지
+          </button>
           <button role="radio" aria-checked={mode === 'paste'} className={mode === 'paste' ? 'on' : ''} onClick={() => setMode('paste')} disabled={busy}>
             엑셀 표 붙여넣기
           </button>
@@ -157,7 +230,50 @@ export default function SeteukImport({ students, onApply, onClose }: Props): JSX
         </button>
       </div>
 
-      {mode === 'scan' ? (
+      {mode === 'form' ? (
+        <>
+          <p className="small">
+            학생이 낸 <b>구글 설문지 응답</b>을 이 활동의 관찰 기록으로 가져옵니다. 설문지에 <b>학번(또는 반 · 번호)</b>과 <b>이름</b> 문항이 있어야 맞출 수 있습니다.
+            응답은 선생님 구글 계정의 폰 연결 스크립트가 읽어 오고, 이 PC 의 명단 · 글은 구글로 가지 않습니다. 전화번호 · 주소 같은 문항은 가져오지 않습니다.
+          </p>
+          <label className="stk-form-url">
+            <span>응답 시트 주소</span>
+            <input type="text" value={formUrl} onChange={(e) => setFormUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…" disabled={busy} />
+          </label>
+          <p className="small muted">설문지 편집 화면 [응답] 탭 → 초록 스프레드시트 아이콘(Sheets 에 연결) → 열린 시트의 주소를 복사해 붙여 넣으세요.</p>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn btn-primary btn-sm" onClick={() => void pullForm()} disabled={busy || !formUrl.trim()}>
+              {busy ? '읽는 중…' : meta.last && meta.sheet === formUrl.trim() ? '새 응답 가져오기' : '응답 가져오기'}
+            </button>
+            {meta.last > 0 && meta.sheet === formUrl.trim() && (
+              <>
+                <span className="small muted">
+                  {meta.title ? `「${meta.title}」 ` : ''}
+                  {whenMs(meta.last)} 응답까지 가져왔습니다
+                </span>
+                <button className="link small" onClick={() => void pullForm(true)} disabled={busy}>
+                  처음부터 다시 보기
+                </button>
+              </>
+            )}
+          </div>
+          {form && (
+            <p className="small">
+              「{form.title}」 응답 <b>{form.count}건</b>을 읽었습니다.
+            </p>
+          )}
+          {needVer > 0 && (
+            <RelayCard
+              tab="text"
+              needs={needVer}
+              startOpen
+              title="폰 연결 — 설문지 읽기"
+              desc="설문지 응답 시트를 읽으려면 폰 연결 코드가 새 판이어야 합니다"
+              howTo={<p className="small">폰 관찰 · 출결 · 글 보내기는 지금처럼 그대로 쓰고, 같은 주소에서 설문지 응답도 읽을 수 있게 됩니다.</p>}
+            />
+          )}
+        </>
+      ) : mode === 'scan' ? (
         <>
           <p className="small">
             학생이 쓴 활동지 · 소감문 · 관찰 기록지를 스캔한 PDF 나 사진을 고르면, 학생마다 한 줄로 읽어 명단과 맞춥니다. 번호나

@@ -53,7 +53,7 @@ ok(Ag.actionGuide('2026-11-13').includes('"종류":"출결"') && Ag.actionGuide(
   console.log('\n1. 잇기 — 판 2 를 알아본다')
   const info0 = await call('relay:newKey')
   const key = info0.script.match(/var KEY = '([A-Za-z0-9]+)'/)[1]
-  ok(info0.script.includes('function sendItem') && info0.script.includes('(v2)') && info0.latest === 2, '새 코드는 v2')
+  ok(info0.script.includes('function sendItem') && info0.script.includes('(v3)') && info0.latest === 3, '새 코드는 v3')
   const url = 'https://script.google.com/macros/s/AKfycbTEST1234567890abcdefgh/exec'
   script = [() => json({ ok: true, v: 2, n: 0 })]
   const c = await call('relay:connect', url)
@@ -156,7 +156,7 @@ ok(Ag.actionGuide('2026-11-13').includes('"종류":"출결"') && Ag.actionGuide(
   script = [(e) => { body = e.body; return new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: '3번 결석입니다.' }] }, finishReason: 'STOP' }] })}\r\n\r\n`)); c.close() } }), { status: 200, headers: { 'content-type': 'text/event-stream' } }) }]
   const r = await call('ai:chatStream', { reqId: 'z1', mode: 'work', jobTitle: '담임', instruction: '', history: [{ role: 'user', content: '오늘 우리 반 결석한 학생 정리해 줘. 학생ㄷ이름 서류는?' }], model: { provider: 'gemini', model: 'gemini-test' } })
   const sys = JSON.parse(body).systemInstruction.parts[0].text
-  ok(r.ok !== false && sys.includes('우리 반 출결 기록') && sys.includes('3번 결석(질병) — 병원 [서류 아직] [나이스 아직] [폰으로 넣음]'), '오늘 출결 · 챙길 것 · 폰 표시')
+  ok(r.ok !== false && sys.includes('우리 반 출결 기록') && /3번 결석\(질병\) — 병원 \[서류 아직 · \d+\. \d+\.\([일월화수목금토]\)까지\] \[나이스 아직\] \[폰으로 넣음\]/.test(sys), '오늘 출결 · 챙길 것 · 폰 표시')
   ok(sys.includes('학생ㄷ이름 = 3번') && !sys.includes('학생ㄱ이름'), '질문에 나온 학생만 이름 = 번호, 다른 이름은 싣지 않음')
   ok(sys.includes('"종류":"출결"'), '출결 넣는 법도 함께')
   script = [(e) => { body = e.body; return new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: '네' }] }, finishReason: 'STOP' }] })}\r\n\r\n`)); c.close() } }), { status: 200, headers: { 'content-type': 'text/event-stream' } }) }]

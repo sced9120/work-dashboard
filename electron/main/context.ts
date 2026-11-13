@@ -20,7 +20,7 @@ import {
   withDated,
   withTimes
 } from '../../shared/timetable'
-import { ATT_RECORDS_KEY, ATT_ROSTER_KEY, readRecords, readRoster, summarize } from '../../shared/attendance'
+import { ATT_PROOF_DAYS_KEY, ATT_RECORDS_KEY, ATT_ROSTER_KEY, addSchoolDays, readProofDays, readRecords, readRoster, summarize } from '../../shared/attendance'
 import type { AttRecord } from '../../shared/attendance'
 import * as db from './db'
 import { hasNeisKey, linkedSchool, mealsBetween, scheduleCached } from './neis'
@@ -199,8 +199,9 @@ export function attendanceContext(q: string, today: string): ContextSource | nul
   const roster = readRoster(db.getSetting(ATT_ROSTER_KEY, ''))
   if (!roster.students.length) return null
   const recs = readRecords(db.getSetting(ATT_RECORDS_KEY, '[]'))
+  const proofDays = readProofDays(db.getSetting(ATT_PROOF_DAYS_KEY, ''))
   const line = (r: AttRecord): string =>
-    `${md(r.date)} ${r.no}번 ${r.type}(${r.reason})${r.note ? ` — ${r.note}` : ''}${r.proof === '필요' ? ' [서류 아직]' : ''}${r.neis ? '' : ' [나이스 아직]'}${r.id.startsWith('ph-') ? ' [폰으로 넣음]' : ''}`
+    `${md(r.date)} ${r.no}번 ${r.type}(${r.reason})${r.note ? ` — ${r.note}` : ''}${r.proof === '필요' ? ` [서류 아직 · ${md(addSchoolDays(r.date, proofDays))}까지]` : ''}${r.neis ? '' : ' [나이스 아직]'}${r.id.startsWith('ph-') ? ' [폰으로 넣음]' : ''}`
   const todays = recs.filter((r) => r.date === today)
   const recent = recs.filter((r) => r.date >= addDays(today, -30) && r.date <= addDays(today, 14) && r.date !== today)
   const proof = recs.filter((r) => r.proof === '필요').length
