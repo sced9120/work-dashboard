@@ -1191,6 +1191,40 @@ export function matchNotes(sheets: SeteukSheet[], students: SeteukStudent[]): Se
   return { hits: [...hits.entries()].map(([id, t]) => ({ id, text: t.join('\n') })), misses }
 }
 
+/**
+ * 구글 설문지 응답 시트 → 가져오기 표 (3.7.1~).
+ * 설문지 문항은 "학번을 적어 주세요" 처럼 길어서, 머리글에 학번 · 이름 · 반 · 번호가 들어 있으면 그 이름으로 바꾼다.
+ * 타임스탬프 · 이메일 주소 · 점수 칸은 뺀다. 나머지 문항은 그대로 '문항: 답' 으로 들어간다.
+ */
+export function formToSheet(head: string[], rows: string[][]): SeteukSheet {
+  const short = (h: string): string => {
+    const n = h.replace(/\s+/g, '')
+    if (/학번/.test(n)) return '학번'
+    if (/^(이름|성명|학생이름|학생명)/.test(n) || (/(이름|성명)/.test(n) && n.length <= 14)) return '이름'
+    if (/^(반|학급)$/.test(n) || (/(몇\s*반|학급|^반)/.test(n) && !/번호/.test(n) && n.length <= 10)) return '반'
+    if (/^(번호|출석번호)/.test(n) || (/번호/.test(n) && !/전화|휴대|연락/.test(n) && n.length <= 10)) return '번호'
+    return h.trim()
+  }
+  const DROP = /^(타임스탬프|timestamp|이메일주소|이메일|emailaddress|email|점수|score)$/i
+  const header = head.map(short)
+  // 연락처 · 주소 · 생년월일 같은 개인정보 문항은 관찰 기록(→ AI)으로 옮기지 않는다
+  const PRIVATE = /(전화|휴대|핸드폰|연락처|주소|생년월일|생일|주민)/
+  const keep = header
+    .map((h, i) => i)
+    .filter((i) => !DROP.test(header[i].replace(/\s+/g, '')) && !PRIVATE.test(header[i].replace(/\s+/g, '')) && !(i === 0 && /타임|time/i.test(head[0])))
+  // 같은 이름이 둘이 되면(학번 문항이 둘 등) 뒤의 것은 원래 문항 이름으로
+  const used = new Set<string>()
+  const finalHead = keep.map((i) => {
+    const h = header[i]
+    if (['학번', '이름', '반', '번호'].includes(h)) {
+      if (used.has(h)) return head[i].trim()
+      used.add(h)
+    }
+    return h
+  })
+  return { header: finalHead, rows: rows.map((r) => keep.map((i) => r[i] ?? '')) }
+}
+
 /** 가져온 글을 관찰 기록에 넣는다 — 비어 있으면 그대로, 이미 있으면 줄을 바꿔 뒤에 붙인다(같은 글이 이미 있으면 그대로) */
 export function mergeNote(old: string, add: string): string {
   const a = add.trim()

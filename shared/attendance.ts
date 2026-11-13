@@ -153,3 +153,45 @@ export function recordsTsv(records: AttRecord[], roster: Roster): string {
   }
   return rows.map((r) => r.map((c) => c.replace(/[\t\r\n]+/g, ' ')).join('\t')).join('\n')
 }
+
+/* ---------- 출결 서류 기한 (3.7.1~) ---------- */
+
+/** 결석 · 지각 · 조퇴 · 결과 뒤 며칠 안에 서류를 받을지 — 학교마다 달라 출결 기록 화면에서 정한다(평일 기준) */
+export const ATT_PROOF_DAYS_KEY = 'att_proof_days'
+export const PROOF_DAYS_DEFAULT = 5
+
+export function readProofDays(v: string | null | undefined): number {
+  const n = Math.floor(Number(v))
+  return Number.isFinite(n) && n >= 1 && n <= 30 ? n : PROOF_DAYS_DEFAULT
+}
+
+/** 날짜에서 평일(월~금) n일 뒤 — 'YYYY-MM-DD'. 공휴일은 따로 빼지 않는다 */
+export function addSchoolDays(day: string, n: number): string {
+  const d = new Date(`${day}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return day
+  let left = n
+  while (left > 0) {
+    d.setDate(d.getDate() + 1)
+    const w = d.getDay()
+    if (w !== 0 && w !== 6) left--
+  }
+  const p = (x: number): string => String(x).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+export interface ProofTodo {
+  rec: AttRecord
+  /** 서류를 받을 기한 */
+  due: string
+}
+
+/** 서류를 아직 받지 않은 기록과 그 기한 — 기한이 빠른 것부터 */
+export function proofTodos(records: AttRecord[], days: number): ProofTodo[] {
+  return records
+    .filter((r) => r.proof === '필요')
+    .map((r) => ({ rec: r, due: addSchoolDays(r.date, days) }))
+    .sort((a, b) => a.due.localeCompare(b.due) || a.rec.no - b.rec.no)
+}
+
+/** 알림 · 목록에 쓰는 한 줄 — 학생은 번호로만(알림이 교실 화면에 떠도 이름이 보이지 않게) */
+export const proofTitle = (r: AttRecord): string => `출결 서류 받기 — ${r.no}번 ${r.type}(${r.reason})`

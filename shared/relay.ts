@@ -17,7 +17,9 @@
 import { PHONE_PAGE } from './relayPage'
 
 /** 2 — 수업 관찰 · 출결 · 폰 판(board). 1 은 글 보내기만 */
-export const RELAY_VERSION = 2
+export const RELAY_VERSION = 3
+/** 기능마다 필요한 스크립트 판 — 3: 구글 설문지 응답 시트 읽기(3.7.1~), 2: 수업 관찰 · 출결, 1: 글 보내기 */
+export const RELAY_NEEDS = { text: 1, obs: 2, att: 2, form: 3 } as const
 
 /** 열쇠 — 주소에 붙여 쓰므로 영문 · 숫자만 */
 export function newRelayKey(rand: (n: number) => Uint8Array): string {
@@ -79,6 +81,7 @@ function doGet(e) {
   if (p.op === 'ack') { ack_(String(p.ids || '').split(',')); return out_({ ok: true, v: VER }); }
   if (p.op === 'ping') return out_({ ok: true, v: VER, n: list_().length });
   if (p.op === 'put') return out_(putPart_(p.name, p.i, p.n, p.b));
+  if (p.op === 'form') return out_(form_(String(p.sheet || ''), Number(p.after) || 0));
   var boot = JSON.stringify({ k: KEY, tab: String(p.tab || ''), board: board_(), names: joined_('names') }).replace(/</g, '\\u003c');
   return HtmlService.createHtmlOutput(PAGE.replace('__BOOT__', function () { return boot; }))
     .setTitle('오르빗')
@@ -173,6 +176,27 @@ function joined_(name) {
 
 function board_() {
   try { return JSON.parse(joined_('board') || 'null'); } catch (err) { return null; }
+}
+
+/**
+ * 구글 설문지 응답 시트 읽기 (v3) — 첫 시트의 머리글과, 타임스탬프(첫 칸)가 after 보다 뒤인 행만 (한 번에 300행까지).
+ * 선생님 계정이 열 수 있는 시트만 열린다. 시트 내용을 이 스크립트에 남기지 않는다.
+ */
+function form_(id, after) {
+  if (!/^[A-Za-z0-9_-]{20,100}$/.test(id)) return { ok: false, v: VER, error: '응답 시트 주소가 맞지 않습니다.' };
+  var ss;
+  try { ss = SpreadsheetApp.openById(id); } catch (err) { return { ok: false, v: VER, error: '응답 시트를 열지 못했습니다. 이 구글 계정으로 열 수 있는 시트인지 확인해 주세요.' }; }
+  var range = ss.getSheets()[0].getDataRange();
+  var raw = range.getValues(), shown = range.getDisplayValues();
+  var head = shown.shift() || [];
+  raw.shift();
+  var rows = [], times = [], last = after;
+  for (var i = 0; i < raw.length && rows.length < 300; i++) {
+    var c = raw[i][0];
+    var t = c instanceof Date ? c.getTime() : (Date.parse(String(c)) || 0);
+    if (t > after) { rows.push(shown[i]); times.push(t); if (t > last) last = t; }
+  }
+  return { ok: true, v: VER, title: ss.getName(), head: head, rows: rows, times: times, last: last, more: rows.length >= 300 };
 }
 
 function out_(o) {
@@ -362,4 +386,35 @@ export function buildNames(
   const h: PhoneNames['h'] = {}
   if (board.h) for (const st of homeroom) if (st.no >= 1 && st.no <= 99) h[String(st.no)] = st.name.slice(0, 20)
   return { s, h }
+}
+
+/* ---------- 설문지 응답 (v3) ---------- */
+
+export interface FormPull {
+  title: string
+  head: string[]
+  rows: string[][]
+  /** 행마다 응답 시각 (ms) */
+  times: number[]
+  /** 받은 것 가운데 가장 늦은 응답 시각 — 다음에는 이것보다 뒤만 */
+  last: number
+  more: boolean
+}
+
+/** op=form 답 읽기 — 모양이 틀리면 null */
+export function parseForm(v: unknown): FormPull | null {
+  const o = v as Record<string, unknown> | null
+  if (!o || o.ok !== true || !Array.isArray(o.head) || !Array.isArray(o.rows)) return null
+  const head = (o.head as unknown[]).map((h) => String(h ?? '').slice(0, 200))
+  const rows = (o.rows as unknown[]).filter(Array.isArray).map((r) => (r as unknown[]).map((c) => String(c ?? '').slice(0, 8000)))
+  const times = Array.isArray(o.times) ? (o.times as unknown[]).map((x) => Number(x) || 0) : rows.map(() => 0)
+  return { title: String(o.title ?? '').slice(0, 200), head, rows: rows.slice(0, 300), times: times.slice(0, 300), last: Number(o.last) || 0, more: o.more === true }
+}
+
+/** 응답 시트 주소 → 시트 ID (docs.google.com/spreadsheets/d/ID/…). ID 만 붙여 넣어도 된다 */
+export function sheetIdOf(url: string): string {
+  const v = String(url || '').trim()
+  const m = v.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]{20,100})/)
+  if (m) return m[1]
+  return /^[A-Za-z0-9_-]{20,100}$/.test(v) ? v : ''
 }
