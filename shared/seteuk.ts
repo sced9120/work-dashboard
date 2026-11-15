@@ -579,6 +579,17 @@ export function examplesText(act: Pick<SeteukActivity, 'examples'>): string {
     .join('\n\n')
 }
 
+/** 관찰 기록 끝에 오늘 날짜 `[M.D] ` 를 붙인 새 줄을 더한다(누가기록) */
+export function stampNote(note: string, d: Date): string {
+  const stamp = `[${d.getMonth() + 1}.${d.getDate()}] `
+  if (!note) return stamp
+  return note + (note.endsWith('\n') ? '' : '\n') + stamp
+}
+
+/** 관찰 기록의 [3.12] 같은 날짜를 읽는 규칙 */
+export const DATE_RULE =
+  ' [3.12] 같은 날짜가 있으면 시간 순서로 읽고, 둘 이상이면 기록이 뒷받침하는 만큼만 변화를 드러낸다. 날짜는 글에 쓰지 않는다.'
+
 /** 규칙 묶음(시스템 프롬프트). 학생 자료는 seteukUser 로 따로 붙인다 */
 export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions = {}): string {
   const years = opt.years ?? 15
@@ -636,6 +647,7 @@ export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions 
     (cols.length >= 2
       ? `# 입력 자료 형식\n아래 학생 자료는 교사가 다음 항목으로 나눠 적은 관찰 기록이다: ${cols.join(' | ')}. 빈 항목은 없는 것이다. 항목에 있는 사실만 근거로 문장을 다듬어 쓴다.`
       : '# 입력 자료 형식\n아래 학생 자료는 교사가 수업·활동 중에 관찰하고 자유롭게 적은 메모다. 메모에 있는 사실만 근거로 문장을 다듬어 쓴다.') +
+      DATE_RULE +
       (act.amount === '메모만큼' ? ' 메모가 짧으면 짧게 쓴다.' : '')
   )
   // 시트의 GRADE_RULE 을 줄인 것 — '성장 가능성'은 분량 규칙(막연한 성장 가능성 문장 금지)과 어긋나 뺐다

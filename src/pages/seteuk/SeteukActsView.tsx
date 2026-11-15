@@ -28,6 +28,7 @@ import {
   limitOf,
   minRatioOf,
   mergeNote,
+  stampNote,
   modeInfo,
   modeOfRec,
   newActivity,
@@ -37,6 +38,7 @@ import {
   studentLabel,
   validateSeteuk
 } from '../../../shared/seteuk'
+import { pairsOf } from '../../../shared/seteukSum'
 import type { SeteukActivity, SeteukAmount, SeteukCheck, SeteukConfig, SeteukImportHit, SeteukMode, SeteukOptions, SeteukRosters, SeteukRow, SeteukRows, SeteukStyle } from '../../../shared/seteuk'
 import Icon from '../../components/Icon'
 import ModelPicker from '../../components/ModelPicker'
@@ -59,7 +61,7 @@ import Markdown from '../../components/Markdown'
 import { SAVE_DELAY, MODE_KEY, INTRO_KEY, newId, stored, remember } from './core'
 
 export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; rosterPanel: ReactNode }): JSX.Element {
-  const { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules } = c
+  const { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents } = c
   return (
     <>
         {panel !== 'review' && view === 'acts' && (
@@ -281,7 +283,69 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                   <button className="btn btn-sm" onClick={() => void copyFinals()} title="보이는 학생 순서대로 최종본을 한 줄씩 복사합니다">
                     최종본 열 복사
                   </button>
+                  <button
+                    className="btn btn-sm"
+                    onClick={compareStudents}
+                    disabled={!shown.length}
+                    title="이 활동에서 학생들의 최종본(없으면 초안)을 서로 견줘 같은 문장이 많은 학생, 분량이 크게 다른 학생, 빈 학생을 찾습니다. 어디로도 보내지 않습니다."
+                  >
+                    학생끼리 견주기
+                  </button>
                 </div>
+                {equity && (
+                  <div className="stk-panel">
+                    <div className="stk-import-head">
+                      <b>학생끼리 견주기</b>
+                      <span className="small muted">
+                        학생 {equity.n}명 가운데 글이 있는 학생 {equity.filled}명 · 중앙값 {equity.median}바이트
+                      </span>
+                      <span className="spacer" />
+                      <button className="btn btn-sm btn-ghost" onClick={() => setEquity(null)}>
+                        닫기
+                      </button>
+                    </div>
+                    {!equity.similar.length && !equity.gaps.length && !equity.empty.length ? (
+                      <p className="note note-ok small">모두 괜찮습니다. 같은 문장 · 분량 차이 · 빈 칸이 없습니다.</p>
+                    ) : (
+                      <>
+                        {equity.similar.length > 0 && (
+                          <>
+                            <p className="small">
+                              <b>같은 문장이 많은 학생 {equity.similar.length}쌍</b> <span className="muted">— 학생마다 그 학생이 한 일로 고쳐 쓰세요</span>
+                            </p>
+                            <ul className="stk-found-list small">
+                              {equity.similar.slice(0, 30).map((p, i) => (
+                                <li key={i}>
+                                  {p.a} ↔ {p.b} <span className="stk-over">{Math.round(p.ratio * 100)}%</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                        {equity.gaps.length > 0 && (
+                          <>
+                            <p className="small">
+                              <b>분량 차이가 큰 학생 {equity.gaps.length}명</b> <span className="muted">— 중앙값의 절반 미만이거나 1.6배 초과</span>
+                            </p>
+                            <ul className="stk-found-list small">
+                              {equity.gaps.map((g, i) => (
+                                <li key={i}>
+                                  {g.label} — {g.bytes}바이트 ({g.kind})
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                        {equity.empty.length > 0 && (
+                          <p className="small">
+                            <b>글이 빈 학생 {equity.empty.length}명</b>: {equity.empty.slice(0, 12).join(', ')}
+                            {equity.empty.length > 12 ? ` 외 ${equity.empty.length - 12}명` : ''}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
                 {importOpen && <SeteukImport students={shown} actId={act?.id ?? ''} onApply={importNotes} onClose={() => setImportOpen(false)} />}
                 {prog && (
                   <div className="stk-prog" role="status">
@@ -319,6 +383,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                         const on = focus === s.id
                         const shownText = r.final.trim() ? r.final : r.ai
                         const left = groundLeft(r.ground, shownText)
+                        const same = pairsOf(equity, `${studentLabel(s)} ${s.name}`)
                         return (
                           <tr key={s.id} className={on ? 'on' : ''} onFocus={() => setFocus(s.id)}>
                             <td className="c-chk">
@@ -339,6 +404,11 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                               )}
                               {badge && badge.kind !== 'none' && <span className={`stk-badge ${badge.kind}`}>{badge.text}</span>}
                               {left.length > 0 && <span className="stk-badge check">근거 확인 {left.length}</span>}
+                              {same.length > 0 && (
+                                <span className="stk-badge stk-badge-same" title={`같은 문장이 많은 학생: ${same.map((p) => `${p.other} ${Math.round(p.ratio * 100)}%`).join(', ')}`}>
+                                  같은 문장
+                                </span>
+                              )}
                             </td>
                             {!finalOnly && (
                               <>
@@ -360,11 +430,31 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                                   ))}
                                 </div>
                               ) : (
-                                <textarea value={r.note} onChange={(e) => setCell(s.id, { note: e.target.value })} placeholder="수업 · 활동에서 본 것을 적습니다" aria-label={`${studentLabel(s)} 관찰 기록`} />
+                                <textarea id={`stk-note-${s.id}`} value={r.note} onChange={(e) => setCell(s.id, { note: e.target.value })} placeholder="수업 · 활동에서 본 것을 적습니다" aria-label={`${studentLabel(s)} 관찰 기록`} />
                               )}
-                              {on && r.note.trim() && (
+                              {on && (
                                 <div className="stk-under">
-                                  <span />
+                                  {act.columns.length < 2 ? (
+                                    <button
+                                      className="btn btn-sm btn-ghost"
+                                      onClick={() => {
+                                        const next = stampNote(r.note, new Date())
+                                        setCell(s.id, { note: next })
+                                        window.setTimeout(() => {
+                                          const el = document.getElementById(`stk-note-${s.id}`) as HTMLTextAreaElement | null
+                                          if (!el) return
+                                          el.focus()
+                                          el.setSelectionRange(next.length, next.length)
+                                        }, 0)
+                                      }}
+                                      title="오늘 날짜를 붙여 새 관찰을 적습니다. 날짜가 있으면 AI 가 변화와 성장을 시간 순서로 읽습니다."
+                                    >
+                                      + 오늘
+                                    </button>
+                                  ) : (
+                                    <span />
+                                  )}
+                                  {r.note.trim() && (
                                   <button
                                     className="btn btn-sm btn-ghost"
                                     onClick={() => void copyRequest(s.id)}
@@ -372,6 +462,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                                   >
                                     키 없이 — 요청 글 복사
                                   </button>
+                                  )}
                                 </div>
                               )}
                             </td>

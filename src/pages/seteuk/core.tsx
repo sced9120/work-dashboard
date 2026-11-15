@@ -41,6 +41,8 @@ import {
   validateSeteuk
 } from '../../../shared/seteuk'
 import type { SeteukActivity, SeteukAmount, SeteukCheck, SeteukConfig, SeteukImportHit, SeteukMode, SeteukOptions, SeteukRosters, SeteukRow, SeteukRows, SeteukStyle } from '../../../shared/seteuk'
+import { checkEquity } from '../../../shared/seteukSum'
+import type { EquityReport } from '../../../shared/seteukSum'
 import Icon from '../../components/Icon'
 import ModelPicker from '../../components/ModelPicker'
 import SeteukImport from '../../components/SeteukImport'
@@ -127,6 +129,7 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   const [job, setJob] = useState('')
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [equity, setEquity] = useState<EquityReport | null>(null)
 
   const pending = useRef<{ actId: string; patch: Patch } | null>(null)
   const timer = useRef<number | undefined>(undefined)
@@ -568,6 +571,19 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, actKey, shown, limit, config])
 
+  // 학생끼리 견주기 — 이 활동의 최종본(없으면 초안)끼리. 활동을 바꾸면 결과를 지운다
+  useEffect(() => setEquity(null), [actKey])
+  const compareStudents = (): void => {
+    setEquity(
+      checkEquity(
+        shown.map((s) => {
+          const r = cur[s.id]
+          return { label: `${studentLabel(s)} ${s.name}`, text: r?.final.trim() ? r.final : (r?.ai ?? '') }
+        })
+      )
+    )
+  }
+
   const allOn = shown.length > 0 && shown.every((s) => sel.has(s.id))
   const toggleAll = (): void => setSel(allOn ? new Set() : new Set(shown.map((s) => s.id)))
   const toggle = (id: string): void =>
@@ -582,7 +598,7 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   const rec = act ? recordOf(act.rec) : null
   const rules = useMemo(() => (act ? buildSeteukPrompt(act, { style, config }) : ''), [act, style, config])
 
-  return { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules }
+  return { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents }
 }
 
 export type SeteukState = ReturnType<typeof useSeteuk>

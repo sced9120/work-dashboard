@@ -7340,3 +7340,11 @@ body {
   margin: 2px 0;
   padding-left: 18px;
 }
+
+/* 학생끼리 견주기 · 날짜 (3.7.3~) */
+.stk-badge.stk-badge-same {
+  background: var(--surface-3);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  cursor: help;
+}

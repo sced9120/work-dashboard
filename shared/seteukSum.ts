@@ -219,3 +219,14 @@ export function readSums(raw: string): SeteukSums {
   }
   return out
 }
+
+/** 보고서에서 한 학생이 겹친 상대들 — 겹침이 큰 차례 */
+export function pairsOf(report: EquityReport | null, label: string): { other: string; ratio: number }[] {
+  if (!report) return []
+  const out: { other: string; ratio: number }[] = []
+  for (const p of report.similar) {
+    if (p.a === label) out.push({ other: p.b, ratio: p.ratio })
+    else if (p.b === label) out.push({ other: p.a, ratio: p.ratio })
+  }
+  return out.sort((x, y) => y.ratio - x.ratio)
+}
