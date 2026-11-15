@@ -189,6 +189,9 @@ const api = {
     /** 내 규칙 — 끈 검사 · 내 금지어 · 더할 규칙 · 뺄 칸 */
     saveConfig: (c: SeteukConfig): Promise<SeteukConfig> => ipcRenderer.invoke('seteuk:config', c),
     /** AI 앱용 지침 — Gem · GPT · 프로젝트에 붙여 넣을 글 / Claude 스킬 zip 저장 */
+    /** 이 글 조언 — 세특 한 편을 읽은 의견(글은 고쳐 주지 않음). dry 면 보낼 글만 */
+    advice: (actId: string, sid: string, model: ModelChoice | null, dry = false): Promise<{ ok: boolean; report?: string; text?: string; error?: string }> =>
+      ipcRenderer.invoke('seteuk:advice', actId, sid, model, dry),
     gemText: (actId: string): Promise<{ ok: boolean; text?: string; error?: string }> => ipcRenderer.invoke('seteuk:gem', actId),
     skillSave: (actId: string): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('seteuk:skill', actId),
     /** 긴 학생 글에서 세특 요점만 뽑기 (짧은 글은 그대로) */

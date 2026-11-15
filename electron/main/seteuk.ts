@@ -67,7 +67,7 @@ import type {
 } from '../../shared/seteuk'
 import { DEMO_ACTS, DEMO_ROSTERS, DEMO_ROWS, SETEUK_DEMO_KEY } from '../../shared/seteukDemo'
 import { readSums, seteukSumKey } from '../../shared/seteukSum'
-import { REVIEW_MAX_CHARS, REVIEW_MIN_CHARS, buildReviewSystem, buildReviewUser, cleanReport } from '../../shared/seteukReview'
+import { ADVICE_MIN_CHARS, REVIEW_MAX_CHARS, REVIEW_MIN_CHARS, buildAdviceSystem, buildAdviceUser, buildReviewSystem, buildReviewUser, cleanReport } from '../../shared/seteukReview'
 import type { SeteukReviewReply, SeteukReviewRequest } from '../../shared/seteukReview'
 import { POINTS_MIN_CHARS, POINTS_SYSTEM, buildGemText, buildSkillMd, cleanPoints, pointsUser, skillName } from '../../shared/seteukExport'
 
@@ -359,6 +359,35 @@ export async function seteukReview(req: SeteukReviewRequest): Promise<SeteukRevi
   try {
     const raw = await askSeteuk(loadLocalSettings(), req.model, system, user)
     const report = cleanReport(unmaskText(raw, m.pairs))
+    if (!report) throw new Error('빈 답이 왔습니다.')
+    return { ok: true, report }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message || 'AI 에 묻지 못했습니다.' }
+  }
+}
+
+/* ---------- 이 글 조언 (3.8.1~) ---------- */
+
+/**
+ * 한 학생의 세특 한 편(최종본, 없으면 초안)을 읽고 의견을 받는다. 글은 고쳐 주지 않는다.
+ * 글과 관찰 기록의 이름을 가려 보내고, 다 가리지 못하면 보내지 않는다. 받은 의견은 저장하지 않는다(화면에만).
+ */
+export async function seteukAdvice(actId: string, sid: string, model: ModelChoice | undefined | null, dry = false): Promise<{ ok: boolean; report?: string; text?: string; error?: string }> {
+  const act = seteukActs().find((a) => a.id === actId)
+  if (!act) return { ok: false, error: '활동을 찾지 못했습니다.' }
+  const r = rowsOf(act.id)[String(sid)]
+  const text = (r?.final.trim() || r?.ai.trim() || '').trim()
+  if (text.length < ADVICE_MIN_CHARS) return { ok: false, error: '조언을 받을 글(최종본이나 초안)이 없거나 너무 짧습니다.' }
+  const names = seteukMaskNames()
+  const m = maskSeteuk(text, names)
+  const n = maskSeteuk(r?.note ?? '', names)
+  if (m.leaks.length || n.leaks.length) return { ok: false, error: '학생 이름을 다 가리지 못해 보내지 않았습니다. 글에서 이름을 지우고 다시 해 주세요.' }
+  const system = buildAdviceSystem()
+  const user = buildAdviceUser(m.masked, n.masked, recordOf(act.rec).name, act.name)
+  if (dry) return { ok: true, text: `${system}\n\n${user}` }
+  try {
+    const raw = await askSeteuk(loadLocalSettings(), model, system, user)
+    const report = cleanReport(unmaskText(unmaskText(raw, m.pairs), n.pairs))
     if (!report) throw new Error('빈 답이 왔습니다.')
     return { ok: true, report }
   } catch (e) {

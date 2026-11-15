@@ -7309,3 +7309,34 @@ body {
   flex-direction: column;
   gap: 4px;
 }
+
+/* 이 글 조언 (3.8.1~) */
+.stk-advice {
+  margin-top: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.stk-advice-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.stk-advice h2 {
+  font-size: 13.5px;
+  margin: 10px 0 2px;
+}
+
+.stk-advice ul,
+.stk-advice ol {
+  margin: 2px 0;
+  padding-left: 18px;
+}

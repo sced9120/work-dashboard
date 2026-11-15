@@ -105,6 +105,43 @@ export function buildReviewUser(maskedText: string, grade: ReviewGrade, career: 
   return `# 학생 정보\n${info.join('\n')}\n\n# 학생부\n${maskedText.trim()}`
 }
 
+/* ---------- 이 글 조언 — 세특 한 편 (3.8.1~) ---------- */
+
+const ADVICE_ROLE = '당신은 학교생활기록부를 오래 써 온 고등학교 교사다. 동료 교사가 쓴 특기사항 한 편을 읽고, 그 교사가 이 글을 더 잘 고치도록 돕는 의견을 준다.'
+
+const ADVICE_TASK = `# 할 일 — 특기사항 한 편 읽기
+[특기사항] 한 편을 위 관점으로 읽는다. [관찰 기록]이 있으면 교사가 실제로 본 것이므로, 글에 빠진 장면을 찾는 데만 쓴다.
+아래 제목을 그대로 쓴다.
+## 잘 드러난 것
+글의 구절을 짧게 인용해 두세 가지.
+## 흐름
+계기 / 직접 한 과정 / 이어감 / 끝맺음을 한 줄씩. 각 줄은 '있음' · '약함' · '없음' 가운데 하나로 시작하고 까닭을 한 구절로.
+## 더 구체적으로 쓸 곳
+평가어 · 일반론 · 깨달음 문장을 원문 그대로 짚고, 어떤 관찰 사실이 있으면 좋을지 방향만. 없으면 '없음'.
+## 관찰 기록에 있는데 글에 빠진 것
+[관찰 기록]에 있는 장면 가운데 글에 담기지 않은 것. 관찰 기록이 없거나 빠진 것이 없으면 '없음'.
+## 기재요령에 걸릴 수 있는 곳
+없으면 '없음'.
+## 선생님이 확인할 질문
+기억을 더듬어 답할 수 있는 질문 두세 개.`
+
+const ADVICE_OUTPUT = `# 출력
+마크다운으로 쓴다. 맨 앞에 제목이나 인사 없이 첫 번째 ## 제목부터 시작한다. 문장은 짧게, 전체 900자 안팎. 고쳐 쓴 문장을 내놓지 않는다.`
+
+/** 세특 한 편을 읽는 규칙 — 학생부 살펴보기와 같은 관점 · 같은 '지킬 것' */
+export function buildAdviceSystem(): string {
+  const at = COMMON.indexOf('\n\n# 읽는 관점')
+  return [`# 역할\n${ADVICE_ROLE}${COMMON.slice(at)}`, ADVICE_TASK, ADVICE_OUTPUT].join('\n\n')
+}
+
+export function buildAdviceUser(maskedText: string, maskedNote: string, recordName: string, activity: string): string {
+  const head = `# 기록 항목\n${recordName}${activity.trim() ? ` — ${activity.trim().replace(/\s+/g, ' ')}` : ''}`
+  return `${head}\n\n[특기사항]\n${maskedText.trim()}${maskedNote.trim() ? `\n\n[관찰 기록]\n${maskedNote.trim()}` : ''}`
+}
+
+/** 조언을 받을 만한 길이인지 */
+export const ADVICE_MIN_CHARS = 30
+
 /** 모델이 붙인 머리말 · 코드 울타리를 걷어 낸다 */
 export function cleanReport(raw: string): string {
   let t = String(raw || '').trim()

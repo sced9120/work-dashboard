@@ -37,7 +37,7 @@ import { clearGcalCache, exportIcs, gcalEvents, gcalTest } from './gcal'
 import { getCatalog } from './catalog'
 import { addPaths, cancelOcr, clearOcr, continueOcr, pickFiles, runOcr, saveXlsx } from './ocr'
 import { addFolder, cancelBatch, pickFolder, runBatch, saveBatch } from './batch'
-import { seteukCancel, seteukDemoClear, seteukDemoFill, seteukLoad, seteukRequest, seteukSaveActs, seteukSaveRoster, seteukSaveRows, seteukGemText, seteukGround, seteukPoints, seteukReview, seteukSaveConfig, seteukSkillSave, seteukSaveOptions, seteukSaveStyle, seteukStyleCard, seteukWrite } from './seteuk'
+import { seteukCancel, seteukDemoClear, seteukDemoFill, seteukLoad, seteukRequest, seteukSaveActs, seteukSaveRoster, seteukSaveRows, seteukAdvice, seteukGemText, seteukGround, seteukPoints, seteukReview, seteukSaveConfig, seteukSkillSave, seteukSaveOptions, seteukSaveStyle, seteukStyleCard, seteukWrite } from './seteuk'
 import type { SeteukActivity, SeteukConfig, SeteukMode, SeteukOptions, SeteukRow, SeteukStudent, SeteukStyle, SeteukWriteRequest } from '../../shared/seteuk'
 import { seteukCompress, seteukCompressCancel, seteukNeisPick, seteukNeisPreview, seteukNeisSave, seteukSaveSum, seteukSums } from './seteukSum'
 import type { SeteukCompressRequest, SeteukSumPatch } from '../../shared/seteukSum'
@@ -345,6 +345,7 @@ function registerIpc(): void {
   ipcMain.handle('seteuk:style', (_e, style: SeteukStyle) => seteukSaveStyle(style))
   ipcMain.handle('seteuk:options', (_e, o: SeteukOptions) => seteukSaveOptions(o))
   ipcMain.handle('seteuk:config', (_e, c: SeteukConfig) => seteukSaveConfig(c))
+  ipcMain.handle('seteuk:advice', (_e, actId: string, sid: string, model: ModelChoice | null, dry = false) => seteukAdvice(String(actId), String(sid), model, dry === true))
   ipcMain.handle('seteuk:gem', (_e, actId: string) => seteukGemText(String(actId)))
   ipcMain.handle('seteuk:skill', (_e, actId: string) => seteukSkillSave(mainWindow, String(actId)))
   ipcMain.handle('seteuk:points', (_e, items: { id: string; text: string }[], model: ModelChoice | null) => seteukPoints(items, model))

@@ -103,6 +103,9 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   const [options, setOptions] = useState<SeteukOptions>(defaultOptions)
   const [config, setConfig] = useState<SeteukConfig>(defaultConfig)
   const [grounding, setGrounding] = useState('')
+  /** 이 글 조언 — 받는 중인 학생, 받은 의견(활동:학생 → 글). 저장하지 않고 화면에만 둔다 */
+  const [advising, setAdvising] = useState('')
+  const [advice, setAdvice] = useState<Record<string, string>>({})
   const [mode, setMode] = useState<SeteukMode>(() => (SETEUK_MODES.some((m) => m.key === stored(MODE_KEY)) ? (stored(MODE_KEY) as SeteukMode) : 'subject'))
   const [actIds, setActIds] = useState<Record<string, string>>({})
   const [cls, setCls] = useState('')
@@ -511,6 +514,17 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
     toast(got.ground?.length ? `관찰 기록에 없는 내용 ${got.ground.length}곳을 찾았습니다. 표시된 구절을 확인하세요.` : '관찰 기록에 없는 내용을 찾지 못했습니다.', got.ground?.length ? undefined : 'ok')
   }
 
+  /** 한 학생의 글 조언 — 최종본(없으면 초안)을 읽은 의견. 글은 고쳐 주지 않는다 */
+  const adviseOne = async (sid: string): Promise<void> => {
+    if (!act || advising) return
+    await flush()
+    setAdvising(sid)
+    const r = await window.api.seteuk.advice(act.id, sid, model)
+    setAdvising('')
+    if (!r.ok || !r.report) return toast(r.error ?? '조언을 받지 못했습니다.', 'err')
+    setAdvice((prev) => ({ ...prev, [`${act.id}:${sid}`]: r.report as string }))
+  }
+
   const copyRequest = async (sid: string): Promise<void> => {
     if (!act) return
     await flush()
@@ -568,7 +582,7 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   const rec = act ? recordOf(act.rec) : null
   const rules = useMemo(() => (act ? buildSeteukPrompt(act, { style, config }) : ''), [act, style, config])
 
-  return { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules }
+  return { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules }
 }
 
 export type SeteukState = ReturnType<typeof useSeteuk>

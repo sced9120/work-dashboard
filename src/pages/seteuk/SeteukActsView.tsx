@@ -55,10 +55,11 @@ import Ocr from '../Ocr'
 import { useToast } from '../../lib/toast'
 import type { ReactNode } from 'react'
 import type { SeteukState } from './core'
+import Markdown from '../../components/Markdown'
 import { SAVE_DELAY, MODE_KEY, INTRO_KEY, newId, stored, remember } from './core'
 
 export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; rosterPanel: ReactNode }): JSX.Element {
-  const { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules } = c
+  const { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules } = c
   return (
     <>
         {panel !== 'review' && view === 'acts' && (
@@ -406,6 +407,16 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                                     {grounding === s.id ? '확인 중…' : '근거 확인'}
                                   </button>
                                 )}
+                                {on && shownText.trim() && (
+                                  <button
+                                    className="btn btn-sm btn-ghost"
+                                    onClick={() => void adviseOne(s.id)}
+                                    disabled={!!advising || !!job}
+                                    title="이 글을 동료 교사의 눈으로 읽은 의견을 받습니다 — 흐름, 더 구체적으로 쓸 곳, 확인할 질문. 글을 대신 고쳐 주지는 않습니다. 이름은 가려 보냅니다."
+                                  >
+                                    {advising === s.id ? '읽는 중…' : '이 글 조언'}
+                                  </button>
+                                )}
                                 {on && r.final.trim() && (
                                   <button className="btn btn-sm btn-ghost" onClick={() => addExample(s.id)} title="이 글을 이 활동의 예시로 둡니다. 다음 초안부터 이 표현 방식과 흐름을 따릅니다.">
                                     예시로 등록
@@ -421,6 +432,31 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                                     </li>
                                   ))}
                                 </ul>
+                              )}
+                              {on && act && advice[`${act.id}:${s.id}`] && (
+                                <div className="stk-advice">
+                                  <div className="stk-advice-head">
+                                    <b>이 글 조언</b>
+                                    <span className="small muted">동료 교사의 눈으로 읽은 의견입니다. 관찰한 사실이 있을 때만 고쳐 쓰세요.</span>
+                                    <span className="spacer" />
+                                    <button className="btn btn-sm btn-ghost" onClick={() => void window.api.clipboard.write(advice[`${act.id}:${s.id}`])}>
+                                      복사
+                                    </button>
+                                    <button
+                                      className="btn btn-sm btn-ghost"
+                                      onClick={() =>
+                                        setAdvice((prev) => {
+                                          const n = { ...prev }
+                                          delete n[`${act.id}:${s.id}`]
+                                          return n
+                                        })
+                                      }
+                                    >
+                                      닫기
+                                    </button>
+                                  </div>
+                                  <Markdown text={advice[`${act.id}:${s.id}`]} />
+                                </div>
                               )}
                               {on && r.ground && r.ground.length === 0 && <p className="small muted stk-ground-ok">근거 확인 — 관찰 기록에 없는 내용을 찾지 못했습니다.</p>}
                               {on && c && c.issues.length > 0 && (
