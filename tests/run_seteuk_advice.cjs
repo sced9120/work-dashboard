@@ -22,7 +22,15 @@ console.log('0. 규칙 (빌드 없이)')
 const sys = R.buildAdviceSystem()
 ok(sys.startsWith('# 역할\n') && sys.includes('특기사항 한 편') && !sys.includes('한 학생의 학생부를 읽고'), '역할 — 한 편을 읽는 동료 교사')
 ok(sys.includes('# 읽는 관점') && sys.includes('# 지킬 것') && sys.includes('새 문장을 대신 써 주지 않고') && sys.includes('입시 결과를 장담'), '학생부 살펴보기와 같은 관점 · 지킬 것')
-ok(['## 잘 드러난 것', '## 흐름', '## 더 구체적으로 쓸 곳', '## 관찰 기록에 있는데 글에 빠진 것', '## 기재요령에 걸릴 수 있는 곳', '## 선생님이 확인할 질문'].every((h) => sys.includes(h)) && sys.includes('고쳐 쓴 문장을 내놓지 않는다'), '여섯 제목 · 문장을 대신 쓰지 않음')
+ok(['## 잘 드러난 것', '## 흐름', '## 더 구체적으로 쓸 곳', '## 교사가 본 장면', '## 관찰 기록에 있는데 글에 빠진 것', '## 기재요령에 걸릴 수 있는 곳', '## 선생님이 확인할 질문'].every((h) => sys.includes(h)) && sys.includes('고쳐 쓴 문장을 내놓지 않는다'), '일곱 제목 · 문장을 대신 쓰지 않음')
+// 3.7.3 — 2026 기재요령 · 대학 공개 자료를 대조해 더한 관점과 지킬 것
+ok(sys.includes('교사가 수업과 수행평가에서 직접 관찰한 사실') && sys.includes('늘어놓기만') && sys.includes('성취기준에 이미 있는 지식') && sys.includes('학생을 바꿔도 통하는 문장'), '근거(교사 관찰) · 활동 나열 · 성취기준 옮겨 적기 · 개별화를 본다')
+ok(sys.includes('없다고 흠잡지 않는다') && sys.includes('점수 · 등급 · 합격 가능성을 매기지 않는다') && sys.includes('모든 대학이 같다고 말하지 않는다'), '오차 · 한계가 없다고 흠잡지 않음 · 점수를 매기지 않음 · 대학마다 다름')
+const low = R.buildReviewSystem('1')
+const up = R.buildReviewSystem('3')
+ok(low.includes('학교가 주최 · 주관하는 교육활동') && low.includes('온라인 공개강좌, 방과후학교, 소논문') && low.includes('교육과정 범위를 크게 넘는') && low.includes('한 단계 깊이') && low.includes('다른 과목의 개념으로 같은 질문을 다시 보는 것'), '이어 갈 탐구 — 학교 활동 안 · 기재 불가 활동은 권하지 않음 · 깊이 먼저 · 다른 과목으로')
+ok(up.includes('과목 선택과 진로 탐색이 어떻게 이어져 왔는지') && up.includes('창체 영역 사이, 세특과 창체 사이') && up.includes('활동을 늘어놓기만 한 구절'), '3학년 — 과목 선택 흐름 · 영역 간 중복 · 나열')
+ok(low.length < 3200 && up.length < 3200 && sys.length < 3200, `규칙 길이 ${low.length} · ${up.length} · ${sys.length} (3,200자 안)`)
 ok(R.buildAdviceUser(' 글 ', '', '과목별 세특', '함수  탐구') === '# 기록 항목\n과목별 세특 — 함수 탐구\n\n[특기사항]\n글' && R.buildAdviceUser('글', ' 메모 ', 'x', '').endsWith('[관찰 기록]\n메모'), '보내는 글 — 기록 항목 · 특기사항 · (있으면) 관찰 기록')
 
 ;(async () => {

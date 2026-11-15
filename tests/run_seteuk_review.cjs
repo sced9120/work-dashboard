@@ -37,7 +37,7 @@ ok(M.compressPrompt(S.recordOf('과세특')).includes('계기 → 직접 한 과
 console.log('\n1. 살펴보기 규칙 (빌드 없이)')
 const lower = V.buildReviewSystem('2')
 const upper = V.buildReviewSystem('3')
-ok(lower.includes('과목 선택 · 진로와 이어지는 지점') && upper.includes('학업역량 · 학업태도 · 학업 외 소양이 각각 어느 영역') && lower.includes('이어 갈 탐구 세 가지') && !lower.includes('짜임과 보완할 곳') && upper.includes('## 2. 흐름 진단\n표로 쓴다.') && !upper.includes('이어 갈 탐구 세 가지'), '1 · 2학년 / 3학년 할 일이 다름')
+ok(lower.includes('과목 선택 · 진로와 이어지는 지점') && upper.includes('학업역량 · 학업태도 · 학업 외 소양(공동체 속의 역할)이 각각 어느 영역') && lower.includes('이어 갈 탐구 세 가지') && !lower.includes('짜임과 보완할 곳') && upper.includes('## 2. 흐름 진단\n표로 쓴다.') && !upper.includes('이어 갈 탐구 세 가지'), '1 · 2학년 / 3학년 할 일이 다름')
 ok(V.buildReviewSystem('1') === lower, '1학년도 이어 갈 탐구')
 for (const sys of [lower, upper]) {
   ok(['대회', '논문', '공인어학시험', '사교육', '대학명', '지어내지 않는다', '대신 써 주지 않고', '책 제목', '모든 대학이 같다고 말하지 않는다', '정규 수업', '남들이 흔히 하는 주제를 권하지 않는다', '도서명은 학생부에 나온 것만'].every((w) => sys.includes(w)), '기재요령 · 지어내지 않기 · 대필 금지 · 책 제목 · 한 대학 기준 · 자기 질문 · 도서명')
