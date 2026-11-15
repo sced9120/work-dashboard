@@ -1,4 +1,4 @@
-// 세특 작성실 — 이 글 조언 (3.8.1~). 빌드된 앱의 IPC 로. AI 는 가로채 가짜로 답한다(진짜 키를 쓰지 않는다). 이름은 지어낸 것
+// 세특 작성실 — 이 글 조언 (3.7.2~). 빌드된 앱의 IPC 로. AI 는 가로채 가짜로 답한다(진짜 키를 쓰지 않는다). 이름은 지어낸 것
 const path = require('path')
 const { handlers } = global.__it
 const { loadShared: load } = require('./tsload.cjs')

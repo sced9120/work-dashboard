@@ -105,7 +105,7 @@ export function buildReviewUser(maskedText: string, grade: ReviewGrade, career: 
   return `# 학생 정보\n${info.join('\n')}\n\n# 학생부\n${maskedText.trim()}`
 }
 
-/* ---------- 이 글 조언 — 세특 한 편 (3.8.1~) ---------- */
+/* ---------- 이 글 조언 — 세특 한 편 (3.7.2~) ---------- */
 
 const ADVICE_ROLE = '당신은 학교생활기록부를 오래 써 온 고등학교 교사다. 동료 교사가 쓴 특기사항 한 편을 읽고, 그 교사가 이 글을 더 잘 고치도록 돕는 의견을 준다.'
 

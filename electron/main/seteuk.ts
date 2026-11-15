@@ -366,7 +366,7 @@ export async function seteukReview(req: SeteukReviewRequest): Promise<SeteukRevi
   }
 }
 
-/* ---------- 이 글 조언 (3.8.1~) ---------- */
+/* ---------- 이 글 조언 (3.7.2~) ---------- */
 
 /**
  * 한 학생의 세특 한 편(최종본, 없으면 초안)을 읽고 의견을 받는다. 글은 고쳐 주지 않는다.
