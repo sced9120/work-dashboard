@@ -3,6 +3,12 @@ import { useEffect, useMemo, useState } from 'react'
 import type { BatchStudent } from '../../shared/batch'
 import { geminiReady } from '../../shared/gemini'
 import { BATCH_DEFAULT_ITEMS, batchTable, lengthOk, seteukLength } from '../../shared/batch'
+import type { BatchOptions, BatchRow } from '../../shared/batch'
+import { planBatchSend } from '../../shared/batchSend'
+import { modeInfo, modeOfRec } from '../../shared/seteuk'
+import type { SeteukActivity, SeteukRosters, SeteukRows } from '../../shared/seteuk'
+import { queueSeteukAct } from '../lib/seteukBridge'
+import type { PageId } from '../App'
 import { fmtBytes } from '../../shared/ocr'
 import type { ModelChoice } from '../../shared/types'
 import {
@@ -71,11 +77,144 @@ function SeteukCell({ k, text, target }: { k: string; text: string; target: numb
 }
 
 /**
+ * 결과를 세특 작성실의 만들어 둔 활동으로 보낸다 (3.7.5~) — 활동을 고르고, 무엇을 어디로 · 덮어쓸지를 정하면
+ * 학번 · 이름으로 학생을 맞춰 미리 보여 주고, [보내기] 로 칸만 합쳐 저장한다(다른 칸은 그대로).
+ */
+function SendToSeteuk({ rows, o, onGo, onClose }: { rows: BatchRow[]; o: BatchOptions; onGo?: (p: PageId) => void; onClose: () => void }): JSX.Element {
+  const toast = useToast()
+  const [data, setData] = useState<{ acts: SeteukActivity[]; rosters: SeteukRosters; rows: Record<string, SeteukRows> } | null>(null)
+  const [actId, setActId] = useState('')
+  const [putNote, setPutNote] = useState(true)
+  const [putAi, setPutAi] = useState(true)
+  const [overwrite, setOverwrite] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [sent, setSent] = useState<{ actId: string; name: string; n: number } | null>(null)
+
+  const load = async (): Promise<void> => {
+    const all = await window.api.seteuk.load()
+    setData({ acts: all.acts, rosters: all.rosters, rows: all.rows })
+    setActId((cur) => (all.acts.some((a) => a.id === cur) ? cur : (all.acts[0]?.id ?? '')))
+  }
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const items = o.items.map((x) => x.trim()).filter(Boolean)
+  const hasSeteuk = rows.some((r) => r.result?.seteuk)
+  const act = data?.acts.find((a) => a.id === actId) ?? null
+  const students = data && act ? data.rosters[modeOfRec(act.rec)] : []
+  const plan = useMemo(
+    () => (data && act ? planBatchSend(rows, students, act, data.rows[act.id] ?? {}, items, { note: putNote, ai: putAi && hasSeteuk, overwrite }) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, act, rows, putNote, putAi, overwrite, hasSeteuk, o.items]
+  )
+  const n = plan ? Object.keys(plan.patch).length : 0
+
+  const go = (id: string): void => {
+    queueSeteukAct(id)
+    onGo?.('세특')
+  }
+
+  const send = async (): Promise<void> => {
+    if (!act || !plan || !n || busy) return
+    setBusy(true)
+    try {
+      await window.api.seteuk.saveRows(act.id, plan.patch)
+      setSent({ actId: act.id, name: act.name, n })
+      toast(`「${act.name}」에 ${n}명을 넣었습니다`, 'ok')
+      await load()
+    } catch {
+      toast('활동에 넣지 못했습니다.', 'err')
+    }
+    setBusy(false)
+  }
+
+  return (
+    <div className="stk-panel" style={{ marginBottom: 10 }}>
+      <div className="row" style={{ marginBottom: 6 }}>
+        <b>세특 활동으로 보내기</b>
+        <span className="spacer" />
+        <button className="btn btn-sm btn-ghost" onClick={onClose}>
+          닫기
+        </button>
+      </div>
+      {!data ? (
+        <p className="small muted">활동을 불러오는 중…</p>
+      ) : data.acts.length === 0 ? (
+        <>
+          <p className="small">세특 작성실에서 활동을 먼저 만들어 주세요.</p>
+          <button className="btn btn-sm btn-primary" onClick={() => onGo?.('세특')} disabled={!onGo}>
+            세특 작성실로
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="field">
+            <label htmlFor="fb-send-act">보낼 활동</label>
+            <select id="fb-send-act" value={actId} onChange={(e) => (setActId(e.target.value), setSent(null))}>
+              {data.acts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} · {a.rec}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
+            <label className="batch-check">
+              <input type="checkbox" checked={putNote} onChange={(e) => setPutNote(e.target.checked)} /> 정리한 내용 → 관찰 기록
+            </label>
+            <label className="batch-check" title={hasSeteuk ? '' : '이번 분석에는 세특 초안이 없습니다'}>
+              <input type="checkbox" checked={putAi && hasSeteuk} onChange={(e) => setPutAi(e.target.checked)} disabled={!hasSeteuk} /> 세특 초안 → AI 초안
+            </label>
+          </div>
+          <div className="row" style={{ gap: 14, marginTop: 6 }}>
+            <label className="batch-radio">
+              <input type="radio" checked={!overwrite} onChange={() => setOverwrite(false)} /> 빈 칸에만 넣기
+            </label>
+            <label className="batch-radio">
+              <input type="radio" checked={overwrite} onChange={() => setOverwrite(true)} /> 덮어쓰기
+            </label>
+          </div>
+          {act && students.length === 0 ? (
+            <p className="note note-warn small" style={{ marginTop: 8 }}>
+              「{act.name}」 활동의 {modeInfo(modeOfRec(act.rec)).name} 명단이 비어 있습니다. 세특 작성실에서 명단을 먼저 넣어 주세요.
+            </p>
+          ) : (
+            plan && (
+              <div className="small" style={{ marginTop: 8 }} role="status">
+                <b>{plan.matched}명 맞춤</b> · {plan.missed.length}명 못 찾음
+                {plan.kept > 0 && <span className="muted"> · 이미 적혀 있어 그대로 두는 학생 {plan.kept}명</span>}
+                {plan.missed.length > 0 && <div className="muted">못 찾은 학생: {plan.missed.join(', ')}</div>}
+                {n === 0 && plan.matched === 0 && <div className="muted">보낼 학생이 없습니다(칸을 고르고 분석이 끝난 학생이 있는지 확인하세요).</div>}
+              </div>
+            )
+          )}
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="btn btn-primary btn-sm" onClick={() => void send()} disabled={!n || busy}>
+              {n ? `${n}명 보내기` : '보내기'}
+            </button>
+            {sent && (
+              <>
+                <span className="small">「{sent.name}」에 {sent.n}명을 넣었습니다.</span>
+                <button className="btn btn-sm" onClick={() => go(sent.actId)}>
+                  그 활동 열기
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
  * 폴더 일괄 분석 — 학생 결과물 폴더를 통째로 골라, 학생마다 항목별 정리 · 세특 · 채점을 받아 엑셀 · CSV 로 저장한다.
  * 파일 이름의 학번 · 이름으로 학생을 묶는다(사진 여러 장도 한 학생). 실제 일은 electron/main/batch.ts.
  */
-export default function FolderBatch({ onSettings }: { onSettings: () => void }): JSX.Element {
+export default function FolderBatch({ onSettings, onGo }: { onSettings: () => void; onGo?: (p: PageId) => void }): JSX.Element {
   const toast = useToast()
+  const [sendOpen, setSendOpen] = useState(false)
   const b = useBatch()
   const [model, setModel] = useState<ModelChoice | null>(null)
   const [hasKey, setHasKey] = useState<boolean | null>(null)
@@ -403,8 +542,12 @@ export default function FolderBatch({ onSettings }: { onSettings: () => void }):
                 세특만 복사
               </button>
             )}
+            <button className={`btn btn-sm ${sendOpen ? 'btn-primary' : ''}`} onClick={() => setSendOpen((v) => !v)} disabled={b.busy || done === 0} aria-expanded={sendOpen}>
+              세특 활동으로 보내기
+            </button>
             <span className="muted small">{b.savedAt ? '저장했습니다.' : '결과는 프로그램을 끄면 사라집니다 — 저장해 두세요.'}</span>
           </div>
+          {sendOpen && <SendToSeteuk rows={rows} o={o} onGo={onGo} onClose={() => setSendOpen(false)} />}
           <div className="ocr-scroll">
             <table className="ocr-table batch-table">
               <thead>

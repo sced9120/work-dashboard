@@ -69,6 +69,9 @@ import { DEMO_ACTS, DEMO_ROSTERS, DEMO_ROWS, SETEUK_DEMO_KEY } from '../../share
 import { readSums, seteukSumKey } from '../../shared/seteukSum'
 import { ADVICE_MIN_CHARS, REVIEW_MAX_CHARS, REVIEW_MIN_CHARS, buildAdviceSystem, buildAdviceUser, buildReviewSystem, buildReviewUser, cleanReport } from '../../shared/seteukReview'
 import type { SeteukReviewReply, SeteukReviewRequest } from '../../shared/seteukReview'
+import { buildMapSystem, buildMapUser, mapFolderName, mapMapText, parseMap, toObsidian } from '../../shared/seteukMap'
+import type { SeteukMapExportReply, SeteukMapReply, SeteukMapRequest, TopicMap } from '../../shared/seteukMap'
+import { join as joinPath } from 'node:path'
 import { POINTS_MIN_CHARS, POINTS_SYSTEM, buildGemText, buildSkillMd, cleanPoints, pointsUser, skillName } from '../../shared/seteukExport'
 
 export interface SeteukAll {
@@ -363,6 +366,54 @@ export async function seteukReview(req: SeteukReviewRequest): Promise<SeteukRevi
     return { ok: true, report }
   } catch (e) {
     return { ok: false, error: (e as Error).message || 'AI 에 묻지 못했습니다.' }
+  }
+}
+
+/* ---------- 주제 지도 (3.7.5~) ---------- */
+
+/**
+ * 학생부에서 주제를 뽑아 지도로 받는다(seteukReview 와 같은 글 · 학년 · 모델 · 이름 가리기). 다 가리지 못하면 보내지 않는다.
+ * 받은 글의 가명은 이름으로 되돌린다. dry 면 보낼 글만.
+ */
+export async function seteukMap(req: SeteukMapRequest): Promise<SeteukMapReply> {
+  const text = String(req?.text ?? '').trim()
+  const grade = req?.grade === '1' || req?.grade === '2' || req?.grade === '3' ? req.grade : null
+  if (!grade) return { ok: false, error: '학년을 골라 주세요.' }
+  if (text.length < REVIEW_MIN_CHARS) return { ok: false, error: '학생부 글이 너무 짧습니다. 세특 · 창체 글을 몇 영역 붙여 넣어 주세요.' }
+  if (text.length > REVIEW_MAX_CHARS) return { ok: false, error: `학생부 글이 너무 깁니다(${REVIEW_MAX_CHARS.toLocaleString()}자까지). 한 학년이나 몇 영역씩 나눠 주세요.` }
+  const m = maskSeteuk(text, seteukMaskNames())
+  if (m.leaks.length) return { ok: false, error: '학생 이름을 다 가리지 못해 보내지 않았습니다. 이름을 지우고 다시 해 주세요.' }
+  const system = buildMapSystem()
+  const user = buildMapUser(m.masked, grade, String(req.career ?? ''))
+  if (req.dry) return { ok: true, text: `${system}
+
+${user}` }
+  try {
+    const raw = await askSeteuk(loadLocalSettings(), req.model, system, user, true)
+    const map = parseMap(raw, m.masked)
+    if (!map.topics.length) throw new Error('주제를 읽어 내지 못했습니다. 다시 해 보세요.')
+    return { ok: true, map: mapMapText(map, (t) => unmaskText(t, m.pairs)) }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message || 'AI 에 묻지 못했습니다.' }
+  }
+}
+
+/** 주제 지도를 옵시디언 노트 폴더로 — 고른 폴더 안에 '학생부지도_{학생}_{날짜}' 를 새로 만든다 */
+export async function seteukMapExport(win: BrowserWindow | null, rawMap: TopicMap, label: string): Promise<SeteukMapExportReply> {
+  const map = parseMap(JSON.stringify(rawMap ?? {}))
+  if (!map.topics.length) return { ok: false, error: '내보낼 지도가 없습니다.' }
+  const res = await dialog.showOpenDialog(win as BrowserWindow, { title: '옵시디언 노트를 저장할 폴더 고르기', properties: ['openDirectory', 'createDirectory'] })
+  if (res.canceled || !res.filePaths[0]) return { ok: false, error: '취소했습니다.' }
+  try {
+    const base = joinPath(res.filePaths[0], mapFolderName(String(label ?? ''), new Date()))
+    let dir = base
+    for (let k = 2; fs.existsSync(dir); k++) dir = `${base}_${k}`
+    fs.mkdirSync(dir, { recursive: true })
+    const files = toObsidian(map, String(label ?? ''))
+    for (const f of files) fs.writeFileSync(joinPath(dir, f.path), f.content, 'utf8')
+    return { ok: true, path: dir, count: files.length }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message || '저장하지 못했습니다.' }
   }
 }
 

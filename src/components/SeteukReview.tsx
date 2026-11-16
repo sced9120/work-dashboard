@@ -6,6 +6,8 @@ import type { SeteukActivity, SeteukRosters, SeteukRows, SeteukStudent } from '.
 import { REVIEW_MIN_CHARS } from '../../shared/seteukReview'
 import type { ReviewGrade } from '../../shared/seteukReview'
 import Markdown from './Markdown'
+import SeteukMap from './SeteukMap'
+import type { TopicMap } from '../../shared/seteukMap'
 import { useToast } from '../lib/toast'
 
 /**
@@ -44,6 +46,8 @@ export default function SeteukReview({ students, rosters, acts, rows, model, onC
   const [career, setCareer] = useState('')
   const [busy, setBusy] = useState(false)
   const [report, setReport] = useState('')
+  const [topicMap, setTopicMap] = useState<TopicMap | null>(null)
+  const [mapBusy, setMapBusy] = useState(false)
 
   const pick = (id: string): void => {
     setSid(id)
@@ -53,6 +57,7 @@ export default function SeteukReview({ students, rosters, acts, rows, model, onC
     if (!t) return toast('이 학생은 작성실에 쓴 글이 아직 없습니다. 학생부를 직접 붙여 넣어 주세요.')
     setText(t)
     setReport('')
+    setTopicMap(null)
   }
 
   // 기재요령 금지어 — 이 PC 에서만 본다
@@ -73,6 +78,24 @@ export default function SeteukReview({ students, rosters, acts, rows, model, onC
     }
     setReport(r.report ?? '')
   }
+
+  const mapNow = async (dry: boolean): Promise<void> => {
+    if (!grade || mapBusy) return
+    setMapBusy(true)
+    const r = await window.api.seteuk.map({ text, grade, career, model: model ?? undefined, dry })
+    setMapBusy(false)
+    if (!r.ok) return toast(r.error ?? '주제 지도를 만들지 못했습니다.', 'err')
+    if (dry && r.text) {
+      await window.api.clipboard.write(r.text)
+      return toast('요청 글을 복사했습니다(이름은 가렸습니다). AI 앱에 붙여 넣으세요.', 'ok')
+    }
+    setTopicMap(r.map ?? null)
+  }
+
+  const mapLabel = ((): string => {
+    const s = students.find((x) => x.id === sid)
+    return s ? `${studentLabel(s)}` : '학생'
+  })()
 
   const ready = !!grade && text.trim().length >= REVIEW_MIN_CHARS
 
@@ -122,6 +145,7 @@ export default function SeteukReview({ students, rosters, acts, rows, model, onC
         onChange={(e) => {
           setText(e.target.value)
           setReport('')
+          setTopicMap(null)
         }}
         placeholder={'나이스에서 복사한 세특 · 창체 · 행발을 붙여 넣습니다. 영역 이름을 함께 붙이면 더 잘 읽습니다.\n예) [수학] 교과서에 제시된 공식 대신 …'}
         aria-label="학생부 글"
@@ -143,6 +167,12 @@ export default function SeteukReview({ students, rosters, acts, rows, model, onC
       <div className="row">
         <button className="btn btn-primary btn-sm" onClick={() => void send(false)} disabled={!ready || busy}>
           {busy ? '읽는 중…' : '살펴보기'}
+        </button>
+        <button className="btn btn-sm" onClick={() => void mapNow(false)} disabled={!ready || busy || mapBusy} title="주제를 뽑아 서로 잇고, 이어 갈 주제를 어느 영역에 둘지 지도로 봅니다">
+          {mapBusy ? '그리는 중…' : '주제 지도'}
+        </button>
+        <button className="btn btn-sm btn-ghost" onClick={() => void mapNow(true)} disabled={!ready || busy || mapBusy} title="키 없이 — 주제 지도 요청 글 복사">
+          지도 요청 글 복사
         </button>
         <button className="btn btn-sm btn-ghost" onClick={() => void send(true)} disabled={!ready || busy} title="AI 키가 없을 때 — 요청 글을 복사해 AI 앱에서 받습니다">
           키 없이 — 요청 글 복사
@@ -173,6 +203,7 @@ export default function SeteukReview({ students, rosters, acts, rows, model, onC
           <p className="small muted">AI 의견입니다. 학생부에 옮기기 전에 학생 · 수업 기록으로 확인해 주세요.</p>
         </div>
       )}
+      {topicMap && <SeteukMap map={topicMap} label={mapLabel} />}
     </section>
   )
 }

@@ -103,6 +103,40 @@ select:focus {
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
+/* 3.7.5 화면 크기 — 본문 15px · 단추 36px(작은 단추 30px) · 입력칸 38px. 글자 배율(설정 → 글자 크기)과는 따로 곱해진다 */
+body {
+  font-size: 15px;
+}
+:root .btn {
+  min-height: 36px;
+  padding: 8px 16px;
+  font-size: 14px;
+}
+:root .btn-sm {
+  min-height: 30px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+input[type='text'],
+input[type='password'],
+select {
+  min-height: 38px;
+  padding: 9px 12px;
+}
+.field label {
+  font-size: 14px;
+}
+.field .hint,
+.small {
+  font-size: 13px;
+}
+.note {
+  font-size: 14px;
+}
+.card-title {
+  font-size: 16px;
+}
+
 /* :root 를 붙여 styles.css 의 .btn-primary 등보다 한 단계 세게 — 아래에서 변형을 다시 적는다 */
 :root .btn {
   background: var(--btn-bg);
@@ -1571,12 +1605,12 @@ select:focus {
   background: var(--surface-3);
 }
 .theme-seg button {
-  padding: 5px 14px;
+  padding: 6px 14px;
   border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 .theme-seg button.on {
@@ -3861,7 +3895,7 @@ select:focus {
   position: relative;
   z-index: 40;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
   align-items: center;
   gap: 12px;
   padding: 10px 20px;
@@ -3915,14 +3949,14 @@ select:focus {
   background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 .ns-tabs button {
-  min-height: 36px;
+  min-height: 40px;
   padding: 0 22px;
   border: 0;
   border-radius: 9px;
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 14px;
+  font-size: 15.5px;
   font-weight: 500;
   cursor: pointer;
   transition: background-color 160ms ease, box-shadow 160ms ease, transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -3960,6 +3994,7 @@ select:focus {
   gap: 6px;
   min-height: 36px;
   margin-right: 6px;
+  white-space: nowrap;
   padding: 0 14px 0 11px;
   border: 0;
   border-radius: 10px;
@@ -3991,8 +4026,8 @@ select:focus {
 .ns-icon {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -5354,11 +5389,11 @@ body {
 }
 :root[data-theme='orbit'] .ns-tabs button {
   position: relative;
-  min-height: 40px;
-  padding: 0 16px;
+  min-height: 42px;
+  padding: 0 18px;
   border-radius: 999px;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
 }
 :root[data-theme='orbit'] .ns-tabs button:hover {
@@ -7360,4 +7395,223 @@ body {
   background: var(--accent-strong);
   border-color: var(--accent-strong);
   color: var(--on-accent, #fff);
+}
+
+
+/* 받은 공문으로 기안문 쓰기 (GianmunCard) */
+.gianmun-card {
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.gianmun-ref {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px;
+}
+.gianmun-text {
+  width: 100%;
+  font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* 세특 작성실 — 학생부 주제 지도 */
+
+.smap {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.smap-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 8px 0;
+}
+.smap-graph {
+  flex: 3 1 440px;
+  min-width: 0;
+}
+.smap-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.smap-panel {
+  flex: 1 1 230px;
+  min-width: 0;
+  max-height: 540px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.smap-link {
+  stroke: var(--border-strong);
+  stroke-width: 1.6;
+}
+.smap-link.on {
+  stroke: var(--accent);
+  stroke-width: 2.4;
+}
+.smap-sline {
+  stroke: var(--muted);
+  stroke-width: 1.4;
+  stroke-dasharray: 5 4;
+}
+.smap-arrow {
+  fill: var(--muted);
+}
+.smap-hit {
+  stroke: transparent;
+  stroke-width: 12;
+  cursor: help;
+}
+.smap-node {
+  cursor: pointer;
+  outline: none;
+}
+.smap-node rect {
+  fill: var(--surface);
+  stroke-width: 1.6;
+}
+.smap-node text {
+  fill: var(--text);
+  font-weight: 600;
+  pointer-events: none;
+}
+.smap-node.su rect {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+}
+.smap-node.ch rect {
+  fill: var(--ok-soft);
+  stroke: var(--ok);
+}
+.smap-node.sug rect {
+  fill: var(--surface);
+  stroke-dasharray: 5 3;
+}
+.smap-node.sug text {
+  font-weight: 500;
+}
+.smap-node.sel rect,
+.smap-node:focus-visible rect {
+  stroke-width: 3;
+}
+.smap-node.sug .smap-badge rect {
+  fill: var(--text-2, var(--text));
+  stroke: none;
+  stroke-dasharray: none;
+}
+.smap-node .smap-badge text {
+  fill: var(--surface);
+  font-weight: 600;
+}
+.smap-tip rect {
+  fill: var(--toast-bg, #1f2937);
+}
+.smap-tip text {
+  fill: var(--toast-fg, #fff);
+}
+.smap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 6px;
+}
+.smap-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 6px;
+}
+.smap-chip {
+  display: inline-block;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text);
+}
+.smap-chip.su {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.smap-chip.ch {
+  background: var(--ok-soft);
+  border-color: var(--ok);
+}
+.smap-ptitle {
+  font-weight: 700;
+  font-size: 14px;
+}
+.smap-sub {
+  margin: 10px 0 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.smap-quote {
+  margin: 6px 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--border-strong);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.smap-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.smap-list li {
+  margin-bottom: 8px;
+}
+.smap-go {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.smap-gt {
+  margin: 8px 0 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.smap-warn {
+  color: var(--warn);
+}
+
+/* 설정 · 모델 [최신 목록 불러오기] 결과 */
+.model-fetched {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.35));
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.model-fetched-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
 }

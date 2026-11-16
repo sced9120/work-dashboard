@@ -71,6 +71,7 @@ import type { SeteukCompressReply, SeteukCompressRequest, SeteukSumPatch, Seteuk
 import type { NeisOptions, NeisPreviewReply } from '../../shared/seteukNeis'
 import type { XlsxPreview } from '../../shared/seteukXlsx'
 import type { SeteukReviewReply, SeteukReviewRequest } from '../../shared/seteukReview'
+import type { SeteukMapExportReply, SeteukMapReply, SeteukMapRequest, TopicMap } from '../../shared/seteukMap'
 import type { SchoolTimetable, TtRow } from '../../shared/timetable'
 import type {
   ComposeResult,
@@ -82,6 +83,7 @@ import type {
   HwpForm
 } from '../../shared/hwpform'
 import type { Deck, DesignSource } from '../../shared/slides'
+import type { GianmunDraftReply, GianmunDraftRequest, GianmunSaveReply } from '../../shared/gianmun'
 
 export interface ActionResult {
   ok: boolean
@@ -198,6 +200,10 @@ const api = {
     points: (items: { id: string; text: string }[], model: ModelChoice | null): Promise<{ ok: boolean; out: { id: string; text: string; error?: string }[] }> => ipcRenderer.invoke('seteuk:points', items, model),
     /** 학생부 살펴보기 — 1 · 2학년은 이어 갈 탐구, 3학년은 짜임과 보완할 곳 */
     review: (req: SeteukReviewRequest): Promise<SeteukReviewReply> => ipcRenderer.invoke('seteuk:review', req),
+    /** 학생부 주제 지도 — 주제 · 연결 · 이어 갈 추천 */
+    map: (req: SeteukMapRequest): Promise<SeteukMapReply> => ipcRenderer.invoke('seteuk:map', req),
+    /** 주제 지도를 옵시디언 노트 폴더로 */
+    mapExport: (map: TopicMap, label: string): Promise<SeteukMapExportReply> => ipcRenderer.invoke('seteuk:mapExport', map, label),
     ground: (actId: string, sid: string, model: ModelChoice | null): Promise<{ ok: boolean; row?: SeteukRow; error?: string }> => ipcRenderer.invoke('seteuk:ground', actId, sid, model),
     styleCard: (model: ModelChoice | null, dry: boolean): Promise<{ ok: boolean; card?: string; text?: string; error?: string }> => ipcRenderer.invoke('seteuk:styleCard', model, dry),
     demoFill: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('seteuk:demoFill'),
@@ -350,6 +356,8 @@ const api = {
       return () => ipcRenderer.removeListener('ai:chatDelta', handler)
     },
     test: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('ai:test'),
+    /** [최신 목록 불러오기] — 이 서비스가 내 키로 쓸 수 있다고 알려 주는 모델 이름들 */
+    listModels: (provider: import('../../shared/types').Provider): Promise<{ ok: boolean; models?: string[]; error?: string }> => ipcRenderer.invoke('ai:listModels', provider),
     onProgress: (cb: (msg: string) => void): (() => void) => {
       const handler = (_e: unknown, msg: string): void => cb(msg)
       ipcRenderer.on('ai:progress', handler)
@@ -540,6 +548,11 @@ const api = {
     /** 이 프로그램이 방금 저장한 파일만 열 수 있다 */
     open: (target: string): Promise<string> => ipcRenderer.invoke('files:openSaved', target),
     reveal: (target: string): Promise<void> => ipcRenderer.invoke('files:revealSaved', target)
+  },
+  /** 받은 공문으로 기안문 쓰기 */
+  gianmun: {
+    draft: (args: GianmunDraftRequest): Promise<GianmunDraftReply> => ipcRenderer.invoke('gianmun:draft', args),
+    save: (args: { name?: string; text: string }): Promise<GianmunSaveReply> => ipcRenderer.invoke('gianmun:save', args)
   },
   /** 발표자료(PPT) */
   slides: {

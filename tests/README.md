@@ -10,13 +10,17 @@
 npm run build
 node -r ./tests/hook.cjs ./tests/run_ocr.cjs       # 스캔 문서 → 엑셀 (OCR)
 node -r ./tests/hook.cjs ./tests/run_vertex.cjs    # Gemini 를 Google Cloud(Vertex AI)로 — 서비스 계정 · Express
+node tests/t_gianmun.cjs                           # 받은 공문으로 기안문 — 근거 뽑기 · 지시 · 글 다듬기 (빌드 없이)
+node -r ./tests/hook.cjs ./tests/run_gianmun.cjs   # 기안문 초안(가림 확인) · 한글(.hwpx) 저장
 node tests/t_vertex.cjs                            # Vertex 연결 — geminiReady · 주소 모양
+node tests/t_modellist.cjs                         # 모델 목록 거르기 · 정렬 · diff · 새 모델 분류
 node -r ./tests/hook.cjs ./tests/run_batch.cjs     # 폴더 일괄 분석 (학생별 정리 · 세특 · 채점)
 node -r ./tests/hook.cjs ./tests/run_chat.cjs      # 업무 도우미 · 일반 대화 · 대화 보관
 node -r ./tests/hook.cjs ./tests/run_catalog.cjs   # 도구 모음 목록 받기
 node -r ./tests/hook.cjs ./tests/run_memo.cjs      # 자유 메모장
 node -r ./tests/hook.cjs ./tests/run_messenger.cjs # 메신저 정리 · 폰에서 보내기
 node -r ./tests/hook.cjs ./tests/run_exaone.cjs    # K-EXAONE (LG) 연결
+node -r ./tests/hook.cjs ./tests/run_modellist.cjs # [최신 목록 불러오기] — ai:listModels
 node -r ./tests/hook.cjs ./tests/run_seteuk.cjs    # 세특 작성실 (명단 · 활동 · 초안 받기)
 node -r ./tests/hook.cjs ./tests/run_seteuk_scan.cjs # 세특 작성실 — 스캔 · 사진에서 관찰 기록 가져오기
 node -r ./tests/hook.cjs ./tests/run_seteuk_sum.cjs  # 세특 작성실 — 취합 · 압축 · 나이스 입력 파일
@@ -35,6 +39,8 @@ node tests/t_relayform.cjs                           # 우편함 v3 — 설문�
 node -r ./tests/hook.cjs ./tests/run_relayform.cjs # 설문지 응답 가져오기 (relay:form)
 node -r ./tests/hook.cjs ./tests/run_dataloc.cjs # 자료 폴더 고르기 · 잠금
 node -r ./tests/hook.cjs ./tests/run_seteuk_review.cjs # 세특 작성실 — 서술 흐름 · 학생부 살펴보기
+node tests/t_seteuk_map.cjs                          # 학생부 주제 지도 — 읽기 · 배치 · 옵시디언 노트 · 지시문 (빌드 없이)
+node -r ./tests/hook.cjs ./tests/run_seteuk_map.cjs # 주제 지도 (seteuk:map · mapExport) — 이름 가림 · 되돌림 · 노트 저장
 node -r ./tests/hook.cjs ./tests/run_seteuk_config.cjs # 세특 작성실 — 내 규칙이 초안 · 고쳐쓰기에 쓰임
 node tests/t_mdtable.cjs                           # 답에서 표 뽑기 · 이어 붙이기 · 수식 (빌드 없이)
 node tests/t_xlsxkind.cjs                         # 엑셀 열 성격(번호 · 날짜 · 금액) 판별 · 너비 · 칸 서식 (빌드 없이)
@@ -50,6 +56,9 @@ node tests/t_messenger.cjs                         # 출결 명단 · 기록, �
 node tests/t_seteuk.cjs                            # 세특 작성실 — 나이스 바이트 · 명단 붙여넣기 · 프롬프트 조립 · 검사 (빌드 없이)
 node tests/t_seteuk_sum.cjs                        # 세특 작성실 — 취합 · 압축 규칙 · 학생 간 점검 · 나이스 양식 채우기 (빌드 없이)
 node tests/t_seteuk_compare.cjs                    # 세특 작성실 — 관찰 기록 날짜 · 프롬프트 날짜 규칙 · 학생끼리 견주기 (빌드 없이)
+node tests/t_tsvpaste.cjs                          # 엑셀에서 붙여 넣기 — parseTsv · planPaste (빌드 없이)
+node tests/t_batchsend.cjs                         # 문서 스캔 결과 → 세특 활동 보내기 계획 (빌드 없이)
+node -r ./tests/hook.cjs ./tests/run_batch_to_seteuk.cjs  # 보내기 → seteuk:rows 합치기 (빈 칸에만 · 덮어쓰기 · 못 찾음)
 node tests/t_seteuk_xlsx.cjs                       # 세특 작성실 — 엑셀 표 ↔ 작성실 자료 (빌드 없이)
 node tests/t_seteuk_config.cjs                     # 세특 작성실 — 내 규칙(끈 검사 · 내 금지어 · 더할 규칙 · 뺄 칸) (빌드 없이)
 node tests/t_seteuk_rules2026.cjs                  # 세특 작성실 — 2026 검사 규칙(한자 · 영문 · 장학금 · 대회 · 문단 기호 · 오탐 고침) · 채팅용 세특 지식 (빌드 없이)
@@ -100,12 +109,19 @@ Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron
 | `t_seteuk.cjs` | 나이스 바이트(한글 3 · 줄바꿈 1) · 명단(머리줄 · 학번 · 두 칸 · 한 칸 · 겹친 번호) · 망가진 설정 · 프롬프트 조립 순서 · 역할 · 분량(메모만큼 · 보통 · 넉넉히, 영역 한도) · 받은 글 다듬기 · 검사(빈 글 · 분량 초과/부족 · 기재 금지 · 형식 · AI 말투) · 관찰 기록 가져오기(붙여 넣은 표 · 따옴표 안 줄바꿈 · 이름 · 학번 · 반과 번호로 맞추기 · 겹친 이름 · 내용 칸 여럿 · 못 맞춘 줄 · 뒤에 붙이기) · 반별 목록(학번 남기기 · 이름표 · 반 이름 다듬기 · 그 반만 바꾸기 · 다른 반 보존 · @수업반 · id 그대로 · 반 탭 차례 · 다시 읽기) |
 | `t_seteuk_sum.cjs` | 영역별로 모으기(최종본 먼저 · 없으면 초안) · 최종본과 상태(합본 그대로 · 한도 넘음 · 압축본 · 다듬음) · 압축본을 넣는 때 · 한도로 자르기 · 압축 규칙 조립 · 학생 간 점검(같은 문장 · 분량 차이 · 빈 칸) · 나이스 양식(과목 세특 · 동아리 · 공유 문자열 · 반/번호 · 빠지는 까닭 · 그 칸만 바꾸기 · 칸 끼우기 · 양식 아님) |
 | `t_seteuk_compare.cjs` | 관찰 기록에 날짜 붙이기(빈 기록 · 줄바꿈 없이 끝남 · 줄바꿈으로 끝남 · 한 자리 달 · 날) · 프롬프트의 날짜 규칙(시간 순서로 읽기 · 날짜는 글에 안 씀 · 항목으로 나눈 기록에도) · 학생끼리 견주기(거의 같은 글 한 쌍 · 서로 다른 글 쌍 없음 · 빈 글 · pairsOf) |
+| `t_tsvpaste.cjs` | parseTsv(탭 · CRLF · 끝 빈 줄 · 따옴표 안 줄바꿈 · "" · 빈 칸) · planPaste(아래로 · 옆으로 · 마지막 학생 · 마지막 열에서 잘림 · 입력 항목 열 · 최종본만) · pasteClipped |
+| `t_batchsend.cjs` | 결과 줄 ↔ 학생 맞추기(학번 · 이름 · 없음) · 항목 → 관찰 기록 · 빈 칸에만 · 덮어쓰기 · 체크 끄기 · 입력 항목이 여럿인 활동의 칸 · 못 찾은 학생 |
+| `run_batch_to_seteuk.cjs` | 보내기 IPC(seteuk:rows) — 맞춘 학생에 관찰 기록 · AI 초안 · 빈 칸에만이면 있던 글 유지 · 최종본 안 건드림 · 명단 밖 학생 안 생김 · 덮어쓰기 |
 | `t_seteuk_xlsx.cjs` | 세특 시트 파일 읽기(명단 · 활동목록 · ▸입력 시트 · 학년-반 · 입력 칸 여럿 · ⚠ 실패 표시 · 취합의 다듬은 글만) · 합치기(없던 학생 · 이름이 다른 학생 · 같은 이름 활동 · 빈 칸만 채우기 · 덮어쓰기 · 파일의 빈 칸은 안 지움) · 내보내기(시트 이름 31자 · 3행 머리글) → 다시 읽기(긴 활동 이름 · 설정 · 줄바꿈) · 두 번 가져와도 그대로 · 수업반 · 학번(명단 시트 칸 · 두 수업반의 같은 학생은 명단 차례로 가름 · 내보낸 작성실에 다시 가져와도 그대로 · 빈 학번 · 수업반만 채움) |
 | `t_seteuk_config.cjs` | 기본값 · 모르는 규칙 버리기 · 끈 검사 · 내 금지어(수준 · 이유 · 기호는 글자 그대로) · 쉼표 나누기 · 쓰는 규칙의 끈 칸 · 더한 줄 · 금지어 줄 · 기재요령 틀은 늘 있음 |
 | `t_seteuk_rules2026.cjs` | 낮춘 검사(특수문자 · '학생' 주어는 확인) · 오탐 고침(모평균 · 작품 속 어머니 · 대회의실) · 새 규칙(한자 · 영문 허용 목록과 단위 · 장학금 · 어학시험 목록 · 대회 우회 · 연구보고서 · 줄 첫머리 번호) · 도서명 이유 · 문체 권고 표시 · 진로 · 행발 안내 · 채팅용 세특 지식(길이 · 제목 · 언제 붙일지) |
 | `t_weather.cjs` | 학교 주소에서 시 · 군 · 구만(도 · 광역시 · 특별자치시) · 짧은 이름 · 날씨 코드 말(밤엔 달) · 미세먼지 등급(환경부 기준, 나쁜 쪽) · Open-Meteo 답(지금 · 오늘 · 내일 · 지금 시부터 12시간 · 미세먼지 못 받아도) · 우산 · 지금 비 · 미세먼지 알림 · D-Day(D-Day · D+ · 해 넘김) · 틀린 D-Day 빼기 · 다가오는 것 먼저 |
 | `t_autoroute.cjs` | 점수(인사 · 어려움 · 업무 문서 · 코드 · 긴 글 · 첨부) · 이어 묻기(짧은 질문이 앞 점수를 이어받음) · Gemini 모델 · 생각 정도 · GPT 규칙으로 정하기(쉬움 · 어려움 · 업무 문서 · 애매) · 라우터 입력(2,000자 · 300자 · 첨부는 개수만) · 라우터 답 읽기(정해진 값만) · 이름표 · 자동 이름은 모델 목록 · isModernGemini · isGeminiModel · OCR 에 없음 |
 | `run_autoroute.cjs` | GPT 자동(쉬운 질문은 라우터 없이 luna · low, 업무 문서 · 어려움은 sol, 애매하면 luna 라우터 한 번, 라우터 실패 · 이상한 답 · 시간 초과면 sol · medium · 기본값, 이어 묻기, 첨부는 개수만) · Gemini 자동(3.8-flash · high / flash-lite · low / 3.6-flash · medium) · reasoning_effort · thinking 거절 시 빼고 다시 + 기억 · 자동이 아니면 안 붙음 · 대화 밖(askJson · askSeteuk)에서 자동 이름이 안 닿음 · 설정 기본 모델은 자동 불가 · 키 없음 |
+| `t_gianmun.cjs` | 기안 종류 6가지 · extractRef(기관 · 문서번호 · 시행일자 · 제목, 못 찾으면 빈 글) · 관련 줄(없는 조각 건너뜀) · 지시(관련 줄 · 지어내지 않기 · ○○) · formatGianmun(번호 띄어쓰기 · 붙임 · 끝. · 두 번 다듬어도 같음) |
+| `run_gianmun.cjs` | gianmun:draft(전화 · 이메일 가려 보냄 · 번호 다듬기 · 끝.) · gianmun:save(.hwpx 의 section0.xml 에 "1. 관련" 이 글자로 남음 · 취소 · 빈 글) |
 | `t_vertex.cjs` | geminiReady(key · vertex · express, 옛 설정은 key) · 주소 모양(key · vertex global · 리전 · express · 스트림 ?alt=sse · 이상한 위치는 global · 프로젝트 ID 인코딩) |
 | `run_vertex.cjs` | 잘못된 JSON(type · private_key · client_email · project_id · JSON 아님)은 한국어 오류에 아무것도 저장 안 함 · 일회용 RSA 키로 고르기(비밀 키가 local:load 에 없음 · 원본 복사 · 경로 기억 없음) · 화면의 저장이 서비스 계정 · Express 키를 지우지 못함 · 토큰 요청(form · JWT RS256 서명 · claims) → Bearer 호출(contents role) · 토큰 재사용 · 401 이면 새로 받아 한 번만 다시 · 403(API 사용 설정 · 역할) · 404 · 429 안내 · 리전 주소 · 만료 5분 전 갱신 · 동시에 불러도 토큰 1번 · 연결 확인 · Express(주소 · x-goog-api-key) · 키 방식은 그대로 · 서비스 계정 빼기 |
 | `t_catalog.cjs` | https 만 · 테마 토큰만 · 의견 설문지 · OCR 지침/모델(Gemini · OpenAI) · 실제 `remote/catalog.json` |
+| `t_modellist.cjs` | parseModelList(OpenAI 대화 모델만 · Gemini generateContent 만 · Claude 폐기 제외 · EXAONE) · 새것 먼저 정렬 · diffModels · 요청 머리글 · gpt-6.1/gemini-4 temperature 분류 · 기본 목록 |
+| `run_modellist.cjs` | ai:listModels(OpenAI · Gemini · Claude 여러 쪽 · EXAONE 실패 안내) · 인증 머리글 · 네트워크 오류 · 키 없음 · Vertex/Express 안내 · 새 모델은 temperature 안 보냄 |

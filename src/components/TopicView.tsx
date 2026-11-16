@@ -13,6 +13,7 @@ import {
 } from '../lib/topics'
 import type { GroupSeed } from '../pages/Roadmap'
 import { monthOf, schoolOrder, todayStr, weekOf } from '../lib/util'
+import GianmunCard from './GianmunCard'
 
 interface Props {
   tasks: Task[]
@@ -158,6 +159,8 @@ export default function TopicView({
   const [docs, setDocs] = useState<SearchHit[]>([])
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [openDoc, setOpenDoc] = useState<DocFull | null>(null)
+  /** 기안문 쓰기 카드를 펼친 공문 */
+  const [gianmunId, setGianmunId] = useState<number | null>(null)
 
   const [flow, setFlow] = useState('')
   const [flowOpen, setFlowOpen] = useState(false)
@@ -798,6 +801,13 @@ export default function TopicView({
                           </button>
                           <button
                             className="btn btn-sm btn-ghost tl-hide"
+                            title="이 공문을 근거로 기안문 초안을 씁니다"
+                            onClick={() => setGianmunId(gianmunId === i.hit!.id ? null : i.hit!.id)}
+                          >
+                            {gianmunId === i.hit!.id ? '기안문 닫기' : '기안문 쓰기'}
+                          </button>
+                          <button
+                            className="btn btn-sm btn-ghost tl-hide"
                             title="이 주제의 관련 공문에서 뺍니다. 원문은 지워지지 않습니다"
                             onClick={() => void hideDoc(i.hit!.id)}
                           >
@@ -813,6 +823,9 @@ export default function TopicView({
                           <div className="scroll-box" style={{ marginTop: 8 }}>
                             {openDoc.content}
                           </div>
+                        )}
+                        {gianmunId === i.hit!.id && (
+                          <GianmunCard docId={i.hit!.id} docName={i.title} onClose={() => setGianmunId(null)} />
                         )}
                       </div>
                     </div>

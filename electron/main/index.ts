@@ -27,11 +27,14 @@ import {
   composeFromForm,
   draftSlides,
   extractDocForm,
+  draftGianmun,
   generateDocDraft,
   testConnection,
+  listModels,
   type SlideDraftInput
 } from './ai'
-import { answerToHwpx, fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
+import { answerToHwpx, fillSlots, gianmunToHwpx, kindOf, readLayout, textToHwpx } from './hwpdoc'
+import { extractRef, formatGianmun, type GianmunDraftRequest } from '../../shared/gianmun'
 import { exportFileName } from '../../shared/answerdoc'
 import { buildFromFrame, readFrame } from './hwpgen'
 import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
@@ -39,12 +42,13 @@ import { clearGcalCache, exportIcs, gcalEvents, gcalTest } from './gcal'
 import { getCatalog } from './catalog'
 import { addPaths, cancelOcr, clearOcr, continueOcr, pickFiles, runOcr, saveXlsx } from './ocr'
 import { addFolder, cancelBatch, pickFolder, runBatch, saveBatch } from './batch'
-import { seteukCancel, seteukDemoClear, seteukDemoFill, seteukLoad, seteukRequest, seteukSaveActs, seteukSaveRoster, seteukSaveRows, seteukAdvice, seteukGemText, seteukGround, seteukPoints, seteukReview, seteukSaveConfig, seteukSkillSave, seteukSaveOptions, seteukSaveStyle, seteukStyleCard, seteukWrite } from './seteuk'
+import { seteukCancel, seteukDemoClear, seteukDemoFill, seteukLoad, seteukRequest, seteukSaveActs, seteukSaveRoster, seteukSaveRows, seteukAdvice, seteukGemText, seteukGround, seteukPoints, seteukReview, seteukMap, seteukMapExport, seteukSaveConfig, seteukSkillSave, seteukSaveOptions, seteukSaveStyle, seteukStyleCard, seteukWrite } from './seteuk'
 import type { SeteukActivity, SeteukConfig, SeteukMode, SeteukOptions, SeteukRow, SeteukStudent, SeteukStyle, SeteukWriteRequest } from '../../shared/seteuk'
 import { seteukCompress, seteukCompressCancel, seteukNeisPick, seteukNeisPreview, seteukNeisSave, seteukSaveSum, seteukSums } from './seteukSum'
 import type { SeteukCompressRequest, SeteukSumPatch } from '../../shared/seteukSum'
 import type { NeisOptions } from '../../shared/seteukNeis'
 import type { SeteukReviewRequest } from '../../shared/seteukReview'
+import type { SeteukMapRequest, TopicMap } from '../../shared/seteukMap'
 import { seteukXlsxApply, seteukXlsxExport, seteukXlsxPick, seteukXlsxPreview } from './seteukXlsx'
 import type { BatchOptions, BatchRequest, BatchRow } from '../../shared/batch'
 import { deleteChat, getChat, listChats, listPresets, renameChat, saveChat, savePresets } from './chats'
@@ -352,6 +356,8 @@ function registerIpc(): void {
   ipcMain.handle('seteuk:skill', (_e, actId: string) => seteukSkillSave(mainWindow, String(actId)))
   ipcMain.handle('seteuk:points', (_e, items: { id: string; text: string }[], model: ModelChoice | null) => seteukPoints(items, model))
   ipcMain.handle('seteuk:review', (_e, req: SeteukReviewRequest) => seteukReview(req))
+  ipcMain.handle('seteuk:map', (_e, req: SeteukMapRequest) => seteukMap(req))
+  ipcMain.handle('seteuk:mapExport', (_e, map: TopicMap, label: string) => seteukMapExport(mainWindow, map, String(label ?? '')))
   ipcMain.handle('seteuk:ground', (_e, actId: string, sid: string, model: ModelChoice | null) => seteukGround(String(actId), String(sid), model))
   ipcMain.handle('seteuk:styleCard', (_e, model: ModelChoice | null, dry: boolean) => seteukStyleCard(model, dry === true))
   ipcMain.handle('seteuk:demoFill', () => seteukDemoFill())
@@ -627,6 +633,38 @@ function registerIpc(): void {
     }
   })
 
+  // 받은 공문(보관 문서)으로 기안문 초안을 만든다 — 이름 · 연락처는 가려서 보낸다
+  ipcMain.handle('gianmun:draft', async (_e, args: GianmunDraftRequest) => {
+    const doc = db.getDoc(Number(args?.docId))
+    if (!doc) return { ok: false, text: '', error: '보관된 공문을 찾을 수 없습니다.' }
+    const found = extractRef(doc.content)
+    const ref = { ...found, ...Object.fromEntries(Object.entries(args.ref ?? {}).filter(([, v]) => typeof v === 'string')) }
+    const r = await draftGianmun(
+      loadLocalSettings(),
+      (args.model as ModelChoice | null | undefined) ?? undefined,
+      doc.content,
+      String(args.kind ?? ''),
+      ref,
+      String(args.extra ?? '')
+    )
+    return { ok: r.ok, text: r.text, sentToAi: r.sentToAi, error: r.error }
+  })
+
+  // 기안문 글 → 한글(.hwpx). 번호(1. 가.)는 목록이 아닌 글자로 둔다
+  ipcMain.handle('gianmun:save', async (_e, args: { name?: string; text: string }) => {
+    try {
+      const text = formatGianmun(String(args?.text ?? ''))
+      if (!text.trim()) return { ok: false, message: '저장할 글이 없습니다.' }
+      const data = await gianmunToHwpx(text)
+      const target = await saveAs('기안문을 한글 문서로 저장', exportFileName(String(args?.name ?? ''), '기안문'), 'hwpx', '한글 표준 문서')
+      if (!target) return { ok: false, message: '저장을 취소했습니다.' }
+      writeOut(target, data)
+      return { ok: true, message: `저장했습니다: ${target}`, path: target }
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
   // 방금 저장한 파일을 한글·PowerPoint 로 연다
   ipcMain.handle('files:openSaved', async (_e, target: string) => {
     const full = path.resolve(target)
@@ -845,6 +883,7 @@ function registerIpc(): void {
       answerFromSources(loadLocalSettings(), args.jobTitle, args.query, args.sources, args.model)
   )
   ipcMain.handle('ai:test', () => testConnection(loadLocalSettings()))
+  ipcMain.handle('ai:listModels', (_e, provider: import('../../shared/types').Provider) => listModels(loadLocalSettings(), provider === 'openai' || provider === 'claude' || provider === 'exaone' ? provider : 'gemini'))
   /* ---------- 업무 도우미 · 일반 대화 ---------- */
   /** 받는 중인 답 — 멈추기에 쓴다 */
   const chatRuns = new Map<string, AbortController>()
@@ -1245,7 +1284,7 @@ function registerIpc(): void {
   // 설정 → 화면 테마 → 글자 크기. 보낸 창의 배율만 바꾼다(정해 둔 값만)
   ipcMain.handle('ui:zoom', (e, factor: number) => {
     const f = Number(factor)
-    if (![0.9, 1, 1.1, 1.25].includes(f)) return
+    if (![0.9, 1, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.4, 1.5].includes(f)) return
     e.sender.setZoomFactor(f)
   })
   // file:// 로 띄운 창에서는 navigator.clipboard 가 막히므로 메인에서 처리한다.

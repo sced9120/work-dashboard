@@ -151,7 +151,7 @@ interface Props {
   className?: string
 }
 
-export default function Icon({ name, size = 18, className }: Props): JSX.Element {
+export default function Icon({ name, size = 20, className }: Props): JSX.Element {
   if (name in LUCIAN) {
     // React 18 은 웹 컴포넌트에 className 을 class 로 바꿔 주지 않아 class 로 넘긴다
     const props: Record<string, string> = { size: String(size), class: `ico ${className ?? ''}`.trim(), 'aria-hidden': 'true' }

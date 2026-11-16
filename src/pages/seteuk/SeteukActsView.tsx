@@ -39,6 +39,8 @@ import {
   validateSeteuk
 } from '../../../shared/seteuk'
 import { pairsOf } from '../../../shared/seteukSum'
+import { parseTsv, pasteClipped, planPaste } from '../../../shared/tsvpaste'
+import type { PasteCell } from '../../../shared/tsvpaste'
 import type { SeteukActivity, SeteukAmount, SeteukCheck, SeteukConfig, SeteukImportHit, SeteukMode, SeteukOptions, SeteukRosters, SeteukRow, SeteukRows, SeteukStyle } from '../../../shared/seteuk'
 import Icon from '../../components/Icon'
 import ModelPicker from '../../components/ModelPicker'
@@ -62,6 +64,73 @@ import { SAVE_DELAY, MODE_KEY, INTRO_KEY, newId, stored, remember } from './core
 
 export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; rosterPanel: ReactNode }): JSX.Element {
   const { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents } = c
+
+  /* ---------- 엑셀에서 복사해 붙여 넣기 — 줄은 아래 학생으로, 탭은 오른쪽 칸으로 ---------- */
+  const rowIds = shown.map((s) => s.id)
+  /** 보이는 칸 순서 — 관찰 기록(또는 입력 항목 칸들) → AI 초안 → 최종본. 최종본만 보기면 최종본 하나 */
+  const colKeys = finalOnly ? ['final'] : [...(act && act.columns.length >= 2 ? act.columns.map((c) => `f:${c}`) : ['note']), 'ai', 'final']
+  const cellVal = (id: string, key: string): string => {
+    const r = cur[id]
+    if (!r) return ''
+    if (key.startsWith('f:')) return r.fields?.[key.slice(2)] ?? ''
+    return key === 'note' ? r.note : key === 'ai' ? r.ai : r.final
+  }
+  const applyCells = (cells: PasteCell[]): void => {
+    if (!act) return
+    const byRow = new Map<string, PasteCell[]>()
+    for (const x of cells) byRow.set(x.rowId, [...(byRow.get(x.rowId) ?? []), x])
+    for (const [id, list] of byRow) {
+      const patch: Partial<SeteukRow> = {}
+      const fields = { ...(cur[id]?.fields ?? {}) }
+      let fieldsChanged = false
+      for (const x of list) {
+        if (x.colKey.startsWith('f:')) {
+          fields[x.colKey.slice(2)] = x.value
+          fieldsChanged = true
+        } else if (x.colKey === 'note' || x.colKey === 'ai' || x.colKey === 'final') patch[x.colKey] = x.value
+      }
+      if (fieldsChanged) {
+        patch.fields = fields
+        patch.note = joinFields(act.columns, fields)
+      }
+      setCell(id, patch)
+    }
+  }
+  const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>, rowId: string, colKey: string): void => {
+    const text = e.clipboardData.getData('text/plain')
+    // 한 줄 · 탭 없는 글은 보통 붙여 넣기
+    if (!act || (!text.includes('\t') && !/[\r\n]/.test(text))) return
+    const grid = parseTsv(text)
+    if (!grid.length) return
+    if (grid.length === 1 && grid[0].length === 1) {
+      // 한 칸짜리(따옴표로 싼 칸 · 끝 줄바꿈) — 따옴표 · 끝 줄바꿈만 걷어 커서 자리에 넣는다
+      const t = grid[0][0]
+      if (t === text) return
+      e.preventDefault()
+      const old = cellVal(rowId, colKey)
+      const a = e.currentTarget.selectionStart
+      const b = e.currentTarget.selectionEnd
+      applyCells([{ rowId, colKey, value: old.slice(0, a) + t + old.slice(b) }])
+      return
+    }
+    const r0 = rowIds.indexOf(rowId)
+    const c0 = colKeys.indexOf(colKey)
+    if (r0 < 0 || c0 < 0) return
+    e.preventDefault()
+    const plan = planPaste(grid, r0, c0, rowIds, colKeys)
+    const clip = pasteClipped(grid, r0, c0, rowIds.length, colKeys.length)
+    void (async () => {
+      const had = plan.filter((x) => cellVal(x.rowId, x.colKey).trim()).length
+      if (plan.length > 1 && had > 0) {
+        const ok = await ask({ title: `${plan.length}칸에 붙여 넣습니다. 이미 글이 있는 ${had}칸은 바뀝니다.`, okText: '붙여 넣기' })
+        if (!ok) return
+      }
+      applyCells(plan)
+      const tail = (clip.rows ? ` 학생 수보다 많은 ${clip.rows}줄은 넣지 않았습니다.` : '') + (clip.cells ? ` 칸이 모자라 ${clip.cells}칸은 넣지 않았습니다.` : '')
+      toast(`${plan.length}칸에 붙여 넣었습니다.${tail}`, 'ok')
+    })()
+  }
+
   return (
     <>
         {panel !== 'review' && view === 'acts' && (
@@ -425,12 +494,13 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                                           setCell(s.id, { fields, note: joinFields(act.columns, fields) })
                                         }}
                                         aria-label={`${studentLabel(s)} ${c}`}
+                                        onPaste={(e) => onPaste(e, s.id, `f:${c}`)}
                                       />
                                     </label>
                                   ))}
                                 </div>
                               ) : (
-                                <textarea id={`stk-note-${s.id}`} value={r.note} onChange={(e) => setCell(s.id, { note: e.target.value })} placeholder="수업 · 활동에서 본 것을 적습니다" aria-label={`${studentLabel(s)} 관찰 기록`} />
+                                <textarea id={`stk-note-${s.id}`} value={r.note} onChange={(e) => setCell(s.id, { note: e.target.value })} placeholder="수업 · 활동에서 본 것을 적습니다" onPaste={(e) => onPaste(e, s.id, 'note')} aria-label={`${studentLabel(s)} 관찰 기록`} />
                               )}
                               {on && (
                                 <div className="stk-under">
@@ -467,7 +537,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                               )}
                             </td>
                             <td>
-                              <textarea className="stk-ai" value={r.ai} onChange={(e) => setCell(s.id, { ai: e.target.value })} placeholder="초안이 여기에 옵니다" aria-label={`${studentLabel(s)} AI 초안`} />
+                              <textarea className="stk-ai" value={r.ai} onChange={(e) => setCell(s.id, { ai: e.target.value })} placeholder="초안이 여기에 옵니다" onPaste={(e) => onPaste(e, s.id, 'ai')} aria-label={`${studentLabel(s)} AI 초안`} />
                               {errors[s.id] && <p className="small stk-err">{errors[s.id]}</p>}
                               {r.ai.trim() && (
                                 <div className="stk-under">
@@ -483,7 +553,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                               </>
                             )}
                             <td>
-                              <textarea value={r.final} onChange={(e) => setCell(s.id, { final: e.target.value })} placeholder="초안을 옮겨 다듬거나 바로 적습니다" aria-label={`${studentLabel(s)} 최종본`} />
+                              <textarea value={r.final} onChange={(e) => setCell(s.id, { final: e.target.value })} placeholder="초안을 옮겨 다듬거나 바로 적습니다" onPaste={(e) => onPaste(e, s.id, 'final')} aria-label={`${studentLabel(s)} 최종본`} />
                               <div className="stk-under">
                                 <span className={`small ${fb > limit ? 'stk-over' : 'muted'}`}>
                                   {fb} / {limit}바이트

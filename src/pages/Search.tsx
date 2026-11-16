@@ -5,6 +5,7 @@ import type { HelpHit } from '../../shared/helpdocs'
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
 import ModelPicker from '../components/ModelPicker'
+import GianmunCard from '../components/GianmunCard'
 import { requestMemo } from '../lib/memos'
 import { takeSearch } from '../lib/chatBridge'
 
@@ -42,6 +43,8 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
   const [model, setModel] = useState<ModelChoice | null>(null)
 
   const [openDoc, setOpenDoc] = useState<DocFull | null>(null)
+  /** 기안문 쓰기 카드를 펼친 공문 */
+  const [gianmunId, setGianmunId] = useState<number | null>(null)
 
   const refreshCount = useCallback(async () => {
     setDocCount(await window.api.docs.count())
@@ -318,6 +321,12 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
                             {openDoc?.id === h.id ? '원문 닫기' : '원문 보기'}
                           </button>
                           <button
+                            className="btn btn-sm btn-ghost"
+                            onClick={() => setGianmunId(gianmunId === h.id ? null : h.id)}
+                          >
+                            {gianmunId === h.id ? '기안문 닫기' : '기안문 쓰기'}
+                          </button>
+                          <button
                             className="btn btn-sm btn-danger"
                             onClick={() => void removeDoc(h.id, h.title)}
                           >
@@ -359,6 +368,9 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
                     <div className="scroll-box" style={{ marginTop: 10 }}>
                       {openDoc.content}
                     </div>
+                  )}
+                  {gianmunId === h.id && h.kind === 'document' && (
+                    <GianmunCard docId={h.id} docName={h.title} onClose={() => setGianmunId(null)} />
                   )}
                 </div>
               ))}

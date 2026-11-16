@@ -9,6 +9,7 @@ import {
 } from '../../shared/types'
 import { LEVEL_KEY, SCHOOL_LEVELS } from '../../shared/helpdocs'
 import { geminiModeOf, geminiReady } from '../../shared/gemini'
+import { diffModels } from '../../shared/modelList'
 import NeisSettings from '../components/NeisSettings'
 import ThemeSettings from '../components/ThemeSettings'
 import ShellSettings from '../components/ShellSettings'
@@ -101,6 +102,10 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
   const [testing, setTesting] = useState(false)
   const [testMsg, setTestMsg] = useState<{ ok: boolean; message: string } | null>(null)
   const [newModel, setNewModel] = useState('')
+  /** [최신 목록 불러오기] 결과 — added: 새로 쓸 수 있는 것 · missing: 기본 목록에는 있는데 서비스 목록에 없는 것 */
+  const [fetchedList, setFetchedList] = useState<{ provider: Provider; added: string[]; missing: string[] } | null>(null)
+  const [fetchingList, setFetchingList] = useState(false)
+  const [pickedNew, setPickedNew] = useState<string[]>([])
   const [roster, setRoster] = useState('')
   const [reading, setReading] = useState(false)
   const [picking, setPicking] = useState(false)
@@ -281,6 +286,36 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     setNewModel('')
     await applyLists(addToLists(lists, local.provider, name))
     toast(`'${name}' 을(를) 목록에 넣었습니다.`, 'ok')
+  }
+
+  /** 서비스에 이 키로 쓸 수 있는 모델을 물어 보고, 아직 목록에 없는 것을 보여 준다 */
+  const fetchLatest = async (): Promise<void> => {
+    const p = local.provider
+    setFetchingList(true)
+    setFetchedList(null)
+    setPickedNew([])
+    try {
+      const r = await window.api.ai.listModels(p)
+      if (!r.ok || !r.models) {
+        toast(r.error ?? '목록을 불러오지 못했습니다.', 'err')
+        return
+      }
+      const d = diffModels(r.models, models)
+      setFetchedList({ provider: p, added: d.added, missing: d.missing.filter((m) => isBuiltinModel(p, m)) })
+    } finally {
+      setFetchingList(false)
+    }
+  }
+
+  /** 고른 새 모델을 직접 추가와 같은 방법으로 목록에 넣는다 */
+  const addPicked = async (): Promise<void> => {
+    if (pickedNew.length === 0) return
+    let next = lists
+    for (const m of pickedNew) next = addToLists(next, local.provider, m)
+    await applyLists(next)
+    toast(`${pickedNew.length}개를 목록에 넣었습니다.`, 'ok')
+    setFetchedList((f) => (f ? { ...f, added: f.added.filter((m) => !pickedNew.includes(m)) } : f))
+    setPickedNew([])
   }
 
   /** 목록에서 모델을 뺀다. 기본 제공 모델도 뺄 수 있다(되돌리기로 복구). */
@@ -629,6 +664,38 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
             ))}
             {models.length === 0 && <span className="muted small">목록이 비었습니다.</span>}
           </div>
+
+          <div className="row" style={{ marginTop: 10 }}>
+            <button className="btn btn-sm" onClick={() => void fetchLatest()} disabled={fetchingList || !keyOf(local, local.provider)?.trim()} title={keyOf(local, local.provider)?.trim() ? '' : '키를 먼저 넣고 저장해 주세요'}>
+              {fetchingList ? '불러오는 중…' : '최신 목록 불러오기'}
+            </button>
+            <span className="muted small">내 키로 쓸 수 있는 모델을 서비스에 물어 봅니다(키는 먼저 저장해 두세요).</span>
+          </div>
+          {fetchedList && fetchedList.provider === local.provider && (
+            <div className="model-fetched">
+              {fetchedList.added.length === 0 ? (
+                <div className="muted small">새로 넣을 모델이 없습니다. 목록이 최신입니다.</div>
+              ) : (
+                <>
+                  <div className="muted small">공식 목록에 있는 모델입니다. 가격 · 지원 기능은 각 회사 안내를 확인하세요.</div>
+                  {fetchedList.added.map((m) => (
+                    <label key={m} className="model-fetched-row">
+                      <input type="checkbox" checked={pickedNew.includes(m)} onChange={(e) => setPickedNew((a) => (e.target.checked ? [...a, m] : a.filter((x) => x !== m)))} />
+                      <span>{m}</span>
+                    </label>
+                  ))}
+                  <button className="btn btn-sm" onClick={() => void addPicked()} disabled={pickedNew.length === 0}>
+                    고른 모델 넣기
+                  </button>
+                </>
+              )}
+              {fetchedList.missing.length > 0 && (
+                <div className="muted small" style={{ marginTop: 8 }}>
+                  목록에 없음 (중단되었을 수 있음): {fetchedList.missing.join(' · ')}
+                </div>
+              )}
+            </div>
+          )}
 
           {hiddenCount > 0 && (
             <div className="row" style={{ marginTop: 10 }}>

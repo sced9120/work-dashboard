@@ -58,6 +58,7 @@ import { useConfirm } from '../../lib/confirm'
 import type { PageId } from '../../App'
 import Ocr from '../Ocr'
 import { useToast } from '../../lib/toast'
+import { SETEUK_ACT_EVENT, takeSeteukAct } from '../../lib/seteukBridge'
 
 /**
  * 세특 작성실 — 명단을 붙여 넣고, 활동마다 학생별 관찰 기록을 적으면 AI 가 초안을 쓰고,
@@ -268,6 +269,39 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
     await flush()
     setPanel((now) => (now === p ? '' : p))
   }
+
+  /* ---------- 다른 화면에서 '이 활동을 열어 달라' (문서 스캔 · 정리 → 세특 활동으로 보내기) ---------- */
+
+  const wantAct = useRef(takeSeteukAct())
+  // 이미 열려 있을 때(스캔 탭) 오는 부탁 — 적던 것을 저장하고 다시 읽는다. 읽은 뒤 아래 효과가 활동을 연다
+  useEffect(() => {
+    const h = (): void => {
+      const id = takeSeteukAct()
+      if (!id) return
+      void (async () => {
+        await flush()
+        wantAct.current = id
+        await reload()
+      })()
+    }
+    window.addEventListener(SETEUK_ACT_EVENT, h)
+    return () => window.removeEventListener(SETEUK_ACT_EVENT, h)
+  }, [flush, reload])
+  useEffect(() => {
+    const id = wantAct.current
+    if (!id || !loaded) return
+    wantAct.current = ''
+    const a = acts.find((x) => x.id === id)
+    if (!a) return
+    const m = modeOfRec(a.rec)
+    setMode(m)
+    remember(MODE_KEY, m)
+    setActIds((prev) => ({ ...prev, [m]: a.id }))
+    setCls('')
+    setPanel('')
+    setView('acts')
+    resetView()
+  }, [loaded, acts, rev])
 
   /* ---------- 명단 ---------- */
 

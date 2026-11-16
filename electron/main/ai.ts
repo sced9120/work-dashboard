@@ -26,12 +26,14 @@ import { AUTO_MODELS, isAutoModel } from '../../shared/types'
 import { OPENAI_FALLBACK, GPT_CHEAP, autoLabel, decideGemini, decideOpenaiLocal, parseRoute, routeFromParsed, routerInput, routerPrompt, scoreTurns } from '../../shared/autoroute'
 import type { Effort, OpenaiRoute, ScoreMeta, ThinkingLevel } from '../../shared/autoroute'
 import { geminiModeOf, isModernGemini } from '../../shared/gemini'
+import { EXAONE_NO_LIST, VERTEX_NO_LIST, listRequestFor, parseModelList } from '../../shared/modelList'
 import { geminiCredential, geminiFetch, geminiMissingText, vertexErrorText } from './vertex'
 import { SETEUK_CHAT_KNOWLEDGE, wantsSeteukKnowledge } from '../../shared/seteukKnowledge'
 import { readSse } from './sse'
 import type { ChatSendTurn, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
 import { CHAT_IMAGE_TYPES, CHAT_MAX_BINARY, CHAT_MAX_FILE, CHAT_MAX_TEXT } from '../../shared/chat'
 import fs from 'node:fs'
+import { formatGianmun, gianmunPrompt, type GianmunRef } from '../../shared/gianmun'
 
 /** 한 번에 모델에 보내는 글자 수. 긴 매뉴얼은 여러 번 나눠 보낸다. */
 const CHUNK_SIZE = 28000
@@ -938,6 +940,34 @@ export async function generateDocDraft(
 }
 
 /**
+ * 받은 공문 본문으로 기안문 초안을 만든다.
+ * 공문 속 이름 · 연락처 · 이메일은 되돌릴 수 없게 ○ 로 가린 채 보낸다(기안문에는 ○○○ 로 남는다).
+ */
+export async function draftGianmun(
+  settings: LocalSettings,
+  model: ModelChoice | undefined | null,
+  content: string,
+  kind: string,
+  ref: Partial<GianmunRef>,
+  extra = ''
+): Promise<{ ok: boolean; text: string; sentToAi: string; error?: string }> {
+  const body = scrubPersonal(String(content ?? '')).text
+  const add = scrubPersonal(String(extra ?? '')).text
+  const { system, user } = gianmunPrompt(kind, ref, body, add)
+  const sent = `${system}
+
+${user}`
+  try {
+    const raw = await chatModel(settings, 'scenario', model, system, [{ role: 'user', content: user }], false)
+    const text = formatGianmun(raw)
+    if (!text) return { ok: false, text: '', sentToAi: sent, error: 'AI 가 빈 답을 돌려 주었습니다. 다시 만들어 보세요.' }
+    return { ok: true, text, sentToAi: sent }
+  } catch (e) {
+    return { ok: false, text: '', sentToAi: sent, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
  * 예시 문서 하나를 읽고 "이 문서는 어떤 항목으로 이루어져 있는지" 를 뽑아낸다.
  *
  * 학교 업무는 부서마다 달라서 서식을 미리 다 넣어 둘 수 없다. 쓰는 사람이
@@ -1799,5 +1829,39 @@ export async function testConnection(
     }
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
+ * [최신 목록 불러오기] — 서비스가 이 키로 쓸 수 있다고 알려 주는 모델 이름들(새것 먼저).
+ * 주소 · 머리글은 shared/modelList.ts 의 listRequestFor (실제 키로 확인하지 못했다 — 미확인). 키는 화면으로 보내지 않는다.
+ */
+export async function listModels(settings: LocalSettings, provider: Provider): Promise<{ ok: boolean; models?: string[]; error?: string }> {
+  if (provider === 'gemini' && geminiModeOf(settings) !== 'key') return { ok: false, error: VERTEX_NO_LIST }
+  const key = (provider === 'gemini' ? settings.gemini_key ?? '' : keyFor(settings, provider)).trim()
+  const who = PROVIDER_LABEL[provider]
+  if (!key) return { ok: false, error: `${who} 키를 먼저 넣어 주세요.` }
+  try {
+    const req = listRequestFor(provider, key)
+    const out: string[] = []
+    let url = req.url
+    // Claude 는 한 번에 다 안 올 수 있다(has_more) — 다음 쪽을 몇 번만 더 읽는다
+    for (let page = 0; page < 5; page++) {
+      const res = await httpFetch(url, { method: 'GET', headers: req.headers, signal: AbortSignal.timeout(20000) })
+      if (!res.ok) {
+        if (provider === 'exaone' && res.status !== 401 && res.status !== 403) return { ok: false, error: EXAONE_NO_LIST }
+        return { ok: false, error: await describeHttpError(res, who) }
+      }
+      const json = (await res.json()) as { has_more?: boolean; last_id?: string }
+      out.push(...parseModelList(provider, json))
+      if (provider === 'claude' && json.has_more && json.last_id) url = `${req.url}&after_id=${encodeURIComponent(json.last_id)}`
+      else break
+    }
+    const models = [...new Set(out)]
+    if (provider === 'exaone' && models.length === 0) return { ok: false, error: EXAONE_NO_LIST }
+    return { ok: true, models }
+  } catch (e) {
+    if (provider === 'exaone') return { ok: false, error: EXAONE_NO_LIST }
+    return { ok: false, error: `${who} 모델 목록을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요. (${e instanceof Error ? e.message : String(e)})`.slice(0, 300) }
   }
 }

@@ -153,6 +153,11 @@ export function buildAdviceSystem(): string {
   return [`# 역할\n${ADVICE_ROLE}${COMMON.slice(at)}`, ADVICE_TASK, ADVICE_OUTPUT].join('\n\n')
 }
 
+/** 읽는 관점 + 지킬 것(역할 문단은 뺀 것) — 주제 지도(seteukMap.ts)가 같은 관점 · 같은 규칙을 쓴다 */
+export function reviewPerspective(): string {
+  return COMMON.slice(COMMON.indexOf('# 읽는 관점'))
+}
+
 export function buildAdviceUser(maskedText: string, maskedNote: string, recordName: string, activity: string): string {
   const head = `# 기록 항목\n${recordName}${activity.trim() ? ` — ${activity.trim().replace(/\s+/g, ' ')}` : ''}`
   return `${head}\n\n[특기사항]\n${maskedText.trim()}${maskedNote.trim() ? `\n\n[관찰 기록]\n${maskedNote.trim()}` : ''}`

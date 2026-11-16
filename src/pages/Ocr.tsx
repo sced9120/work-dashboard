@@ -436,7 +436,7 @@ export default function Ocr({ onGo }: Props): JSX.Element {
           </p>
         </div>
         {modes}
-        <FolderBatch onSettings={() => onGo('설정')} />
+        <FolderBatch onSettings={() => onGo('설정')} onGo={onGo} />
       </>
     )
   }

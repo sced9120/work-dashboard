@@ -526,6 +526,32 @@ export async function textToHwpx(text: string): Promise<Uint8Array> {
 }
 
 /**
+ * 기안문 글로 한글 문서(.hwpx)를 만든다. 1. · 가. · 1) 번호는 목록으로 바뀌지 않게 글자로 두고,
+ * 들여쓴 항목은 줄머리 공백이 접히지 않도록 붙지 않는 공백(NBSP)으로 바꿔 모양을 지킨다.
+ * 첫 줄(제목)은 제목 모양으로 쓴다.
+ */
+export async function gianmunToHwpx(text: string): Promise<Uint8Array> {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n').map((l) => l.replace(/\s+$/, ''))
+  while (lines.length && !lines[0].trim()) lines.shift()
+  const parts: string[] = []
+  const first = lines[0]?.trim() ?? ''
+  if (first && first.length <= 80 && !/^(\d+[.)]|[가-하][.)])/.test(first)) {
+    parts.push(`# ${literal(first)}`)
+    lines.shift()
+  }
+  for (const l of lines) {
+    if (!l.trim()) {
+      parts.push('')
+      continue
+    }
+    const indent = l.match(/^[ \t]*/)?.[0].length ?? 0
+    parts.push('\u00a0'.repeat(indent) + literal(l.trim()))
+  }
+  const md = parts.join('\n\n').replace(/\n{3,}/g, '\n\n')
+  return new Uint8Array(await markdownToHwpx(md))
+}
+
+/**
  * 도우미 답(마크다운)을 한글 문서로 — 제목 · 목록 · 표 · 굵게를 살린다.
  * (textToHwpx 는 기호를 모두 글자로 두는 위원회 문서용이라 따로 둔다.) 표 머리글 줄은 굵게.
  */

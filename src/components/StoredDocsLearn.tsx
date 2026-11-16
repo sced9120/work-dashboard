@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import type { Doc, DocKind, ModelChoice, Task, TaskDraft } from '../../shared/types'
 import { groupNotices, joinNotice, parseNoticeName } from '../../shared/notice'
 import { currentSchoolYear, schoolYearLabel } from '../../shared/types'
 import { useConfirm } from '../lib/confirm'
+import GianmunCard from './GianmunCard'
 import { useToast } from '../lib/toast'
 import {
   addDrafts,
@@ -42,6 +43,8 @@ export default function StoredDocsLearn({ jobTitle, kind, model, onKind }: Props
   const [groupDocs, setGroupDocs] = useState(true)
   const [limit, setLimit] = useState(DEFAULT_LIMIT)
   const [query, setQuery] = useState('')
+  /** 기안문 쓰기 카드를 펼친 공문 */
+  const [gianmunId, setGianmunId] = useState<number | null>(null)
 
   // 진행 상태와 찾아낸 것은 화면 밖에 둔다 (src/lib/learnJob.ts).
   // 다른 화면으로 넘어가도 위쪽 띠에 "학습 중" 이 남는다.
@@ -406,7 +409,8 @@ export default function StoredDocsLearn({ jobTitle, kind, model, onKind }: Props
             const on = g.items.every((d) => picked.has(d.id))
             const chars = g.items.reduce((n, d) => n + d.chars, 0)
             return (
-              <label key={g.key} className={`storeditem ${on ? 'on' : ''}`}>
+              <Fragment key={g.key}>
+              <label className={`storeditem ${on ? 'on' : ''}`}>
                 <input
                   type="checkbox"
                   checked={on}
@@ -425,7 +429,21 @@ export default function StoredDocsLearn({ jobTitle, kind, model, onKind }: Props
                   {schoolYearLabel(head.school_year)}
                 </span>
                 <span className="muted small">{chars.toLocaleString()}자</span>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  title="이 공문을 근거로 기안문 초안을 씁니다"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setGianmunId(gianmunId === head.id ? null : head.id)
+                  }}
+                >
+                  {gianmunId === head.id ? '기안문 닫기' : '기안문 쓰기'}
+                </button>
               </label>
+              {gianmunId === head.id && (
+                <GianmunCard docId={head.id} docName={g.label} onClose={() => setGianmunId(null)} />
+              )}
+              </Fragment>
             )
           })
         )}

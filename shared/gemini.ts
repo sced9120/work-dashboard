@@ -11,8 +11,9 @@ export function isModernGemini(model: string): boolean {
   // 자동 모델 이름은 실제 모델이 아니다 — 어떤 모델이 걸려도 temperature 는 빼 둔다
   if (m === 'gemini-auto') return true
   if (m.startsWith('gemini-3.5-flash-lite')) return true
-  const v = /^gemini-(\d+)\.(\d+)/.exec(m)
-  return !!v && (Number(v[1]) > 3 || (Number(v[1]) === 3 && Number(v[2]) >= 6))
+  // gemini-4-hydrogen 처럼 소수점이 없는 이름(4 이상)도 최신 계열
+  const v = /^gemini-(\d+)(?:\.(\d+))?/.exec(m)
+  return !!v && (Number(v[1]) > 3 || (Number(v[1]) === 3 && Number(v[2] ?? 0) >= 6))
 }
 
 /** 쓸 수 있는 Gemini 모델 이름인가 */

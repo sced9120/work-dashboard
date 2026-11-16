@@ -123,11 +123,14 @@ export default function ThemeSettings(): JSX.Element {
         <div className="theme-seg" role="radiogroup" aria-label="글자 크기">
           {FONT_SCALES.map((f) => (
             <button key={f.value} role="radio" aria-checked={ui.fontScale === f.value} className={ui.fontScale === f.value ? 'on' : ''} onClick={() => setUiPrefs({ fontScale: f.value })}>
-              <span style={{ fontSize: `${Math.round(13 * f.value)}px` }}>{f.label}</span>
+              <span style={{ fontSize: `${Math.round(13 * (f.value || 1.1))}px` }}>{f.label}</span>
             </button>
           ))}
         </div>
-        <div className="hint">프로그램 전체의 글자와 단추 · 표를 함께 키우거나 줄입니다. 이 PC에만 저장됩니다.</div>
+        <div className="hint">
+          프로그램 전체의 글자와 단추 · 표를 함께 키우거나 줄입니다. 이 PC에만 저장됩니다.
+          {ui.fontScale === 0 && ' 자동은 창이 넓을수록 조금씩 키우고, 창 크기를 바꾸면 따라갑니다.'}
+        </div>
       </div>
 
       <label className="theme-check">
