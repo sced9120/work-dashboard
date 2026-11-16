@@ -45,7 +45,6 @@ import type { SeteukActivity, SeteukAmount, SeteukCheck, SeteukConfig, SeteukImp
 import Icon from '../../components/Icon'
 import ModelPicker from '../../components/ModelPicker'
 import SeteukImport from '../../components/SeteukImport'
-import SeteukReview from '../../components/SeteukReview'
 import SeteukRules from '../../components/SeteukRules'
 import SeteukFill from '../../components/SeteukFill'
 import SeteukPromptMaker from '../../components/SeteukPromptMaker'
@@ -133,7 +132,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
 
   return (
     <>
-        {panel !== 'review' && view === 'acts' && (
+        {view === 'acts' && (
           <>
             <section className="card stk-top">
               <div className="stk-acts" role="tablist" aria-label="활동">

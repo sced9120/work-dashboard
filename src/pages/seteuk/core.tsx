@@ -46,7 +46,6 @@ import type { EquityReport } from '../../../shared/seteukSum'
 import Icon from '../../components/Icon'
 import ModelPicker from '../../components/ModelPicker'
 import SeteukImport from '../../components/SeteukImport'
-import SeteukReview from '../../components/SeteukReview'
 import SeteukRules from '../../components/SeteukRules'
 import SeteukFill from '../../components/SeteukFill'
 import SeteukPromptMaker from '../../components/SeteukPromptMaker'
@@ -72,7 +71,7 @@ import { SETEUK_ACT_EVENT, takeSeteukAct } from '../../lib/seteukBridge'
 
 export type SaveState = 'saved' | 'dirty' | 'saving'
 export type Patch = Record<string, Partial<SeteukRow>>
-export type Panel = '' | 'roster' | 'xlsx' | 'rules' | 'style' | 'review' | 'phone'
+export type Panel = '' | 'roster' | 'xlsx' | 'rules' | 'style' | 'phone'
 
 export const SAVE_DELAY = 900
 export const MODE_KEY = 'wd.seteuk.mode'

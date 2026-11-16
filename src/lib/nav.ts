@@ -22,9 +22,15 @@ export const NAV: { section: string; items: NavItem[] }[] = [
       { id: '시간표', icon: 'clock', label: '시간표' },
       { id: '기한', icon: 'hourglass', label: '절차 기한' },
       { id: '메신저', icon: 'chat', label: '메신저 정리' },
-      { id: '출결', icon: 'class', label: '출결 기록' },
       { id: '일지', icon: 'pen', label: '업무 일지' },
       { id: '메모장', icon: 'note', label: '자유 메모장' }
+    ]
+  },
+  {
+    section: '담임',
+    items: [
+      { id: '담임', icon: 'class', label: '담임 (학생 명단 · 상담 · 출결 · 학생부)' },
+      { id: '출결', icon: 'class', label: '출결 기록' }
     ]
   },
   {
@@ -57,14 +63,72 @@ export const SETTINGS_ITEM: NavItem = { id: '설정', icon: 'sliders', label: '�
 /** 따라 배우기 목록처럼 메뉴를 한 줄로 늘어놓을 때 쓰는 차례 */
 export const NAV_GROUPS: { section: string; items: NavItem[] }[] = [
   NAV[0],
-  { section: NAV[1].section, items: [AI_ITEM, ...NAV[1].items] },
-  NAV[2],
+  NAV[1],
+  { section: NAV[2].section, items: [AI_ITEM, ...NAV[2].items] },
+  NAV[3],
   { section: '관리', items: [DATA_ITEM, SETTINGS_ITEM] }
 ]
 
 export function navLabel(id: PageId): string {
   for (const g of NAV_GROUPS) for (const n of g.items) if (n.id === id) return n.label
   return id
+}
+
+/* ---------- 새 화면 위 탭 ---------- */
+
+export type TabId = 'today' | 'week' | 'work' | 'homeroom' | 'seteuk'
+
+export interface TabSub {
+  page: PageId
+  label: string
+}
+
+export interface TabDef {
+  id: TabId
+  label: string
+  subs: TabSub[]
+}
+
+/** 새 화면의 위 탭 차례 — 세특 작성실이 맨 오른쪽 */
+export const TABS: TabDef[] = [
+  { id: 'today', label: '오늘', subs: [{ page: '홈', label: '오늘' }] },
+  {
+    id: 'week',
+    label: '이번 주',
+    subs: [
+      { page: '이번주', label: '한눈에' },
+      { page: '시간표', label: '시간표' },
+      { page: '달력', label: '달력' }
+    ]
+  },
+  {
+    id: 'work',
+    label: '내 업무',
+    subs: [
+      { page: '로드맵', label: '연간 업무' },
+      { page: '기한', label: '절차 기한' },
+      { page: '워크플로우', label: '워크플로우' },
+      { page: '가이드', label: '업무 가이드' },
+      { page: '도움자료', label: '도움자료' },
+      { page: '데이터', label: '인수인계 · 백업' }
+    ]
+  },
+  // 담임 — 학생 명단 · 상담 · 출결 · 학생부 분석 (안의 칸은 화면 안에서 고른다)
+  { id: 'homeroom', label: '담임', subs: [{ page: '담임', label: '담임' }] },
+  // 세특은 학기 말에 몰아서 오래 쓰는 화면이라 만들기 안에 두지 않고 위 탭으로 바로 간다
+  { id: 'seteuk', label: '세특 작성실', subs: [{ page: '세특', label: '세특 작성실' }] }
+]
+
+/** 지금 보일 위 탭 — 끈 메뉴의 탭은 뺀다 (담임만 끌 수 있다. 나머지는 첫 화면이 늘 보이는 것으로 친다) */
+export function visibleTabs(p: NavPrefs): TabDef[] {
+  return TABS.filter((t) => t.id !== 'homeroom' || isShown(p, '담임'))
+}
+
+/** 이 화면이 속한 위 탭 */
+export function tabIdOf(page: PageId): TabId | null {
+  // 출결 은 담임 안으로 옮겼다 — 옛 링크 · 위젯으로 열어도 담임 탭에 불이 켜진다
+  if (page === '출결') return 'homeroom'
+  return TABS.find((t) => t.subs.some((s) => s.page === page))?.id ?? null
 }
 
 /* ---------- 메뉴 고르기 (보이기 · 차례 · 바로가기) ---------- */

@@ -1,7 +1,7 @@
 /**
- * 세특 작성실 — 학생부 살펴보기 · 주제 지도 (3.7.5~).
- * 한 학생의 학생부에서 주제를 뽑아 서로 잇고(옵시디언의 그래프처럼), 다음에 이어 갈 주제를 어느 영역에 두면 좋은지 보여 준다.
- * 읽는 관점과 '지킬 것'은 보고서(seteukReview.ts)와 같은 것을 쓴다. electron 도 DOM 도 쓰지 않는다.
+ * 학생부 분석 · 주제 지도 (3.7.5~).
+ * 한 학생의 학생부에서 주제를 뽑아 서로 잇고(그래프처럼), 다음에 이어 갈 주제를 어느 영역에 두면 좋은지 보여 준다.
+ * 읽는 관점과 '지킬 것'은 학생부 분석(seteukReview.ts)과 같은 것을 쓴다. electron 도 DOM 도 쓰지 않는다.
  */
 
 import type { ModelChoice } from './types'
@@ -47,6 +47,8 @@ export interface SeteukMapRequest {
   text: string
   grade: ReviewGrade
   career: string
+  /** 담임이 적은 학생 이름 — 가려서 보낸다 */
+  studentName?: string
   model?: ModelChoice
   dry?: boolean
 }
@@ -57,14 +59,6 @@ export interface SeteukMapReply {
   /** dry 일 때 — 요청 글 */
   text?: string
 }
-export interface SeteukMapExportReply {
-  ok: boolean
-  error?: string
-  /** 만든 폴더 */
-  path?: string
-  count?: number
-}
-
 export const MAP_MAX_TOPICS = 12
 export const MAP_MAX_LINKS = 24
 export const MAP_MAX_SUGGESTS = 6
@@ -105,7 +99,7 @@ JSON 하나만 낸다. 설명 · 머리말 · 코드 울타리 없이 아래 모
 {"topics":[{"id":"t1","name":"","areas":[""],"evidence":[""],"competency":""}],"links":[{"a":"t1","b":"t2","why":""}],"suggests":[{"topic":"","area":"","kind":"교과","why":"","from":"t1","competency":""}]}
 학생은 '이 학생'으로 부르고, 학생1 같은 가명은 그대로 둔다. 주제명 · 인용 · 이유는 한국어로.`
 
-/** 주제 지도 지시문 — 읽는 관점 · 지킬 것은 학생부 살펴보기(보고서)와 같다 */
+/** 주제 지도 지시문 — 읽는 관점 · 지킬 것은 학생부 분석(보고서)과 같다 */
 export function buildMapSystem(): string {
   return [MAP_ROLE, reviewPerspective(), MAP_TASK, MAP_OUTPUT].join('\n\n')
 }
@@ -477,83 +471,7 @@ export function layoutMap(map: TopicMap, w: number, h: number, margin: { x: numb
   return { nodes, pos }
 }
 
-/* ---------- 옵시디언 · 마크다운 ---------- */
-
-const safeName = (s: string): string =>
-  s
-    .replace(/[\\/:*?"<>|#^[\]]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/\.+$/, '')
-    .slice(0, 40)
-    .trim()
-
-const tagOf = (s: string): string => s.replace(/[^0-9A-Za-z가-힣_-]/g, '')
-const tags = (areas: string[], extra: string[]): string =>
-  [...new Set([...extra, ...areas].map(tagOf).filter(Boolean))].map((t) => `#${t}`).join(' ')
-
-/** 주제마다 노트 이름(파일 이름) — 겹치거나 index · 추천 과 같으면 번호를 붙인다 */
-export function noteNames(map: TopicMap): Map<string, string> {
-  const used = new Set(['index', '추천'])
-  const out = new Map<string, string>()
-  for (const t of map.topics) {
-    const base = safeName(t.name) || '주제'
-    let nm = base
-    for (let k = 2; used.has(nm.toLowerCase()); k++) nm = `${base} ${k}`
-    used.add(nm.toLowerCase())
-    out.set(t.id, nm)
-  }
-  return out
-}
-
-/** 옵시디언 보관함에 넣을 노트들 — 주제마다 한 장, 목차(index), 추천 */
-export function toObsidian(map: TopicMap, studentLabel: string): { path: string; content: string }[] {
-  const names = noteNames(map)
-  const nm = (id: string): string => names.get(id) ?? id
-  const label = studentLabel.trim() || '학생'
-  const files: { path: string; content: string }[] = []
-  const nbr = new Map<string, MapLink[]>()
-  for (const l of map.links) {
-    nbr.set(l.a, [...(nbr.get(l.a) ?? []), l])
-    nbr.set(l.b, [...(nbr.get(l.b) ?? []), l])
-  }
-  for (const t of map.topics) {
-    const L: string[] = [`# ${t.name}`, '', tags(t.areas, ['주제', t.areas.length && t.areas.every((a) => areaKind(a) === '창체') ? '창체' : '교과']), '']
-    if (t.areas.length) L.push(`- 영역: ${t.areas.join(' · ')}`)
-    if (t.competency) L.push(`- 역량: ${t.competency}`)
-    if (t.evidence.length) {
-      L.push('', '## 학생부 원문', '')
-      for (const e of t.evidence) L.push(`> ${e}`, '')
-    }
-    const ls = nbr.get(t.id) ?? []
-    if (ls.length) {
-      L.push('## 이어지는 주제', '')
-      for (const l of ls) L.push(`- [[${nm(l.a === t.id ? l.b : l.a)}]]${l.why ? ` — ${l.why}` : ''}`)
-      L.push('')
-    }
-    const sg = map.suggests.filter((s) => s.from === t.id)
-    if (sg.length) {
-      L.push('## 이어 갈 추천', '')
-      for (const s of sg) L.push(`- ${s.topic} (${s.area}) — [[추천]]`)
-      L.push('')
-    }
-    files.push({ path: `${nm(t.id)}.md`, content: L.join('\n').trimEnd() + '\n' })
-  }
-  const I: string[] = [`# 학생부 주제 지도 — ${label}`, '', '#주제지도', '', '## 주제', '']
-  for (const t of map.topics) I.push(`- [[${nm(t.id)}]]${t.areas.length ? ` — ${t.areas.join(' · ')}` : ''}`)
-  I.push('', '## 추천', '', '- [[추천]]', '', 'AI 가 학생부 글을 읽고 만든 정리입니다. 학생 · 수업 기록으로 확인한 뒤 쓰세요.')
-  files.unshift({ path: 'index.md', content: I.join('\n') + '\n' })
-  const R: string[] = [`# 이어 갈 주제 추천 — ${label}`, '', '#추천', '']
-  for (const s of map.suggests) {
-    R.push(`## ${s.topic}`, '', tags([s.area], ['추천', s.kind]), '', `- 영역: ${s.area} (${s.kind})${s.newArea ? ' — 학생부에 없는 과목, 확인 필요' : ''}`, `- 이어지는 주제: [[${nm(s.from)}]]`)
-    if (s.why) R.push(`- 이유: ${s.why}`)
-    if (s.competency) R.push(`- 역량: ${s.competency}`)
-    R.push('')
-  }
-  if (!map.suggests.length) R.push('추천이 없습니다.', '')
-  files.push({ path: '추천.md', content: R.join('\n').trimEnd() + '\n' })
-  return files
-}
+/* ---------- 마크다운 ---------- */
 
 /** 한 덩어리 마크다운 — [마크다운 복사] 용 */
 export function toMarkdown(map: TopicMap, studentLabel: string): string {
@@ -573,10 +491,4 @@ export function toMarkdown(map: TopicMap, studentLabel: string): string {
     for (const s of map.suggests) L.push(`- **${s.topic}** (${s.area}) ← ${byId.get(s.from)?.name ?? s.from}${s.why ? ` — ${s.why}` : ''}${s.competency ? ` [${s.competency}]` : ''}`)
   }
   return L.join('\n') + '\n'
-}
-
-/** 폴더 이름 — 학생부지도_{학생}_{날짜} (이름에 못 쓰는 글자는 뺀다) */
-export function mapFolderName(label: string, date: Date): string {
-  const d = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
-  return `학생부지도_${safeName(label).replace(/\s+/g, '') || '학생'}_${d}`
 }

@@ -62,6 +62,7 @@ export interface PhoneRouted {
   acts: string[]
 }
 import type { CatalogResult } from '../../shared/catalog'
+import type { CounselMeta, CounselPlan, CounselRecord, PlanInput as CounselPlanInput, RecordInput as CounselRecordInput } from '../../shared/counsel'
 import type { ChatAttachment, ChatDelta, ChatMeta, ChatPreset, ChatRecord, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
 import type { OcrAnswer, OcrFile, OcrProgress, OcrRequest } from '../../shared/ocr'
 import type { MdTable } from '../../shared/mdtable'
@@ -71,7 +72,7 @@ import type { SeteukCompressReply, SeteukCompressRequest, SeteukSumPatch, Seteuk
 import type { NeisOptions, NeisPreviewReply } from '../../shared/seteukNeis'
 import type { XlsxPreview } from '../../shared/seteukXlsx'
 import type { SeteukReviewReply, SeteukReviewRequest } from '../../shared/seteukReview'
-import type { SeteukMapExportReply, SeteukMapReply, SeteukMapRequest, TopicMap } from '../../shared/seteukMap'
+import type { SeteukMapReply, SeteukMapRequest } from '../../shared/seteukMap'
 import type { SchoolTimetable, TtRow } from '../../shared/timetable'
 import type {
   ComposeResult,
@@ -178,6 +179,15 @@ const api = {
       ipcRenderer.invoke('journal:update', id, j),
     remove: (id: number): Promise<void> => ipcRenderer.invoke('journal:delete', id)
   },
+  /** 상담 기록 (담임) — 이 PC 에만 두고 인수인계 파일에는 넣지 않는다 */
+  counsel: {
+    load: (year?: number): Promise<{ year: number; years: number[]; records: CounselRecord[]; plans: CounselPlan[]; meta: CounselMeta }> => ipcRenderer.invoke('counsel:load', year),
+    save: (input: CounselRecordInput, planId?: string): Promise<{ ok: true; record: CounselRecord } | { ok: false; message: string }> => ipcRenderer.invoke('counsel:save', input, planId),
+    remove: (id: string): Promise<boolean> => ipcRenderer.invoke('counsel:delete', id),
+    plan: (input: CounselPlanInput): Promise<{ ok: true; plan: CounselPlan } | { ok: false; message: string }> => ipcRenderer.invoke('counsel:plan', input),
+    planCancel: (id: string): Promise<boolean> => ipcRenderer.invoke('counsel:planCancel', id),
+    meta: (patch: { no?: number; contact?: string; memo?: string; teacher?: string }): Promise<CounselMeta> => ipcRenderer.invoke('counsel:meta', patch)
+  },
   /** 세특 작성실 — 명단 · 활동 · 학생별 글은 이 PC 에만 둔다 */
   seteuk: {
     load: (): Promise<{ rosters: SeteukRosters; acts: SeteukActivity[]; rows: Record<string, SeteukRows>; style: SeteukStyle; options: SeteukOptions; config: SeteukConfig; demo: { filled: boolean; canFill: boolean } }> => ipcRenderer.invoke('seteuk:load'),
@@ -198,12 +208,10 @@ const api = {
     skillSave: (actId: string): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('seteuk:skill', actId),
     /** 긴 학생 글에서 세특 요점만 뽑기 (짧은 글은 그대로) */
     points: (items: { id: string; text: string }[], model: ModelChoice | null): Promise<{ ok: boolean; out: { id: string; text: string; error?: string }[] }> => ipcRenderer.invoke('seteuk:points', items, model),
-    /** 학생부 살펴보기 — 1 · 2학년은 이어 갈 탐구, 3학년은 짜임과 보완할 곳 */
+    /** 학생부 분석 — 담임 상담 힌트(강점 · 관심의 흐름 · 물어볼 질문 …) */
     review: (req: SeteukReviewRequest): Promise<SeteukReviewReply> => ipcRenderer.invoke('seteuk:review', req),
     /** 학생부 주제 지도 — 주제 · 연결 · 이어 갈 추천 */
     map: (req: SeteukMapRequest): Promise<SeteukMapReply> => ipcRenderer.invoke('seteuk:map', req),
-    /** 주제 지도를 옵시디언 노트 폴더로 */
-    mapExport: (map: TopicMap, label: string): Promise<SeteukMapExportReply> => ipcRenderer.invoke('seteuk:mapExport', map, label),
     ground: (actId: string, sid: string, model: ModelChoice | null): Promise<{ ok: boolean; row?: SeteukRow; error?: string }> => ipcRenderer.invoke('seteuk:ground', actId, sid, model),
     styleCard: (model: ModelChoice | null, dry: boolean): Promise<{ ok: boolean; card?: string; text?: string; error?: string }> => ipcRenderer.invoke('seteuk:styleCard', model, dry),
     demoFill: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('seteuk:demoFill'),

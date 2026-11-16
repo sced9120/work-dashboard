@@ -1,8 +1,6 @@
 // 학생부 주제 지도 — 빌드된 앱의 IPC 로. AI 는 가로채 가짜로 답한다. 이름은 지어낸 것
-const fs = require('fs')
-const os = require('os')
 const path = require('path')
-const { handlers, next } = global.__it
+const { handlers } = global.__it
 
 let fails = 0
 const ok = (c, m) => { console.log(c ? '  ✓' : '  ✗', m); if (!c) fails++ }
@@ -57,24 +55,10 @@ global.fetch = async (url, opts = {}) => {
   r = await call('seteuk:map', { text, grade: '1', career: '' })
   ok(!r.ok && /읽어 내지 못/.test(r.error), 'JSON 이 아니면 오류')
 
-  console.log('\n3. 옵시디언 폴더로 내보내기')
+  console.log('\n3. 담임이 적은 이름도 가림')
   script = [answer(JSON.stringify(reply))]
-  const map = (await call('seteuk:map', { text, grade: '2', career: '' })).map
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smap-'))
-  r = await call('seteuk:mapExport', map, '2학년 5번')
-  ok(!r.ok, '폴더를 고르지 않으면 취소')
-  next.open.push([dir])
-  r = await call('seteuk:mapExport', map, '2학년/5번')
-  ok(r.ok && r.path.startsWith(dir) && path.basename(r.path).startsWith('학생부지도_2학년5번_'), '새 폴더 이름')
-  const files = fs.readdirSync(r.path).sort()
-  ok(r.count === files.length && files.includes('index.md') && files.includes('추천.md') && files.includes('유리함수 점근선.md'), '노트가 써짐: ' + files.join(', '))
-  ok(fs.readFileSync(path.join(r.path, '유리함수 점근선.md'), 'utf8').includes('[[암호 빈도 분석]]'), '[[연결]] 이 들어감')
-  next.open.push([dir])
-  const r2 = await call('seteuk:mapExport', map, '2학년/5번')
-  ok(r2.ok && r2.path !== r.path, '같은 날 다시 내보내면 새 폴더')
-  next.open.push([dir])
-  ok(!(await call('seteuk:mapExport', { topics: [] }, 'x')).ok, '빈 지도는 내보내지 않음')
-  fs.rmSync(dir, { recursive: true, force: true })
+  r = await call('seteuk:map', { text: text + ' 마사자는 발표를 이끎.', grade: '2', career: '', studentName: '마사자' })
+  ok(r.ok && !JSON.stringify(log[log.length - 1].body).includes('마사자'), '명단에 없는 학생 이름도 가려 보냄')
 
   console.log(fails ? `\n실패 ${fails}` : '\n모두 통과')
   process.exit(fails ? 1 : 0)

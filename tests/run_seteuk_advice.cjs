@@ -28,8 +28,8 @@ ok(sys.includes('교사가 수업과 수행평가에서 직접 관찰한 사실'
 ok(sys.includes('없다고 흠잡지 않는다') && sys.includes('점수 · 등급 · 합격 가능성을 매기지 않는다') && sys.includes('모든 대학이 같다고 말하지 않는다'), '오차 · 한계가 없다고 흠잡지 않음 · 점수를 매기지 않음 · 대학마다 다름')
 const low = R.buildReviewSystem('1')
 const up = R.buildReviewSystem('3')
-ok(low.includes('학교가 주최 · 주관하는 교육활동') && low.includes('온라인 공개강좌, 방과후학교, 소논문') && low.includes('교육과정 범위를 크게 넘는') && low.includes('한 단계 깊이') && low.includes('다른 과목의 개념으로 같은 질문을 다시 보는 것'), '이어 갈 탐구 — 학교 활동 안 · 기재 불가 활동은 권하지 않음 · 깊이 먼저 · 다른 과목으로')
-ok(up.includes('과목 선택과 진로 탐색이 어떻게 이어져 왔는지') && up.includes('창체 영역 사이, 세특과 창체 사이') && up.includes('활동을 늘어놓기만 한 구절'), '3학년 — 과목 선택 흐름 · 영역 간 중복 · 나열')
+ok(low.includes('학교가 주최 · 주관하는 교육활동') && low.includes('온라인 공개강좌, 방과후학교, 소논문') && low.includes('교육과정 범위를 크게 넘는') && low.includes('한 단계 깊이') && low.includes('다른 과목의 개념으로 다시 보는 것'), '지킬 것 — 학교 활동 안 · 기재 불가 활동은 권하지 않음 · 깊이 먼저 · 다른 과목으로')
+ok(up.includes('과목 선택과 탐색이 어떻게 이어지고 달라져 왔는가') && up.includes('영역끼리 같은 내용을 되풀이하지 않았는가') && up.includes('활동을 차례로 늘어놓기만 했거나'), '읽는 관점 — 과목 선택 흐름 · 영역 간 중복 · 나열')
 ok(low.length < 3200 && up.length < 3200 && sys.length < 3200, `규칙 길이 ${low.length} · ${up.length} · ${sys.length} (3,200자 안)`)
 ok(R.buildAdviceUser(' 글 ', '', '과목별 세특', '함수  탐구') === '# 기록 항목\n과목별 세특 — 함수 탐구\n\n[특기사항]\n글' && R.buildAdviceUser('글', ' 메모 ', 'x', '').endsWith('[관찰 기록]\n메모'), '보내는 글 — 기록 항목 · 특기사항 · (있으면) 관찰 기록')
 

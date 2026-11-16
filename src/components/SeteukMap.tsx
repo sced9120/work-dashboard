@@ -4,12 +4,12 @@ import type { LayoutNode, MapSuggest, MapTopic, TopicMap } from '../../shared/se
 import { useToast } from '../lib/toast'
 
 /**
- * 학생부 주제 지도 — 옵시디언의 그래프처럼 주제를 글상자로, 공통점을 선으로, 이어 갈 추천을 점선 상자로 보여 준다.
+ * 학생부 주제 지도 — 그래프처럼 주제를 글상자로, 공통점을 선으로, 이어 갈 추천을 점선 상자로 보여 준다.
  * 자리는 shared/seteukMap.ts 의 layoutMap(같은 지도면 늘 같은 자리). 그림 크기에 맞춰 줄어든다(끌기 · 확대는 없음).
  */
 interface Props {
   map: TopicMap
-  /** 내보낼 때 폴더 이름과 노트 제목에 쓰는 학생 표시 */
+  /** 마크다운으로 복사할 때 제목에 쓰는 학생 표시 */
   label: string
 }
 
@@ -29,7 +29,6 @@ export default function SeteukMap({ map, label }: Props): JSX.Element {
   const toast = useToast()
   const [sel, setSel] = useState<string | null>(null)
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null)
-  const [busy, setBusy] = useState(false)
 
   const lay = useMemo(() => layoutMap(map, W, H, { x: 14, y: 16 }), [map])
   const topicById = useMemo(() => new Map(map.topics.map((t) => [t.id, t])), [map])
@@ -45,14 +44,6 @@ export default function SeteukMap({ map, label }: Props): JSX.Element {
     }
   }
 
-  const exportFiles = async (): Promise<void> => {
-    if (busy) return
-    setBusy(true)
-    const r = await window.api.seteuk.mapExport(map, label)
-    setBusy(false)
-    if (!r.ok) return toast(r.error ?? '내보내지 못했습니다.', r.error === '취소했습니다.' ? undefined : 'err')
-    toast(`노트 ${r.count}장을 만들었습니다 — ${r.path}`, 'ok')
-  }
   const copyMd = async (): Promise<void> => {
     await window.api.clipboard.write(toMarkdown(map, label))
     toast('마크다운으로 복사했습니다.', 'ok')
@@ -75,9 +66,6 @@ export default function SeteukMap({ map, label }: Props): JSX.Element {
         <span className="stk-style-label">주제 지도</span>
         <span className="small muted">주제 {map.topics.length} · 연결 {map.links.length} · 추천 {map.suggests.length}</span>
         <span className="spacer" />
-        <button className="btn btn-sm" onClick={() => void exportFiles()} disabled={busy}>
-          옵시디언 폴더로 내보내기
-        </button>
         <button className="btn btn-sm" onClick={() => void copyMd()}>
           마크다운 복사
         </button>

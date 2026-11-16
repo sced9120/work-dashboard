@@ -41,7 +41,6 @@ import type { SeteukActivity, SeteukAmount, SeteukCheck, SeteukConfig, SeteukImp
 import Icon from '../components/Icon'
 import ModelPicker from '../components/ModelPicker'
 import SeteukImport from '../components/SeteukImport'
-import SeteukReview from '../components/SeteukReview'
 import SeteukRules from '../components/SeteukRules'
 import SeteukFill from '../components/SeteukFill'
 import SeteukPromptMaker from '../components/SeteukPromptMaker'
@@ -151,9 +150,6 @@ export default function Seteuk(props: Props): JSX.Element {
         <button className="btn btn-sm btn-ghost" onClick={() => void togglePanel('phone')} aria-expanded={panel === 'phone'} title="수업 중에 폰으로 번호를 누르고 본 것을 적으면 관찰 기록에 붙습니다">
           폰으로 관찰
         </button>
-        <button className="btn btn-sm btn-ghost" onClick={() => void togglePanel('review')} aria-expanded={panel === 'review'} title="한 학생의 학생부를 읽고 1 · 2학년은 이어 갈 탐구, 3학년은 짜임과 보완할 곳을 짚습니다">
-          학생부 살펴보기
-        </button>
         <button className="btn btn-sm btn-ghost" onClick={() => void togglePanel('style')} aria-expanded={panel === 'style'}>
           내 문체{style.on ? ' · 켬' : ''}
         </button>
@@ -186,7 +182,6 @@ export default function Seteuk(props: Props): JSX.Element {
         />
       )}
       {panel === 'xlsx' && <SeteukXlsx onImported={() => void reload()} onClose={() => setPanel('')} />}
-      {panel === 'review' && <SeteukReview students={students} rosters={rosters} acts={acts} rows={rows} model={model} onClose={() => setPanel('')} />}
       {panel === 'style' && <SeteukStylePanel style={style} model={model} onChange={setStyle} onClose={() => setPanel('')} />}
       {panel === 'rules' && (
         <SeteukRules
@@ -205,8 +200,8 @@ export default function Seteuk(props: Props): JSX.Element {
         />
       )}
 
-      {panel !== 'review' && view === 'sum' && <SeteukSumView key={`${rev}-${mode}`} students={students} acts={modeActs} rows={rows} />}
-      {panel !== 'review' && view === 'scan' && (
+      {view === 'sum' && <SeteukSumView key={`${rev}-${mode}`} students={students} acts={modeActs} rows={rows} />}
+      {view === 'scan' && (
         <div className="stk-scan">
           <Ocr onGo={onGo} />
         </div>

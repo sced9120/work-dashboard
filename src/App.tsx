@@ -48,8 +48,8 @@ const Memos = lazy(() => import('./pages/Memos'))
 const Seteuk = lazy(() => import('./pages/Seteuk'))
 const Ocr = lazy(() => import('./pages/Ocr'))
 const Messenger = lazy(() => import('./pages/Messenger'))
-const Attendance = lazy(() => import('./pages/Attendance'))
-const WARM = [() => import('./pages/Seteuk'), () => import('./pages/Chat'), () => import('./pages/Settings'), () => import('./pages/Attendance'), () => import('./pages/Messenger')]
+const Homeroom = lazy(() => import('./pages/Homeroom'))
+const WARM = [() => import('./pages/Seteuk'), () => import('./pages/Chat'), () => import('./pages/Settings'), () => import('./pages/Homeroom'), () => import('./pages/Messenger')]
 function warmPages(): void {
   const idle = (cb: () => void): void => {
     const w = window as Window & { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }
@@ -88,6 +88,7 @@ export type PageId =
   | 'OCR'
   | '메신저'
   | '출결'
+  | '담임'
   | '이번주'
   | '세특'
 
@@ -363,7 +364,9 @@ function Shell(): JSX.Element {
       {page === '메모장' && <Memos />}
       {page === 'OCR' && <Ocr onGo={setPage} />}
       {page === '메신저' && <Messenger onGo={setPage} />}
-      {page === '출결' && <Attendance onGo={setPage} />}
+      {/* 출결 은 담임 안의 칸으로 옮겼다 — 옛 링크 · 위젯이 '출결' 로 와도 출결 칸이 열린다 */}
+      {page === '담임' && <Homeroom onGo={setPage} />}
+      {page === '출결' && <Homeroom onGo={setPage} initial="출결" />}
       {page === '이번주' && <Week onGo={setPage} />}
       {page === '세특' && <Seteuk onGo={setPage} />}
       </Suspense>

@@ -41,7 +41,6 @@ import type { SeteukActivity, SeteukAmount, SeteukCheck, SeteukConfig, SeteukImp
 import Icon from '../../components/Icon'
 import ModelPicker from '../../components/ModelPicker'
 import SeteukImport from '../../components/SeteukImport'
-import SeteukReview from '../../components/SeteukReview'
 import SeteukRules from '../../components/SeteukRules'
 import SeteukFill from '../../components/SeteukFill'
 import SeteukPromptMaker from '../../components/SeteukPromptMaker'

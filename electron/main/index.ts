@@ -39,16 +39,18 @@ import { exportFileName } from '../../shared/answerdoc'
 import { buildFromFrame, readFrame } from './hwpgen'
 import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
 import { clearGcalCache, exportIcs, gcalEvents, gcalTest } from './gcal'
+import type { PlanInput, RecordInput } from '../../shared/counsel'
+import { counselDelete, counselLoad, counselMetaSave, counselPlan, counselPlanCancel, counselSave } from './counsel'
 import { getCatalog } from './catalog'
 import { addPaths, cancelOcr, clearOcr, continueOcr, pickFiles, runOcr, saveXlsx } from './ocr'
 import { addFolder, cancelBatch, pickFolder, runBatch, saveBatch } from './batch'
-import { seteukCancel, seteukDemoClear, seteukDemoFill, seteukLoad, seteukRequest, seteukSaveActs, seteukSaveRoster, seteukSaveRows, seteukAdvice, seteukGemText, seteukGround, seteukPoints, seteukReview, seteukMap, seteukMapExport, seteukSaveConfig, seteukSkillSave, seteukSaveOptions, seteukSaveStyle, seteukStyleCard, seteukWrite } from './seteuk'
+import { seteukCancel, seteukDemoClear, seteukDemoFill, seteukLoad, seteukRequest, seteukSaveActs, seteukSaveRoster, seteukSaveRows, seteukAdvice, seteukGemText, seteukGround, seteukPoints, seteukReview, seteukMap,seteukSaveConfig, seteukSkillSave, seteukSaveOptions, seteukSaveStyle, seteukStyleCard, seteukWrite } from './seteuk'
 import type { SeteukActivity, SeteukConfig, SeteukMode, SeteukOptions, SeteukRow, SeteukStudent, SeteukStyle, SeteukWriteRequest } from '../../shared/seteuk'
 import { seteukCompress, seteukCompressCancel, seteukNeisPick, seteukNeisPreview, seteukNeisSave, seteukSaveSum, seteukSums } from './seteukSum'
 import type { SeteukCompressRequest, SeteukSumPatch } from '../../shared/seteukSum'
 import type { NeisOptions } from '../../shared/seteukNeis'
 import type { SeteukReviewRequest } from '../../shared/seteukReview'
-import type { SeteukMapRequest, TopicMap } from '../../shared/seteukMap'
+import type { SeteukMapRequest } from '../../shared/seteukMap'
 import { seteukXlsxApply, seteukXlsxExport, seteukXlsxPick, seteukXlsxPreview } from './seteukXlsx'
 import type { BatchOptions, BatchRequest, BatchRow } from '../../shared/batch'
 import { deleteChat, getChat, listChats, listPresets, renameChat, saveChat, savePresets } from './chats'
@@ -344,6 +346,14 @@ function registerIpc(): void {
     saveBatch(mainWindow, rows, options, String(title ?? ''), format === 'csv' ? 'csv' : 'xlsx')
   )
 
+  /* ---------- 상담 기록 (담임) — 인수인계 파일에는 넣지 않는다 ---------- */
+  ipcMain.handle('counsel:load', (_e, year?: number) => counselLoad(year))
+  ipcMain.handle('counsel:save', (_e, input: RecordInput, planId?: string) => counselSave(input, planId ? String(planId) : undefined))
+  ipcMain.handle('counsel:delete', (_e, id: string) => counselDelete(String(id)))
+  ipcMain.handle('counsel:plan', (_e, input: PlanInput) => counselPlan(input))
+  ipcMain.handle('counsel:planCancel', (_e, id: string) => counselPlanCancel(String(id)))
+  ipcMain.handle('counsel:meta', (_e, patch: { no?: number; contact?: string; memo?: string; teacher?: string }) => counselMetaSave(patch ?? {}))
+
   /* ---------- 세특 작성실 (명단 · 활동 · 관찰 기록 → 초안 → 최종본) ---------- */
   ipcMain.handle('seteuk:load', () => seteukLoad())
   ipcMain.handle('seteuk:roster', (_e, mode: SeteukMode, list: SeteukStudent[]) => seteukSaveRoster(mode, list))
@@ -357,7 +367,6 @@ function registerIpc(): void {
   ipcMain.handle('seteuk:points', (_e, items: { id: string; text: string }[], model: ModelChoice | null) => seteukPoints(items, model))
   ipcMain.handle('seteuk:review', (_e, req: SeteukReviewRequest) => seteukReview(req))
   ipcMain.handle('seteuk:map', (_e, req: SeteukMapRequest) => seteukMap(req))
-  ipcMain.handle('seteuk:mapExport', (_e, map: TopicMap, label: string) => seteukMapExport(mainWindow, map, String(label ?? '')))
   ipcMain.handle('seteuk:ground', (_e, actId: string, sid: string, model: ModelChoice | null) => seteukGround(String(actId), String(sid), model))
   ipcMain.handle('seteuk:styleCard', (_e, model: ModelChoice | null, dry: boolean) => seteukStyleCard(model, dry === true))
   ipcMain.handle('seteuk:demoFill', () => seteukDemoFill())

@@ -95,7 +95,7 @@ export default function MenuSettings(): JSX.Element {
       </div>
       <p className="hint" style={{ marginTop: 0 }}>
         안 쓰는 메뉴는 끄고, ↑ ↓ 로 묶음 안의 차례를 바꿉니다. 꺼 둔 메뉴도 화면은 그대로 있어서 홈 위젯이나 검색에서 들어갈 수
-        있고, 언제든 다시 켤 수 있습니다.
+        있고, 언제든 다시 켤 수 있습니다. 새 화면에서는 <b>담임</b> 을 끄면 위 탭에서 빠지고, 오른쪽 위 [만들기] 에서는 늘 열 수 있습니다.
       </p>
 
       <div className="menu-cols">

@@ -32,7 +32,8 @@ interface Draft {
   neis: boolean
 }
 
-export default function Attendance({ onGo }: { onGo: (p: PageId) => void }): JSX.Element {
+/** embedded — 담임 화면의 한 칸으로 열릴 때(큰 제목은 담임 화면이 단다) */
+export default function Attendance({ onGo, embedded = false }: { onGo: (p: PageId) => void; embedded?: boolean }): JSX.Element {
   const toast = useToast()
   const today = todayStr()
   const [roster, setRoster] = useState<Roster | null>(null)
@@ -112,7 +113,7 @@ export default function Attendance({ onGo }: { onGo: (p: PageId) => void }): JSX
     <div className="att-page">
       <div className="page-head page-head-row">
         <div>
-          <h1>출결 기록</h1>
+          {!embedded && <h1>출결 기록</h1>}
           <p>
             {roster.cls ? `${roster.cls} · ` : ''}명단 {roster.students.length}명 · 나이스에 넣기 전에 모아 두고, 서류 · 나이스 입력을 챙깁니다.
           </p>

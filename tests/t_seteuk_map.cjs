@@ -1,4 +1,4 @@
-// 학생부 주제 지도 — 읽기 · 배치 · 옵시디언 노트 · 지시문 (빌드 없이). 이름은 지어낸 것
+// 학생부 주제 지도 — 읽기 · 배치 · 마크다운 · 지시문 (빌드 없이). 이름은 지어낸 것
 const { loadShared: load } = require('./tsload.cjs')
 const M = load('seteukMap.ts')
 
@@ -58,17 +58,8 @@ ok(M.layoutMap({ topics: [], links: [], suggests: [] }, 900, 520).nodes.length =
 const one = M.layoutMap({ topics: [m.topics[0]], links: [], suggests: [] }, 900, 520)
 ok(one.nodes.length === 1 && one.nodes[0].x > 0 && one.nodes[0].x < 900, '주제 하나')
 
-console.log('\n3. toObsidian')
-const files = M.toObsidian(m, '2학년 3반 5번')
-const by = Object.fromEntries(files.map((f) => [f.path, f.content]))
-ok(by['index.md'] && by['추천.md'] && by['유리함수 점근선.md'], '목차 · 추천 · 주제마다 노트')
-ok(by['유리함수 점근선.md'].startsWith('# 유리함수 점근선') && by['유리함수 점근선.md'].includes('#수학') && by['유리함수 점근선.md'].includes('> 좌표 차를'), '제목 · 영역 태그 · 인용')
-ok(by['유리함수 점근선.md'].includes('[[암호 빈도 분석]] — 규칙 찾기') && by['암호 빈도 분석.md'].includes('[[유리함수 점근선]]'), '양쪽 노트에 [[연결]]')
-ok(by['추천.md'].includes('[[유리함수 점근선]]') && by['추천.md'].includes('#추천') && by['index.md'].includes('[[학급 규칙 정하기]]') && by['index.md'].includes('[[추천]]'), '추천 노트의 [[from]] · 목차')
-const odd = M.toObsidian({ topics: [{ id: 'a', name: 'a/b:c?', areas: [], evidence: [], competency: '' }, { id: 'b', name: '추천', areas: [], evidence: [], competency: '' }], links: [], suggests: [] }, '')
-ok(odd.every((f) => !/[\/:*?"<>|]/.test(f.path)) && new Set(odd.map((f) => f.path.toLowerCase())).size === odd.length, '파일 이름에 못 쓰는 글자 · 겹침 정리')
-ok(/^학생부지도_2학년3반5번_20260102$/.test(M.mapFolderName('2학년 3반/5번', new Date(2026, 0, 2))), '폴더 이름')
-ok(M.toMarkdown(m, 'x').includes('## 이어 갈 추천'), '마크다운')
+console.log('\n3. 마크다운')
+ok(M.toMarkdown(m, 'x').includes('## 이어 갈 추천') && M.toMarkdown(m, '').startsWith('# 학생부 주제 지도 — 학생'), '마크다운 복사')
 
 console.log('\n4. buildMapSystem')
 const sys = M.buildMapSystem()

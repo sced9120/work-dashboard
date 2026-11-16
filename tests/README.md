@@ -35,12 +35,13 @@ node -r ./tests/hook.cjs ./tests/run_errlog.cjs # 오류 기록 (logs/error.log)
 node -r ./tests/hook.cjs ./tests/run_backup.cjs # 날마다 자동 백업 · 지금 백업 · 되돌리기
 node -r ./tests/hook.cjs ./tests/run_dbsave.cjs # 저장 모으기 (0.4초 · 2초 · 바로 쓰기)
 node tests/t_attproof.cjs                            # 출결 서류 기한 (빌드 없이)
+node tests/t_nav_homeroom.cjs                        # 새 화면 위 탭 — 담임 · 세특 맨 오른쪽 · 담임 숨기기 · 출결은 담임 안 (빌드 없이)
 node tests/t_relayform.cjs                           # 우편함 v3 — 설문지 응답 시트 읽기 (빌드 없이)
 node -r ./tests/hook.cjs ./tests/run_relayform.cjs # 설문지 응답 가져오기 (relay:form)
 node -r ./tests/hook.cjs ./tests/run_dataloc.cjs # 자료 폴더 고르기 · 잠금
-node -r ./tests/hook.cjs ./tests/run_seteuk_review.cjs # 세특 작성실 — 서술 흐름 · 학생부 살펴보기
-node tests/t_seteuk_map.cjs                          # 학생부 주제 지도 — 읽기 · 배치 · 옵시디언 노트 · 지시문 (빌드 없이)
-node -r ./tests/hook.cjs ./tests/run_seteuk_map.cjs # 주제 지도 (seteuk:map · mapExport) — 이름 가림 · 되돌림 · 노트 저장
+node -r ./tests/hook.cjs ./tests/run_seteuk_review.cjs # 세특 작성실 — 서술 흐름 · 학생부 분석(담임 상담 힌트 · 성명 가리기)
+node tests/t_seteuk_map.cjs                          # 학생부 주제 지도 — 읽기 · 배치 · 마크다운 · 지시문 (빌드 없이)
+node -r ./tests/hook.cjs ./tests/run_seteuk_map.cjs # 주제 지도 (seteuk:map) — 이름 가림(적은 이름 포함) · 되돌림
 node -r ./tests/hook.cjs ./tests/run_seteuk_config.cjs # 세특 작성실 — 내 규칙이 초안 · 고쳐쓰기에 쓰임
 node tests/t_mdtable.cjs                           # 답에서 표 뽑기 · 이어 붙이기 · 수식 (빌드 없이)
 node tests/t_xlsxkind.cjs                         # 엑셀 열 성격(번호 · 날짜 · 금액) 판별 · 너비 · 칸 서식 (빌드 없이)
@@ -93,6 +94,8 @@ Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron
 | `run_backup.cjs` | 켠 뒤 오늘 백업 · 최근 7개만(다른 종류는 남김) · 지금 백업 · 목록(새것부터 · 종류) · 되돌리기(값이 돌아옴 · 되돌리기 전 백업) · 폴더 밖 · 하위 경로 · 없는 파일 · 망가진 백업 거절 |
 | `run_dbsave.cjs` | 잇달아 50번 바꾸면 파일 쓰기 2~3번 · 0.4초 뒤 파일에 · 계속 바뀌어도 2초에 한 번 · data:info 전에 바로 씀 |
 | `t_attproof.cjs` | 평일 n일 뒤(주말 건너뜀) · 기한 일수 1~30 · 서류 아직인 것만 · 기한 순 · 알림 글은 번호로만 |
+| `t_counsel.cjs` | 학년도(2027-02 → 2026) · 달 칸 건수 · 예정 표시 · 달별 합계 · 이번 학기 기록 없는 학생 · 학부모 글(인사 · 날짜 · 후속 조치) · 입력 거절 · 일정 제목에 이름 없음 · 이름 · 주제 거르기 · 엑셀 표 |
+| `run_counsel.cjs` | 기록 저장 · 고치기(다른 학년도로 이동) · 지우기 · 연락처 · 예정 → 달력 일정 만들기 · 고치기 · 취소하면 일정도 삭제 · 완료로 기록 · 달력에서 먼저 지운 경우 · 인수인계 파일에 상담 내용 없음 · 백업에는 있음 |
 | `t_relayform.cjs` | 스크립트 v3 · 기능마다 필요한 판 · 가짜 SpreadsheetApp 으로 form_(머리글 · 새 행만 · ID 모양 · 열 수 없는 시트 · 열쇠 · 300행 · 시트 내용을 남기지 않음) · 답 읽기 · 주소 → ID · 머리글 다듬기(이메일 · 점수 · 연락처 뺌) · 학번으로 맞추기 |
 | `run_relayform.cjs` | 이어지지 않음 · v2 스크립트는 새 판 안내 · v3 이어 받기(300행 넘음) · 시트 ID 와 시각만 보냄 · 판 기억 · 시트 주소가 아님 · 스크립트 까닭 |
 | `run_dataloc.cjs` | 정해 둔 폴더로 켜기 · 잠금(이 PC 이름) · 저장은 그 폴더 · 백업은 이 PC · 다른 PC 가 쓰는 폴더 거절 · 빈 폴더로 옮기기 · 자료 있는 폴더(그 자료 쓰기 · 지금 자료 백업) · 오래된 잠금 · 취소 · 지금 폴더 · 기본으로 되돌리기 |

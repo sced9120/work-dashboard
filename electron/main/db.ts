@@ -1182,6 +1182,8 @@ export async function exportTo(targetPath: string, includePersonal = false): Pro
   copy.run(`DELETE FROM settings WHERE key IN (${PERSONAL_SETTINGS.map(() => '?').join(',')})`, PERSONAL_SETTINGS)
   // 세특 작성실의 명단 · 관찰 기록 · 글은 학생 개인정보라 넘기지 않는다
   copy.run("DELETE FROM settings WHERE substr(key, 1, 7) = 'seteuk_'")
+  // 상담 기록(counsel_<학년도> · counsel_meta)도 학생 개인정보라 넘기지 않는다. 이 PC 의 백업에는 DB 통째라 들어 있다.
+  copy.run("DELETE FROM settings WHERE substr(key, 1, 8) = 'counsel_'")
   // 지운 줄은 파일의 빈 쪽에 글자가 그대로 남는다. 다시 짜서 지운 것이 파일에 남지 않게 한다.
   copy.run('VACUUM')
   fs.writeFileSync(targetPath, Buffer.from(copy.export()))

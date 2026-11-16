@@ -3,7 +3,8 @@ import type { RefObject } from 'react'
 import type { ReactNode } from 'react'
 import type { PageId } from '../App'
 import type { NavPrefs } from '../lib/nav'
-import { isShown } from '../lib/nav'
+import { isShown, tabIdOf, visibleTabs, TABS } from '../lib/nav'
+import type { TabId } from '../lib/nav'
 import AskDock from './AskDock'
 import Icon from './Icon'
 import { OrbitMark } from './Brand'
@@ -11,46 +12,12 @@ import type { IconName } from './Icon'
 
 /**
  * 새 화면 (설정 → 화면 구성 → 새 화면). 예전 화면과 같은 자료 · 같은 안쪽 화면을 쓰고, 바깥 틀만 다르다.
- *  - 위 탭 셋: 오늘(위젯 판) · 이번 주(시간표 · 달력) · 내 업무(연간 업무 · 기한 · 워크플로우 · 가이드 · 도움자료 · 인수인계)
- *  - [＋ 만들기] 팝업: 자료 만들기 다섯 가지와 기록(메모장 · 일지)
+ *  - 위 탭: 오늘(위젯 판) · 이번 주(시간표 · 달력) · 내 업무(연간 업무 · 기한 · 워크플로우 · 가이드 · 도움자료 · 인수인계) · 담임(명단 · 상담 · 출결 · 학생부) · 세특 작성실
+ *    탭 정의와 보이기는 lib/nav.ts (TABS · visibleTabs)
+ *  - [＋ 만들기] 팝업: 담임, 자료 만들기 다섯 가지와 기록(메모장 · 일지)
  *  - 아래 떠 있는 물어보기 바: Enter 는 업무 도우미, 돋보기는 통합 검색 (Ctrl+K 로 커서가 온다)
  * 탭 밖의 화면(만들기 · 도우미 · 검색 · 설정)은 위에 [‹ 돌아가기] 를 달아 어디서 왔는지 돌아갈 수 있게 한다.
  */
-
-type TabId = 'today' | 'week' | 'work' | 'seteuk'
-
-interface Sub {
-  page: PageId
-  label: string
-}
-
-const TABS: { id: TabId; label: string; subs: Sub[] }[] = [
-  { id: 'today', label: '오늘', subs: [{ page: '홈', label: '오늘' }] },
-  {
-    id: 'week',
-    label: '이번 주',
-    subs: [
-      { page: '이번주', label: '한눈에' },
-      { page: '시간표', label: '시간표' },
-      { page: '달력', label: '달력' },
-      { page: '출결', label: '출결 기록' }
-    ]
-  },
-  {
-    id: 'work',
-    label: '내 업무',
-    subs: [
-      { page: '로드맵', label: '연간 업무' },
-      { page: '기한', label: '절차 기한' },
-      { page: '워크플로우', label: '워크플로우' },
-      { page: '가이드', label: '업무 가이드' },
-      { page: '도움자료', label: '도움자료' },
-      { page: '데이터', label: '인수인계 · 백업' }
-    ]
-  },
-  // 세특은 학기 말에 몰아서 오래 쓰는 화면이라 만들기 안에 두지 않고 위 탭으로 바로 간다
-  { id: 'seteuk', label: '세특 작성실', subs: [{ page: '세특', label: '세특 작성실' }] }
-]
 
 interface MakeItem {
   page: PageId
@@ -59,7 +26,13 @@ interface MakeItem {
   desc: string
 }
 
-const MAKE: { title: string; items: MakeItem[] }[] = [
+const MAKE: { title: string; items: MakeItem[]; always?: boolean }[] = [
+  // 담임 탭을 꺼 둔 사람도 여기서는 늘 열 수 있다
+  {
+    title: '담임',
+    always: true,
+    items: [{ page: '담임', icon: 'class', label: '담임', desc: '학생 명단 · 상담 기록 · 출결 · 학생부 분석' }]
+  },
   {
     title: '자료 만들기',
     items: [
@@ -83,7 +56,7 @@ const MAKE: { title: string; items: MakeItem[] }[] = [
 const OTHER_LABEL: Partial<Record<PageId, string>> = { 도우미: '업무 도우미', 검색: '통합 검색', 설정: '설정' }
 
 export function tabOf(page: PageId): TabId | null {
-  return TABS.find((t) => t.subs.some((s) => s.page === page))?.id ?? null
+  return tabIdOf(page)
 }
 
 /** Ctrl+K — 물어보기 바로 커서를 옮긴다 */
@@ -210,7 +183,7 @@ export default function NewShell(props: Props): JSX.Element {
         </div>
 
         <nav className="ns-tabs" aria-label="화면">
-          {TABS.map((t) => (
+          {visibleTabs(navp).map((t) => (
             <button
               key={t.id}
               data-page={t.subs[0].page}
@@ -258,7 +231,7 @@ export default function NewShell(props: Props): JSX.Element {
         {makeOpen && (
           <div ref={makeRef} className="ns-pop" role="dialog" aria-label="만들기">
             {MAKE.map((g) => {
-              const items = g.items.filter((m) => isShown(navp, m.page))
+              const items = g.always ? g.items : g.items.filter((m) => isShown(navp, m.page))
               if (!items.length) return null
               return (
                 <div key={g.title} className="ns-pop-group">

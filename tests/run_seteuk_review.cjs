@@ -1,4 +1,4 @@
-// 세특 작성실 — 서술 흐름(쓰기 규칙) · 학생부 살펴보기. 빌드된 앱의 IPC 로. AI 는 가로채 가짜로 답한다(진짜 키를 쓰지 않는다). 이름은 지어낸 것
+// 세특 작성실 — 서술 흐름(쓰기 규칙) · 학생부 분석(담임 상담 힌트). 빌드된 앱의 IPC 로. AI 는 가로채 가짜로 답한다(진짜 키를 쓰지 않는다). 이름은 지어낸 것
 const path = require('path')
 const { handlers } = global.__it
 const { loadShared: load } = require('./tsload.cjs')
@@ -34,15 +34,32 @@ ok(p.includes('# 서술 규칙') && p.includes('맡은 역할') && !p.includes('
 ok(['과세특', '동아리', '자율', '진로', '행발'].every((r) => S.byteLen(S.buildSeteukPrompt(S.newActivity('x', { rec: r }))) < 3830), '예시 없는 프롬프트는 3,830바이트 안')
 ok(M.compressPrompt(S.recordOf('과세특')).includes('계기 → 직접 한 과정 → 이어간 탐구 → 결론'), '압축도 같은 흐름')
 
-console.log('\n1. 살펴보기 규칙 (빌드 없이)')
+console.log('\n1. 학생부 분석 규칙 (빌드 없이)')
 const lower = V.buildReviewSystem('2')
 const upper = V.buildReviewSystem('3')
-ok(lower.includes('과목 선택 · 진로와 이어지는 지점') && upper.includes('학업역량 · 학업태도 · 학업 외 소양(공동체 속의 역할)이 각각 어느 영역') && lower.includes('이어 갈 탐구 세 가지') && !lower.includes('짜임과 보완할 곳') && upper.includes('## 2. 흐름 진단\n표로 쓴다.') && !upper.includes('이어 갈 탐구 세 가지'), '1 · 2학년 / 3학년 할 일이 다름')
-ok(V.buildReviewSystem('1') === lower, '1학년도 이어 갈 탐구')
+const TITLES = ['## 이 학생의 강점', '## 관심의 흐름', '## 상담에서 물어볼 질문', '## 진로 · 학업 대화 포인트', '## 살펴볼 점', '## 다음 학기 기록을 위해']
+for (const sys of [lower, upper]) {
+  const at = TITLES.map((t) => sys.indexOf(t))
+  ok(at.every((i) => i > 0) && at.every((i, k) => k === 0 || i > at[k - 1]), '상담 힌트 여섯 제목이 차례대로')
+  ok(sys.includes('네 개에서 여섯 개') && sys.includes('열린 질문') && sys.includes('대학 이름이나 합격 가능성은 말하지 않는다') && sys.includes('특별히 없음') && sys.includes('낙인'), '질문 4~6개 · 대학 · 합격 말하지 않기 · 살펴볼 점 없으면 · 낙인 금지')
+  ok(!sys.includes('이어 갈 탐구 세 가지') && !sys.includes('짜임과 보완할 곳') && !sys.includes('## 1. 지금 보이는 강점') && !sys.includes('다음 기록을 더 잘 쓰도록'), '예전 세특 쓰기용 할 일 · 역할은 없음')
+}
+ok(lower.includes('1 · 2학년이다') && !lower.includes('3학년이다') && upper.includes('3학년이다') && !upper.includes('1 · 2학년이다'), '학년별 한 줄이 다름')
+ok(V.buildReviewSystem('1') === lower, '1학년 = 2학년')
 for (const sys of [lower, upper]) {
   ok(['대회', '논문', '공인어학시험', '사교육', '대학명', '지어내지 않는다', '대신 써 주지 않고', '책 제목', '모든 대학이 같다고 말하지 않는다', '정규 수업', '남들이 흔히 하는 주제를 권하지 않는다', '도서명은 학생부에 나온 것만'].every((w) => sys.includes(w)), '기재요령 · 지어내지 않기 · 대필 금지 · 책 제목 · 한 대학 기준 · 자기 질문 · 도서명')
   ok(['학업역량', '학업태도', '학업 외 소양', '직책 이름이나 횟수가 아니라', '자신의 성취를 점검하고', '활동의 개수보다 깊이'].every((w) => sys.includes(w)), '서류평가 세 요소 · 점검 질문')
 }
+// 세특 '이 글 조언'은 그대로
+const adv = V.buildAdviceSystem()
+ok(adv.includes('## 잘 드러난 것') && adv.includes('## 선생님이 확인할 질문') && adv.includes('특기사항 한 편을 읽고') && adv.includes('# 읽는 관점') && adv.includes('# 지킬 것') && !adv.includes('## 이 학생의 강점'), '이 글 조언 지시문은 그대로')
+ok(V.reviewPerspective().startsWith('# 읽는 관점') && V.reviewPerspective().includes('# 지킬 것'), '주제 지도가 쓰는 관점 · 지킬 것')
+// 이름 찾기
+ok(JSON.stringify(V.findHeaderNames('성명 : 홍길동 (남)')) === '["홍길동"]', '성명 : ○○○')
+ok(JSON.stringify(V.findHeaderNames('성 명 | 김하늘 | 학번 30101')) === '["김하늘"]', '표 칸 — 성 명 | ○○○')
+ok(JSON.stringify(V.findHeaderNames('성명\t박나래\n성명 및 학번')) === '["박나래"]', '탭 · 이름이 아닌 말(및)은 건너뜀')
+ok(V.findHeaderNames('성명').length === 0 && V.findHeaderNames('성취수준의 특성').length === 0, '이름이 없으면 없음')
+ok(JSON.stringify(V.extraMaskNames('성명: 홍길동', ' 홍 길동 ')) === '["홍길동"]' && JSON.stringify(V.extraMaskNames('', 'A')) === '[]', '적은 이름 + 머리 이름, 겹치지 않게 · 한글 이름만')
 ok(V.buildReviewUser(' 글 ', '2', '  통계   분야 ') === '# 학생 정보\n- 학년: 2학년\n- 진로 희망: 통계 분야\n\n# 학생부\n글' && !V.buildReviewUser('글', '3', ' ').includes('진로'), '학생 정보 — 진로가 비면 넣지 않음')
 ok(V.cleanReport('```markdown\n좋습니다.\n## 1. 강점\n내용\n```') === '## 1. 강점\n내용' && V.cleanReport('## 1\n가') === '## 1\n가', '머리말 · 코드 울타리 걷어 냄')
 
@@ -56,16 +73,29 @@ ok(V.cleanReport('```markdown\n좋습니다.\n## 1. 강점\n내용\n```') === '#
   const text = '[수학] 교과서의 공식 대신 좌표 차를 이용하는 방법을 탐구하고 교사와 함께 검토함. 가나다는 유리함수 그래프를 점근선으로 판단함.\n[동아리] 라마바와 함께 암호를 만들어 풀어 봄. 빈도 분석으로 깨지는 것을 확인하고 치환표를 고침.'
 
   console.log('\n2. 살펴보기 — 이름은 가리고 학년에 맞는 규칙으로')
-  script = [answer('살펴보겠습니다.\n## 1. 지금 보이는 강점\n- 학생1는 점근선으로 판단함\n## 3. 이어 갈 탐구 세 가지\n학생2와 한 암호 활동에서')]
+  script = [answer('살펴보겠습니다.\n## 이 학생의 강점\n- 학생1는 점근선으로 판단함\n## 상담에서 물어볼 질문\n학생2와 한 암호 활동에서')]
   let r = await call('seteuk:review', { text, grade: '2', career: '통계' })
-  ok(r.ok && r.report.startsWith('## 1. 지금 보이는 강점') && r.report.includes('가나다는 점근선') && r.report.includes('라마바와 한 암호'), '받은 의견 — 머리말 걷고 가명 되돌림')
+  ok(r.ok && r.report.startsWith('## 이 학생의 강점') && r.report.includes('가나다는 점근선') && r.report.includes('라마바와 한 암호'), '받은 의견 — 머리말 걷고 가명 되돌림')
   const b = log[0].body.messages
-  ok(b[0].content.includes('이어 갈 탐구 세 가지') && b[1].content.startsWith('# 학생 정보\n- 학년: 2학년\n- 진로 희망: 통계'), '2학년 규칙 · 학생 정보')
+  ok(b[0].content.includes('## 상담에서 물어볼 질문') && b[0].content.includes('1 · 2학년이다') && b[1].content.startsWith('# 학생 정보\n- 학년: 2학년\n- 진로 희망: 통계'), '2학년 규칙 · 학생 정보')
   ok(!JSON.stringify(log[0].body).includes('가나다') && !JSON.stringify(log[0].body).includes('라마바'), '교과 · 동아리 명단의 이름 모두 가림')
   ok(!('response_format' in log[0].body), '글로 받음(JSON 아님)')
-  script = [answer('## 1. 전체 짜임\n…')]
+  script = [answer('## 이 학생의 강점\n…')]
   r = await call('seteuk:review', { text, grade: '3', career: '' })
-  ok(r.ok && log[1].body.messages[0].content.includes('짜임과 보완할 곳') && !log[1].body.messages[1].content.includes('진로'), '3학년 규칙 · 진로 없음')
+  ok(r.ok && log[1].body.messages[0].content.includes('3학년이다') && !log[1].body.messages[1].content.includes('진로'), '3학년 규칙 · 진로 없음')
+
+  console.log('\n2-1. 명단에 없는 학생 — 적은 이름 · 학생부 머리의 성명도 가림')
+  const hdr = '성 명 : 최서윤\n[수학] 교과서의 공식 대신 좌표 차를 이용하는 방법을 탐구하고 교사와 함께 검토함. 서윤이는 유리함수 그래프를 점근선으로 판단함.\n[자율] 학급 회의에서 진행을 맡아 의견을 모음. 오다은과 함께 규칙표를 만듦.'
+  script = [answer('## 이 학생의 강점\n- 학생4와 학생3는 규칙표를 만듦')]
+  r = await call('seteuk:review', { text: hdr, grade: '2', career: '', studentName: '오다은' })
+  const sent = JSON.stringify(log[log.length - 1].body)
+  ok(r.ok && !sent.includes('최서윤') && !sent.includes('오다은') && !sent.includes('서윤이는'), '머리의 성명 · 적은 이름 · 이름만 쓴 형태(서윤이는) 모두 가림')
+  ok(/학생\d/.test(sent) && r.report.includes('오다은'), '받은 글의 가명은 되돌림')
+  const n0 = log.length
+  r = await call('seteuk:review', { text: hdr.replace('성 명 : 최서윤', '보호자 최서윤'), grade: '2', career: '', studentName: '오다은', dry: true })
+  ok(r.ok && !r.text.includes('오다은') && log.length === n0, '요청 글만 복사해도 이름 가림')
+  r = await call('seteuk:review', { text: '[수학] ' + '탐구를 했음. '.repeat(12) + '한가을은 발표함.', grade: '2', career: '', studentName: '한가을', dry: true })
+  ok(r.ok && !r.text.includes('한가을'), '적은 이름 한 번 더 확인')
 
   console.log('\n3. 보내지 않는 경우')
   const n = log.length
