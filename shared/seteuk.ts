@@ -294,7 +294,7 @@ export const GRADES = ['1', '2', '3', '4', '5']
 
 /** 학생 자료에 '성취수준: n' 이 있을 때만 쓰는 규칙 */
 const GRADE_LINE =
-  "- 학생 자료에 '성취수준'(1~5, 1이 가장 높음)이 있으면 1~2는 여러 역량이 높은 수준에서 함께 드러난 것으로, 4~5는 드러난 역량과 노력한 점을 중심으로 쓴다.\n- 성취수준, 등급, 석차는 결과에 쓰지 않는다."
+  "- 학생 자료에 '성취수준'(1~5, 1이 가장 높음)이 있으면 1~2는 여러 역량이 높은 수준에서 함께 드러난 것으로, 4~5는 드러난 역량과 노력한 점 중심으로 쓴다. 성취수준·등급·석차는 결과에 쓰지 않는다."
 
 /** 입력 항목 — 쉼표 · 줄바꿈으로 나눈 이름, 겹치면 하나만, 열두 개까지 */
 export function readColumns(v: unknown): string[] {
@@ -499,8 +499,8 @@ export function mergeGroup(cur: SeteukStudent[], group: string, incoming: Seteuk
  * 창체 · 행발에서 '경험의 유무나 활동의 양'이 아니라 '맡은 역할과 활동 내용'을 본다. 그래서 달라진 점은 행동으로, 역할은 직책 이름보다 한 일로 쓴다.
  */
 const FRAME_STUDY = [
-  '- 한 장면은 계기(수업 속 질문) → 직접 한 과정(조사 · 측정 · 계산 · 고친 점) → 이어간 탐구 → 결론 순서로 잇고, 메모에 없는 단계는 건너뛴다.',
-  '- 개념과 방법은 이름으로 쓰고, 계기는 메모에 있는 사실로 한 구절만 쓴다. 처음과 달라진 점이 메모에 있으면 행동으로 쓴다.'
+  '- 한 장면은 계기(수업 속 질문) → 직접 한 과정(조사·측정·계산·고친 점) → 이어간 탐구 → 결론 순서로 잇고, 메모에 없는 단계는 건너뛴다.',
+  '- 개념과 방법은 이름으로, 계기는 메모의 사실로 한 구절만 쓴다. 처음과 달라진 점은 메모에 있으면 행동으로 쓴다.'
 ]
 const FRAME_ROLE = [
   '- 한 장면은 맡은 역할 → 그 자리에서 직접 한 일(뜻밖의 상황에 대처한 방식 포함) → 결과 순서로 잇고, 메모에 없는 단계는 건너뛴다. 직책 이름이나 횟수보다 한 일을 쓴다.'
@@ -519,17 +519,15 @@ export function sentenceFrame(recKey: string): string {
 
 function amountLines(amount: SeteukAmount, bytes: number, fill: number): string[] {
   const target = Math.round((bytes * fill) / 100)
-  const noMake = '메모에 없는 활동, 과정, 결과, 수치는 만들지 않는다.'
   if (amount === '메모만큼') {
     return [
-      `- 분량은 한도의 ${fill}%(${target}바이트)를 넘지 않게, 자료의 양을 따른다. 메모가 한두 줄이면 한두 문장으로 끝낸다.`,
-      '- 분량을 채우려고 자료에 없는 과정, 결과, 칭찬, 성장 가능성 문장을 덧붙이지 않는다.'
+      `- 한도의 ${fill}%(${target}바이트)를 넘지 않게 자료의 양을 따른다. 메모가 한두 줄이면 한두 문장으로 끝낸다.`,
+      '- 채우려고 자료에 없는 과정·결과·칭찬·성장 가능성 문장을 덧붙이지 않는다.'
     ]
   }
   return [
-    `- 한도의 ${fill}%(${target}바이트) 안팎으로 쓴다. 메모가 짧아 채우기 어려우면 그보다 짧아도 된다.`,
-    `- 늘리는 몫은 메모 속 행동을 구체적으로 풀고 교과 역량과 잇는 데 쓴다. ${noMake}`,
-    '- 막연한 칭찬이나 성장 가능성 문장으로 분량을 채우지 않는다.'
+    `- 한도의 ${fill}%(${target}바이트) 안팎으로 쓴다. 메모가 짧으면 그보다 짧아도 된다.`,
+    '- 늘릴 때는 메모 속 행동을 구체적으로 풀되, 막연한 칭찬·성장 가능성 문장으로 채우지 않는다.'
   ]
 }
 
@@ -604,7 +602,9 @@ export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions 
 
   P.push('# 역할\n' + buildRole(rec, act.subject, years))
 
-  const ctx = ['# 과제', `- 목표: ${rec.goal || '학교생활기록부 특기사항 작성'}`, `- 기록 항목: ${rec.name}`]
+  const goal = rec.goal || '학교생활기록부 특기사항 작성'
+  const ctx = ['# 과제', `- 목표: ${goal}`]
+  if (!goal.includes(rec.name)) ctx.push(`- 기록 항목: ${rec.name}`)
   if (act.name.trim()) ctx.push(`- 대상 활동: ${act.name.trim()}`)
   if (act.desc.trim()) ctx.push(`- 활동 개요: ${act.desc.trim().replace(/\n/g, ' ')}`)
   P.push(ctx.join('\n'))
@@ -635,19 +635,19 @@ export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions 
   const len = ['# 분량']
   if (bytes < recBytes) {
     len.push(
-      `- 이 활동은 ${rec.name} 한 칸(${recBytes}바이트) 가운데 한 부분이다. 같은 학생의 다른 활동 기록과 합쳐 들어가므로 이 활동의 몫만 쓴다.`
+      `- 이 활동은 ${rec.name} 한 칸(${recBytes}바이트) 가운데 한 부분이다. 다른 활동 기록과 합쳐 들어가므로 이 활동의 몫만 쓴다.`
     )
   }
-  len.push(`- ${bytes}바이트(한글 약 ${chars}자) 이내로 작성한다. 넘으면 안 된다.`)
-  len.push(...amountLines(act.amount, bytes, act.fill ?? 70))
+  len.push(`- ${bytes}바이트(한글 약 ${chars}자) 이내로 작성한다.`)
   if (com.BYTE_RULE) len.push(com.BYTE_RULE)
+  len.push(...amountLines(act.amount, bytes, act.fill ?? 70))
   P.push(len.join('\n'))
 
   const cols = act.columns ?? []
   P.push(
     (cols.length >= 2
-      ? `# 입력 자료 형식\n아래 학생 자료는 교사가 다음 항목으로 나눠 적은 관찰 기록이다: ${cols.join(' | ')}. 빈 항목은 없는 것이다. 항목에 있는 사실만 근거로 문장을 다듬어 쓴다.`
-      : '# 입력 자료 형식\n아래 학생 자료는 교사가 수업·활동 중에 관찰하고 자유롭게 적은 메모다. 메모에 있는 사실만 근거로 문장을 다듬어 쓴다.') +
+      ? `# 입력 자료 형식\n아래 학생 자료는 교사가 다음 항목으로 나눠 적은 관찰 기록이다: ${cols.join(' | ')}. 빈 항목은 없는 것이다.`
+      : '# 입력 자료 형식\n아래 학생 자료는 교사가 관찰해 자유롭게 적은 메모다.') +
       DATE_RULE +
       (act.amount === '메모만큼' ? ' 메모가 짧으면 짧게 쓴다.' : '')
   )
@@ -664,10 +664,10 @@ export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions 
   const ex = examplesText(act)
   if (ex) {
     P.push(
-      '# 예시\n표현 방식과 서술 흐름을 참고한다. 문장을 그대로 베끼지 않는다. ' +
+      '# 예시\n표현 방식과 서술 흐름만 참고하고 문장은 베끼지 않는다. ' +
         ((act.fill ?? 70) >= 90 && act.amount !== '메모만큼'
           ? ''
-          : '예시 결과의 길이와 내용은 그 예시 입력의 양에 맞춘 것이다. ' +
+          : '예시 결과의 길이와 내용은 그 입력의 양에 맞춘 것이다. ' +
             (act.amount === '메모만큼' ? '학생 자료가 예시 입력보다 적으면 결과도 그만큼 짧게 쓴다.' : '학생 자료가 예시 입력보다 적으면 예시보다 짧아도 된다.')) +
         '\n\n' +
         ex

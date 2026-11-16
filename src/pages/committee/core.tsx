@@ -5,6 +5,7 @@
 import Mono from '../../components/Mono'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DocField, DocForm } from '../../../shared/docforms'
+import { geminiReady } from '../../../shared/gemini'
 import {
   CUSTOM_PREFIX,
   DOC_FORMS,
@@ -220,7 +221,7 @@ export function useCommittee({ onGo }: Props) {
       await loadCustomForms()
       await loadHwp()
       const s = await window.api.local.load()
-      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key || s.exaone_key))
+      setHasKey(!!(s.openai_key || geminiReady(s) || s.claude_key || s.exaone_key))
     })()
   }, [loadTemplates, loadCustomForms, loadHwp])
 

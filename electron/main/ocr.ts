@@ -48,6 +48,8 @@ import {
 import { OCR_AGENT_PROMPT, OCR_OPENAI_RULES, OCR_RULES } from '../../shared/ocrPrompt'
 import { peekCatalog } from './catalog'
 import { httpFetch } from './http'
+import { geminiModeOf } from '../../shared/gemini'
+import { geminiCredential, geminiFetch, geminiMissingText, vertexErrorText } from './vertex'
 import { readSse } from './sse'
 import { loadLocalSettings } from './secrets'
 
@@ -55,6 +57,8 @@ const API = 'https://generativelanguage.googleapis.com'
 const OA = 'https://api.openai.com/v1'
 /** 요청 하나에 바로 싣는 파일 크기 합 (base64 로 늘어나도 요청 20MB 안쪽) */
 const INLINE_LIMIT = 14 * 1024 * 1024
+/** Vertex AI · Express 는 파일 저장소가 없어 늘 요청에 싣는다 — 요청 전체 약 18MB 까지(base64 로 4/3 배) */
+const VERTEX_INLINE_LIMIT = Math.floor((18 * 1024 * 1024 * 3) / 4)
 /** OpenAI: 요청 하나에 바로 싣는 합 · 한 번에 읽는 파일 합 (OpenAI 가 받는 것은 요청당 50MB) */
 const OA_INLINE_LIMIT = 30 * 1024 * 1024
 const OA_TOTAL_LIMIT = 50 * 1024 * 1024
@@ -251,11 +255,16 @@ export function cancelOcr(tab: string): void {
 
 async function describe(res: Response): Promise<string> {
   let detail = ''
+  let full = ''
   try {
-    detail = (await res.text()).slice(0, 400)
+    full = await res.text()
+    detail = full.slice(0, 400)
   } catch {
     /* 상태 코드만으로 안내한다 */
   }
+  // Vertex · Express 는 따로 풀어 쓴다 (역할 · API 사용 설정 · 위치 · 할당량)
+  const vx = vertexErrorText(geminiModeOf(loadLocalSettings()), res.status, full)
+  if (vx) return vx
   switch (res.status) {
     case 400:
       return /API key not valid/i.test(detail)
@@ -390,12 +399,7 @@ async function generateGemini(s: Session, onProgress: (p: OcrProgress) => void, 
       ...(isModernGemini(s.model) ? {} : { temperature: 0 })
     }
   }
-  const res = await httpFetch(`${API}/v1beta/models/${encodeURIComponent(s.model)}:streamGenerateContent?alt=sse`, {
-    method: 'POST',
-    signal,
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': s.key },
-    body: JSON.stringify(body)
-  })
+  const res = await geminiFetch(loadLocalSettings(), s.model, 'streamGenerateContent', JSON.stringify(body), signal)
   if (!res.ok) {
     const txt = await res.text().catch(() => '')
     // 그 모델이 생각 단계 · 그림 해상도 설정을 모르면 빼고 한 번만 다시
@@ -452,12 +456,14 @@ export async function runOcr(req: OcrRequest, onProgress: (p: OcrProgress) => vo
   if (aborts.has(tab)) return fail('이 탭은 아직 읽는 중입니다.')
   // 고른 모델로 어느 서비스로 읽을지 — 모델을 고르지 않았으면 Gemini 키가 있으면 Gemini, 없고 OpenAI 키만 있으면 OpenAI
   const settings = loadLocalSettings()
-  const geminiKey = (settings.gemini_key ?? '').trim()
+  // 연결 방식에 따라 API 키 · 'vertex' · Express 키
+  const geminiKey = geminiCredential(settings)
   const openaiKey = (settings.openai_key ?? '').trim()
   const asked = String(req.model ?? '')
   const provider: OcrProvider = ocrProviderOf(asked) ?? (geminiKey || !openaiKey ? 'gemini' : 'openai')
   const key = provider === 'openai' ? openaiKey : geminiKey
   if (!key) {
+    if (provider === 'gemini' && geminiModeOf(settings) !== 'key') return fail(geminiMissingText(settings))
     return fail(
       provider === 'openai'
         ? 'OpenAI API 키가 없습니다. [설정 → AI 연결] 에서 OpenAI 키를 넣거나 Gemini 모델을 골라 주세요.'
@@ -477,6 +483,11 @@ export async function runOcr(req: OcrRequest, onProgress: (p: OcrProgress) => vo
     }
   }
   const total = files.reduce((n, f) => n + f.size, 0)
+  // Vertex · Express 에는 파일 저장소(Files API)가 없다 — 모두 요청에 싣는데, 요청 하나는 약 18MB 까지
+  const cloud = provider === 'gemini' && geminiModeOf(settings) !== 'key'
+  if (cloud && total > VERTEX_INLINE_LIMIT) {
+    return fail(`파일이 너무 큽니다(${fmtBytes(total)}). Vertex AI 로는 한 번에 약 13MB(요청 18MB)까지 읽을 수 있어요. PDF 를 나눠서 읽어 주세요.`)
+  }
   if (provider === 'openai' && total > OA_TOTAL_LIMIT) return fail(`OpenAI 는 한 번에 50MB 까지 읽습니다(지금 ${fmtBytes(total)}). 나눠서 읽어 주세요.`)
   if (provider === 'openai' && files.filter((f) => f.mime !== 'application/pdf').reduce((n, f) => n + f.size, 0) > OA_INLINE_LIMIT) {
     return fail('사진이 너무 많습니다(합 30MB 까지). 나눠서 읽어 주세요.')
@@ -533,7 +544,7 @@ export async function runOcr(req: OcrRequest, onProgress: (p: OcrProgress) => vo
       return a
     }
     const parts: Part[] = []
-    if (total <= INLINE_LIMIT) {
+    if (total <= INLINE_LIMIT || cloud) {
       for (const f of files) parts.push({ inlineData: { mimeType: f.mime, data: fs.readFileSync(f.path).toString('base64') } })
     } else {
       for (const [i, f] of files.entries()) {

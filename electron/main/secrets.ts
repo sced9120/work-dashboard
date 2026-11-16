@@ -31,6 +31,12 @@ const DEFAULTS: LocalSettings = {
   provider: 'gemini',
   openai_key: '',
   gemini_key: '',
+  gemini_mode: 'key',
+  vertex_project: '',
+  vertex_location: 'global',
+  vertex_email: '',
+  vertex_sa: '',
+  vertex_express_key: '',
   claude_key: '',
   exaone_key: '',
   openai_model: 'gpt-6-sol',
@@ -57,6 +63,10 @@ const DEFAULTS: LocalSettings = {
 
 interface StoredShape {
   provider?: string
+  gemini_mode?: string
+  vertex_project?: string
+  vertex_location?: string
+  vertex_email?: string
   models_rev?: number
   openai_model?: string
   gemini_model?: string
@@ -71,9 +81,9 @@ interface StoredShape {
   open_at_login?: boolean
   start_hidden?: boolean
   /** base64로 인코딩된 암호문 */
-  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; exaone_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string; relay_nkey?: string }
+  enc?: { openai_key?: string; gemini_key?: string; claude_key?: string; exaone_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string; relay_nkey?: string; vertex_sa?: string; vertex_express_key?: string }
   /** 암호화를 못 쓰는 환경일 때만 사용 */
-  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string; exaone_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string; relay_nkey?: string }
+  plain?: { openai_key?: string; gemini_key?: string; claude_key?: string; exaone_key?: string; neis_key?: string; gcal_url?: string; relay_url?: string; relay_key?: string; relay_nkey?: string; vertex_sa?: string; vertex_express_key?: string }
 }
 
 function coerceProvider(p: string | undefined): Provider {
@@ -189,11 +199,19 @@ function readLocalSettings(): LocalSettings {
   const relay_url = useEnc ? decrypt(raw.enc?.relay_url) : (raw.plain?.relay_url ?? '')
   const relay_key = useEnc ? decrypt(raw.enc?.relay_key) : (raw.plain?.relay_key ?? '')
   const relay_nkey = useEnc ? decrypt(raw.enc?.relay_nkey) : (raw.plain?.relay_nkey ?? '')
+  const vertex_sa = useEnc ? decrypt(raw.enc?.vertex_sa) : (raw.plain?.vertex_sa ?? '')
+  const vertex_express_key = useEnc ? decrypt(raw.enc?.vertex_express_key) : (raw.plain?.vertex_express_key ?? '')
 
   return {
     provider: coerceProvider(raw.provider),
     openai_key,
     gemini_key,
+    gemini_mode: raw.gemini_mode === 'vertex' || raw.gemini_mode === 'express' ? raw.gemini_mode : 'key',
+    vertex_project: (raw.vertex_project ?? '').trim(),
+    vertex_location: (raw.vertex_location ?? '').trim() || DEFAULTS.vertex_location,
+    vertex_email: raw.vertex_email ?? '',
+    vertex_sa,
+    vertex_express_key,
     claude_key,
     exaone_key,
     openai_model: concrete(raw.openai_model, DEFAULTS.openai_model),
@@ -216,10 +234,27 @@ function readLocalSettings(): LocalSettings {
   }
 }
 
+/**
+ * 화면(렌더러)으로 보내는 모양 — 서비스 계정 비밀 키와 Express 키는 빼고 "있다 · 없다" 표시만 남긴다.
+ * (다른 API 키와 달리 이 둘은 화면으로 내려가지 않는다. 화면이 저장할 때 빠져 있으면 저장돼 있던 값을 그대로 둔다.)
+ */
+export function localForRenderer(s: LocalSettings): LocalSettings {
+  const { vertex_sa, vertex_express_key, ...rest } = s
+  return { ...rest, vertex_sa_set: !!(vertex_sa ?? '').trim(), vertex_express_key_set: !!(vertex_express_key ?? '').trim() }
+}
+
 export function saveLocalSettings(next: LocalSettings): void {
   const useEnc = encryptionAvailable()
+  // undefined 는 "건드리지 않음" — 화면에서 온 저장은 이 둘을 싣지 않으므로 저장돼 있던 값을 지킨다. 빈 문자열이면 지운다.
+  const prev = loadLocalSettings()
+  const vertex_sa = next.vertex_sa === undefined ? (prev.vertex_sa ?? '') : next.vertex_sa
+  const vertex_express_key = next.vertex_express_key === undefined ? (prev.vertex_express_key ?? '') : next.vertex_express_key.trim()
   const out: StoredShape = {
     provider: next.provider,
+    gemini_mode: next.gemini_mode === 'vertex' || next.gemini_mode === 'express' ? next.gemini_mode : 'key',
+    vertex_project: (next.vertex_project ?? '').trim(),
+    vertex_location: (next.vertex_location ?? '').trim() || DEFAULTS.vertex_location,
+    vertex_email: vertex_sa ? (next.vertex_email ?? '') : '',
     models_rev: MODELS_REV,
     openai_model: concrete(next.openai_model, DEFAULTS.openai_model),
     gemini_model: concrete(next.gemini_model, DEFAULTS.gemini_model),
@@ -247,7 +282,9 @@ export function saveLocalSettings(next: LocalSettings): void {
       gcal_url: enc(next.gcal_url ?? ''),
       relay_url: enc(next.relay_url ?? ''),
       relay_key: enc(next.relay_key ?? ''),
-      relay_nkey: enc(next.relay_nkey ?? '')
+      relay_nkey: enc(next.relay_nkey ?? ''),
+      vertex_sa: enc(vertex_sa),
+      vertex_express_key: enc(vertex_express_key)
     }
   } else {
     out.plain = {
@@ -259,7 +296,9 @@ export function saveLocalSettings(next: LocalSettings): void {
       gcal_url: next.gcal_url ?? '',
       relay_url: next.relay_url ?? '',
       relay_key: next.relay_key ?? '',
-      relay_nkey: next.relay_nkey ?? ''
+      relay_nkey: next.relay_nkey ?? '',
+      vertex_sa,
+      vertex_express_key
     }
   }
 

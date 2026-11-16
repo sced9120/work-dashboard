@@ -172,7 +172,7 @@ function migrate(target: Database): boolean {
 
   // 예전 버전은 API 키를 DB에 넣어두었다. 인수인계 파일에 남의 키가 섞여
   // 들어가지 않도록, 불러온 시점에 지운다. 키는 이 PC의 안전 저장소에만 둔다.
-  target.run("DELETE FROM settings WHERE key IN ('openai_key','gemini_key','model_choice')")
+  target.run("DELETE FROM settings WHERE key IN ('openai_key','gemini_key','vertex_sa','vertex_express_key','model_choice')")
   if (target.getRowsModified() > 0) changed = true
 
   return changed

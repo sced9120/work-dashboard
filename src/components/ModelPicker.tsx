@@ -6,6 +6,7 @@ import type {
   Provider
 } from '../../shared/types'
 import { AUTO_MODELS, addModel, isAutoModel, modelsFor } from '../../shared/types'
+import { geminiReady } from '../../shared/gemini'
 
 interface Props {
   feature: AiFeature
@@ -29,7 +30,7 @@ function hasKey(s: LocalSettings, p: Provider): boolean {
   if (p === 'openai') return !!s.openai_key
   if (p === 'claude') return !!s.claude_key
   if (p === 'exaone') return !!s.exaone_key
-  return !!s.gemini_key
+  return geminiReady(s)
 }
 
 /** 서비스별 저장된 기본 모델 */

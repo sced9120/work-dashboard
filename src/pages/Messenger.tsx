@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ModelChoice } from '../../shared/types'
+import { geminiReady } from '../../shared/gemini'
 import { BLANK_DEADLINE, BLANK_EVENT } from '../../shared/types'
 import type { AttPick, InboxItem, TodoPick } from '../../shared/messenger'
 import type { AttReason, AttRecord, AttType, Roster } from '../../shared/attendance'
@@ -49,7 +50,7 @@ export default function Messenger({ onGo }: { onGo: (p: PageId) => void }): JSX.
     void (async () => {
       setRoster(readRoster(await window.api.setting.get(ATT_ROSTER_KEY)))
       const s = await window.api.local.load()
-      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key || s.exaone_key))
+      setHasKey(!!(s.openai_key || geminiReady(s) || s.claude_key || s.exaone_key))
     })()
     return window.api.inbox.onChanged(() => void loadInbox())
   }, [loadInbox])

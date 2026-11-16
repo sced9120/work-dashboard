@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { MdTable } from '../../shared/mdtable'
+import { geminiReady } from '../../shared/gemini'
 import { answersToTables, plainCell, proseOf, toTsv } from '../../shared/mdtable'
 import type { OcrProvider } from '../../shared/ocr'
 import { OCR_DEFAULT_MODEL, OCR_MAX_TABS, OCR_OPENAI_MODEL, fmtBytes, ocrProviderOf } from '../../shared/ocr'
@@ -391,7 +392,7 @@ export default function Ocr({ onGo }: Props): JSX.Element {
     setOcrMounted(true)
     void (async () => {
       const s = await window.api.local.load()
-      setKeys({ gemini: !!s.gemini_key?.trim(), openai: !!s.openai_key?.trim() })
+      setKeys({ gemini: geminiReady(s), openai: !!s.openai_key?.trim() })
       setLists({ gemini: modelsFor('gemini', s.custom_models, s.hidden_models), openai: modelsFor('openai', s.custom_models, s.hidden_models) })
     })()
     // 화면을 떠나도 읽던 것은 계속 읽는다 — 올려 둔 파일은 탭을 닫거나 프로그램을 끌 때 지운다

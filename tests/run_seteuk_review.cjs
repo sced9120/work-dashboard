@@ -31,7 +31,7 @@ ok(S.sentenceFrame('행발').includes('여러 장면에서 되풀이해 본 행�
 ok(['과세특', '자율', '행발'].every((r) => S.sentenceFrame(r).endsWith('- 문장은 학생이 한 일이나 낸 결론으로 끝맺는다.')), '끝맺음은 모든 영역에')
 const p = S.buildSeteukPrompt(S.newActivity('x', { rec: '자율' }))
 ok(p.includes('# 서술 규칙') && p.includes('맡은 역할') && !p.includes('계기(수업 속 질문)'), '프롬프트에 그 영역의 흐름이 들어감')
-ok(['과세특', '동아리', '자율', '진로', '행발'].every((r) => S.byteLen(S.buildSeteukPrompt(S.newActivity('x', { rec: r }))) < 4650), '예시 없는 프롬프트는 4,650바이트 안')
+ok(['과세특', '동아리', '자율', '진로', '행발'].every((r) => S.byteLen(S.buildSeteukPrompt(S.newActivity('x', { rec: r }))) < 3830), '예시 없는 프롬프트는 3,830바이트 안')
 ok(M.compressPrompt(S.recordOf('과세특')).includes('계기 → 직접 한 과정 → 이어간 탐구 → 결론'), '압축도 같은 흐름')
 
 console.log('\n1. 살펴보기 규칙 (빌드 없이)')

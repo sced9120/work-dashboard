@@ -1,6 +1,7 @@
 import Icon from '../components/Icon'
 import { useEffect, useMemo, useState } from 'react'
 import type { Deck, DesignSource, Slide, SlideKind, SlideTheme } from '../../shared/slides'
+import { geminiReady } from '../../shared/gemini'
 import { BUILTIN_DESIGNS, SLIDE_KINDS, bodyText, builtinSource, withBody } from '../../shared/slides'
 import type { ModelChoice, ScrubHit } from '../../shared/types'
 import type { PageId } from '../App'
@@ -159,7 +160,7 @@ export default function Slides({ onGo }: Props): JSX.Element {
   useEffect(() => {
     void (async () => {
       const s = await window.api.local.load()
-      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key || s.exaone_key))
+      setHasKey(!!(s.openai_key || geminiReady(s) || s.claude_key || s.exaone_key))
     })()
   }, [])
 

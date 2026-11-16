@@ -15,7 +15,8 @@ import os from 'node:os'
 import * as db from './db'
 import { installCrashHandlers, logDir, logError, logRendererError } from './errlog'
 import { DB_NAME, defaultDir, looksSynced, otherLock, releaseLock, resolveLocation, takeLock, writeLocation } from './datalocation'
-import { encryptionAvailable, loadLocalSettings, saveLocalSettings } from './secrets'
+import { encryptionAvailable, loadLocalSettings, localForRenderer, saveLocalSettings } from './secrets'
+import { clearServiceAccount, pickServiceAccount } from './vertex'
 import { extractFile } from './extract'
 import {
   analyzeDocument,
@@ -757,8 +758,13 @@ function registerIpc(): void {
   ipcMain.handle('setting:byPrefix', (_e, prefix: string) => db.settingsByPrefix(prefix))
 
   /* ---------- 이 PC에만 저장되는 설정 ---------- */
-  ipcMain.handle('local:load', () => loadLocalSettings())
-  ipcMain.handle('local:save', (_e, s: LocalSettings) => {
+  // 서비스 계정 비밀 키 · Express 키는 화면으로 내려가지 않는다(있다 · 없다 표시만)
+  ipcMain.handle('local:load', () => localForRenderer(loadLocalSettings()))
+  ipcMain.handle('vertex:pickSa', () => pickServiceAccount(mainWindow))
+  ipcMain.handle('vertex:clearSa', () => clearServiceAccount())
+  ipcMain.handle('local:save', (_e, incoming: LocalSettings) => {
+    // 서비스 계정 비밀 키는 화면에서 받지 않는다 — 고르기 · 빼기 전용 통로로만 바뀐다(저장돼 있던 값이 그대로 남는다)
+    const s: LocalSettings = { ...incoming, vertex_sa: undefined }
     const before = loadLocalSettings()
     // 알림·트레이·자동실행에 얽힌 값이 실제로 바뀌었을 때만 OS 쪽을 다시 건드린다.
     // 이 셋은 각각 레지스트리 쓰기·트레이 재생성·기한 재조회를 부르기 때문에,

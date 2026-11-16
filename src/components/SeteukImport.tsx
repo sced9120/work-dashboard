@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { answersToTables } from '../../shared/mdtable'
+import { geminiReady } from '../../shared/gemini'
 import { fmtBytes } from '../../shared/ocr'
 import type { OcrAnswer, OcrFile } from '../../shared/ocr'
 import { SETEUK_OCR_NOTE, formToSheet, matchNotes, sheetFromPaste, studentLabel } from '../../shared/seteuk'
@@ -68,7 +69,7 @@ export default function SeteukImport({ students, actId = '', onApply, onClose }:
   useEffect(() => {
     void (async () => {
       const s = await window.api.local.load()
-      setHasKey(!!s.gemini_key?.trim() || !!s.openai_key?.trim())
+      setHasKey(geminiReady(s) || !!s.openai_key?.trim())
     })()
     const off = window.api.ocr.onProgress((p) => {
       if (p.tab === TAB) setRows(p.rows)

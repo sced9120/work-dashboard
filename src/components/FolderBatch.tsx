@@ -1,6 +1,7 @@
 import Icon from './Icon'
 import { useEffect, useMemo, useState } from 'react'
 import type { BatchStudent } from '../../shared/batch'
+import { geminiReady } from '../../shared/gemini'
 import { BATCH_DEFAULT_ITEMS, batchTable, lengthOk, seteukLength } from '../../shared/batch'
 import { fmtBytes } from '../../shared/ocr'
 import type { ModelChoice } from '../../shared/types'
@@ -85,7 +86,7 @@ export default function FolderBatch({ onSettings }: { onSettings: () => void }):
 
   useEffect(() => {
     setBatchMounted(true)
-    void window.api.local.load().then((s) => setHasKey(!!(s.gemini_key?.trim() || s.openai_key?.trim() || s.claude_key?.trim())))
+    void window.api.local.load().then((s) => setHasKey(!!(geminiReady(s) || s.openai_key?.trim() || s.claude_key?.trim())))
     return () => setBatchMounted(false)
   }, [])
 

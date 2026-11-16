@@ -1,6 +1,7 @@
 import Icon from '../components/Icon'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatAttachment, ChatMeta, ChatMode } from '../../shared/chat'
+import { geminiReady } from '../../shared/gemini'
 import { CHAT_MODES, chatGroup } from '../../shared/chat'
 import type { HwpForm } from '../../shared/hwpform'
 import { extractTables } from '../../shared/mdtable'
@@ -430,7 +431,7 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
       setDocCount(await window.api.docs.count())
       setForms(await window.api.hwp.list())
       const s = await window.api.local.load()
-      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key || s.exaone_key))
+      setHasKey(!!(s.openai_key || geminiReady(s) || s.claude_key || s.exaone_key))
     })()
     // 다른 화면에서 [💬 도우미와 대화로] 를 눌러 왔으면 새 업무 도우미 대화에 첫 마디를 적어 둔다
     const draft = takeChat()

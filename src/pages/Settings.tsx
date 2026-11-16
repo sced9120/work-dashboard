@@ -8,6 +8,7 @@ import {
   resetModels
 } from '../../shared/types'
 import { LEVEL_KEY, SCHOOL_LEVELS } from '../../shared/helpdocs'
+import { geminiModeOf, geminiReady } from '../../shared/gemini'
 import NeisSettings from '../components/NeisSettings'
 import ThemeSettings from '../components/ThemeSettings'
 import ShellSettings from '../components/ShellSettings'
@@ -23,6 +24,9 @@ const DEFAULT_LOCAL: LocalSettings = {
   provider: 'gemini',
   openai_key: '',
   gemini_key: '',
+  gemini_mode: 'key',
+  vertex_project: '',
+  vertex_location: 'global',
   claude_key: '',
   exaone_key: '',
   openai_model: 'gpt-6-sol',
@@ -85,7 +89,7 @@ const PROVIDERS: Record<
 }
 
 const keyOf = (l: LocalSettings, p: Provider): string =>
-  p === 'openai' ? l.openai_key : p === 'claude' ? l.claude_key : p === 'exaone' ? l.exaone_key ?? '' : l.gemini_key
+  p === 'openai' ? l.openai_key : p === 'claude' ? l.claude_key : p === 'exaone' ? l.exaone_key ?? '' : geminiReady(l) ? 'ok' : ''
 
 export default function Settings({ onProfileChanged }: Props): JSX.Element {
   const toast = useToast()
@@ -99,6 +103,7 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
   const [newModel, setNewModel] = useState('')
   const [roster, setRoster] = useState('')
   const [reading, setReading] = useState(false)
+  const [picking, setPicking] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -150,7 +155,37 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     // 그 사이 저장했을 값을 덮어쓰지 않도록, 직전 값을 그대로 다시 실어 보낸다.
     const latest = await window.api.local.load()
     await window.api.local.save({ ...local, feature_models: latest.feature_models, neis_key: latest.neis_key, gcal_url: latest.gcal_url, relay_url: latest.relay_url, relay_key: latest.relay_key })
+    const now = await window.api.local.load()
+    setLocal((l) => ({ ...l, vertex_express_key: undefined, vertex_express_key_set: now.vertex_express_key_set, vertex_sa_set: now.vertex_sa_set }))
     toast('저장했습니다.', 'ok')
+  }
+
+  /** 서비스 계정 JSON 고르기 — 파일은 프로그램(메인)이 읽어 암호화해 두고, 여기에는 이메일 · 프로젝트만 온다 */
+  const pickSa = async (): Promise<void> => {
+    setPicking(true)
+    try {
+      const r = await window.api.vertex.pickSa()
+      if (r.canceled) return
+      if (!r.ok) {
+        toast(r.error ?? '서비스 계정 JSON 을 읽지 못했습니다.', 'err')
+        return
+      }
+      setLocal((l) => ({
+        ...l,
+        vertex_sa_set: true,
+        vertex_email: r.email ?? '',
+        vertex_project: (l.vertex_project ?? '').trim() ? l.vertex_project : (r.project ?? '')
+      }))
+      toast('서비스 계정을 연결했습니다. 프로젝트 ID · 위치를 확인하고 [저장] 을 눌러 주세요.', 'ok')
+    } finally {
+      setPicking(false)
+    }
+  }
+
+  const clearSa = async (): Promise<void> => {
+    await window.api.vertex.clearSa()
+    setLocal((l) => ({ ...l, vertex_sa_set: false, vertex_email: '' }))
+    toast('서비스 계정을 뺐습니다.')
   }
 
   const test = async (): Promise<void> => {
@@ -160,6 +195,8 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
     // 그 사이 저장했을 값을 덮어쓰지 않도록, 직전 값을 그대로 다시 실어 보낸다.
     const latest = await window.api.local.load()
     await window.api.local.save({ ...local, feature_models: latest.feature_models, neis_key: latest.neis_key, gcal_url: latest.gcal_url, relay_url: latest.relay_url, relay_key: latest.relay_key })
+    const now = await window.api.local.load()
+    setLocal((l) => ({ ...l, vertex_express_key: undefined, vertex_express_key_set: now.vertex_express_key_set, vertex_sa_set: now.vertex_sa_set }))
     setTestMsg(await window.api.ai.test())
     setTesting(false)
   }
@@ -205,6 +242,8 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
           ? local.exaone_key
           : local.gemini_key
   const providerInfo = PROVIDERS[local.provider]
+  const gMode = geminiModeOf(local)
+  const cloudGemini = local.provider === 'gemini' && gMode !== 'key'
 
   /** 목록 변경을 화면과 파일에 함께 반영한다. */
   const applyLists = async (
@@ -373,23 +412,142 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
               </button>
             ))}
           </div>
-          <div className="hint">
-            {providerInfo.keyHint}{' '}
-            <button className="link" onClick={() => void window.api.shell.open(providerInfo.keyUrl)}>
-              키 발급 페이지 열기
-            </button>
-          </div>
+          {!cloudGemini && (
+            <div className="hint">
+              {providerInfo.keyHint}{' '}
+              <button className="link" onClick={() => void window.api.shell.open(providerInfo.keyUrl)}>
+                키 발급 페이지 열기
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="field">
-          <label>{providerInfo.label} API 키</label>
-          <input
-            type="password"
-            value={currentKey}
-            onChange={(e) => setKey(e.target.value)}
-            placeholder={providerInfo.placeholder}
-          />
-        </div>
+        {local.provider === 'gemini' && (
+          <div className="field">
+            <label>연결 방식</label>
+            <div className="row">
+              {(
+                [
+                  ['key', 'API 키', 'API 키 (Google AI Studio)'],
+                  ['vertex', 'Vertex AI (서비스 계정)', 'Vertex AI — 서비스 계정 JSON'],
+                  ['express', 'Vertex AI Express', 'Vertex AI Express 키']
+                ] as const
+              ).map(([m, label, title]) => (
+                <button
+                  key={m}
+                  className={`btn ${gMode === m ? 'btn-primary' : ''}`}
+                  title={title}
+                  onClick={() => setLocal({ ...local, gemini_mode: m })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {gMode === 'key' && <div className="hint">Google AI Studio 에서 만든 API 키로 연결합니다(처음 설정과 같습니다).</div>}
+          </div>
+        )}
+
+        {local.provider === 'gemini' && gMode === 'vertex' && (
+          <div className="field">
+            <label>서비스 계정 (Google Cloud)</label>
+            <div className="row" style={{ marginBottom: 8 }}>
+              <button className="btn" onClick={() => void pickSa()} disabled={picking}>
+                {picking ? '읽는 중…' : local.vertex_sa_set ? '서비스 계정 JSON 다시 고르기' : '서비스 계정 JSON 고르기'}
+              </button>
+              {local.vertex_sa_set && (
+                <>
+                  <span className="small">
+                    <b>연결됨:</b> {local.vertex_email || '서비스 계정'} · 프로젝트 {local.vertex_project || '—'}
+                  </span>
+                  <button className="btn btn-sm btn-ghost" onClick={() => void clearSa()}>
+                    빼기
+                  </button>
+                </>
+              )}
+            </div>
+            <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
+              <div className="field" style={{ flex: 2, minWidth: 200 }}>
+                <label>프로젝트 ID</label>
+                <input
+                  type="text"
+                  value={local.vertex_project ?? ''}
+                  onChange={(e) => setLocal({ ...local, vertex_project: e.target.value })}
+                  placeholder="my-project-123456"
+                />
+              </div>
+              <div className="field" style={{ flex: 1, minWidth: 160 }}>
+                <label>위치</label>
+                <input
+                  type="text"
+                  list="vertex-locations"
+                  value={local.vertex_location ?? 'global'}
+                  onChange={(e) => setLocal({ ...local, vertex_location: e.target.value })}
+                  placeholder="global"
+                />
+                <datalist id="vertex-locations">
+                  {['global', 'us-central1', 'asia-northeast3', 'asia-northeast1', 'europe-west4'].map((loc) => (
+                    <option key={loc} value={loc} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+            <details style={{ marginTop: 6 }}>
+              <summary className="small" style={{ cursor: 'pointer' }}>
+                처음 설정하는 방법
+              </summary>
+              <ol className="small" style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+                <li>Google Cloud 콘솔에서 프로젝트를 고르고 <b>Vertex AI API</b> 를 사용 설정합니다.</li>
+                <li>서비스 계정을 만들고 <b>‘Vertex AI 사용자’</b> 역할(roles/aiplatform.user)을 줍니다.</li>
+                <li>그 서비스 계정의 [키] → [키 추가] → <b>JSON</b> 으로 만든 파일을 위 [서비스 계정 JSON 고르기] 로 고릅니다.</li>
+              </ol>
+              <div className="hint">
+                ‘서비스 계정 키 생성 사용 중지됨’ 이 뜨면 조직 정책(iam.disableServiceAccountKeyCreation) 관리자에게 이 프로젝트만 예외를 요청하세요.
+              </div>
+            </details>
+            <div className="note note-warn" style={{ marginTop: 8 }}>
+              서비스 계정 JSON 은 비밀 키입니다. 채팅 · 메신저 · 공유 폴더에 올리지 마세요. 이 PC 안에 암호화해 둡니다.
+            </div>
+            <div className="hint">
+              사용량은 고른 Cloud 프로젝트의 결제 계정에 청구됩니다. 결제 → 크레딧에서 잔액 · 만료일을 확인하세요.{' '}
+              <button className="link" onClick={() => void window.api.shell.open('https://console.cloud.google.com/billing')}>
+                Cloud 결제 열기
+              </button>
+            </div>
+          </div>
+        )}
+
+        {local.provider === 'gemini' && gMode === 'express' && (
+          <div className="field">
+            <label>Vertex AI Express 키</label>
+            <div className="row">
+              <input
+                type="password"
+                style={{ flex: 1, minWidth: 200 }}
+                value={local.vertex_express_key ?? ''}
+                onChange={(e) => setLocal({ ...local, vertex_express_key: e.target.value })}
+                placeholder={local.vertex_express_key_set && local.vertex_express_key === undefined ? '저장돼 있습니다 — 바꾸려면 새 키를 넣으세요' : 'Express 모드 API 키'}
+              />
+              {local.vertex_express_key_set && local.vertex_express_key === undefined && (
+                <button className="btn btn-sm btn-ghost" onClick={() => setLocal({ ...local, vertex_express_key: '', vertex_express_key_set: false })}>
+                  지우기
+                </button>
+              )}
+            </div>
+            <div className="hint">Express 모드는 조건이 맞는 새 사용자에게 따로 제공되는 무료 체험 프로그램입니다. 키는 이 PC 안에 암호화해 둡니다.</div>
+          </div>
+        )}
+
+        {(local.provider !== 'gemini' || gMode === 'key') && (
+          <div className="field">
+            <label>{providerInfo.label} API 키</label>
+            <input
+              type="password"
+              value={currentKey}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder={providerInfo.placeholder}
+            />
+          </div>
+        )}
 
         <div className="field">
           <label>기본 모델</label>

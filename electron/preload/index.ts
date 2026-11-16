@@ -297,6 +297,11 @@ const api = {
     save: (s: LocalSettings): Promise<void> => ipcRenderer.invoke('local:save', s),
     encrypted: (): Promise<boolean> => ipcRenderer.invoke('local:encrypted')
   },
+  /** Gemini 를 Google Cloud(Vertex AI)로 — 서비스 계정 JSON 은 메인이 읽어 암호화해 두고, 화면에는 이메일 · 프로젝트만 온다 */
+  vertex: {
+    pickSa: (): Promise<{ ok: boolean; canceled?: boolean; error?: string; project?: string; email?: string }> => ipcRenderer.invoke('vertex:pickSa'),
+    clearSa: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('vertex:clearSa')
+  },
   files: {
     pick: (): Promise<PickedFile[]> => ipcRenderer.invoke('files:pick'),
     extract: (filePath: string): Promise<ExtractedDoc> =>

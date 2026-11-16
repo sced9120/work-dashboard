@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DocFull, ModelChoice, SearchHit } from '../../shared/types'
+import { geminiReady } from '../../shared/gemini'
 import type { HelpHit } from '../../shared/helpdocs'
 import type { PageId } from '../App'
 import { useToast } from '../lib/toast'
@@ -70,7 +71,7 @@ export default function Search({ jobTitle, onGo }: Props): JSX.Element {
     void (async () => {
       await refreshCount()
       const s = await window.api.local.load()
-      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key || s.exaone_key))
+      setHasKey(!!(s.openai_key || geminiReady(s) || s.claude_key || s.exaone_key))
     })()
   }, [refreshCount])
 

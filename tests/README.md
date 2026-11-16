@@ -9,6 +9,8 @@
 ```bash
 npm run build
 node -r ./tests/hook.cjs ./tests/run_ocr.cjs       # 스캔 문서 → 엑셀 (OCR)
+node -r ./tests/hook.cjs ./tests/run_vertex.cjs    # Gemini 를 Google Cloud(Vertex AI)로 — 서비스 계정 · Express
+node tests/t_vertex.cjs                            # Vertex 연결 — geminiReady · 주소 모양
 node -r ./tests/hook.cjs ./tests/run_batch.cjs     # 폴더 일괄 분석 (학생별 정리 · 세특 · 채점)
 node -r ./tests/hook.cjs ./tests/run_chat.cjs      # 업무 도우미 · 일반 대화 · 대화 보관
 node -r ./tests/hook.cjs ./tests/run_catalog.cjs   # 도구 모음 목록 받기
@@ -104,4 +106,6 @@ Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron
 | `t_weather.cjs` | 학교 주소에서 시 · 군 · 구만(도 · 광역시 · 특별자치시) · 짧은 이름 · 날씨 코드 말(밤엔 달) · 미세먼지 등급(환경부 기준, 나쁜 쪽) · Open-Meteo 답(지금 · 오늘 · 내일 · 지금 시부터 12시간 · 미세먼지 못 받아도) · 우산 · 지금 비 · 미세먼지 알림 · D-Day(D-Day · D+ · 해 넘김) · 틀린 D-Day 빼기 · 다가오는 것 먼저 |
 | `t_autoroute.cjs` | 점수(인사 · 어려움 · 업무 문서 · 코드 · 긴 글 · 첨부) · 이어 묻기(짧은 질문이 앞 점수를 이어받음) · Gemini 모델 · 생각 정도 · GPT 규칙으로 정하기(쉬움 · 어려움 · 업무 문서 · 애매) · 라우터 입력(2,000자 · 300자 · 첨부는 개수만) · 라우터 답 읽기(정해진 값만) · 이름표 · 자동 이름은 모델 목록 · isModernGemini · isGeminiModel · OCR 에 없음 |
 | `run_autoroute.cjs` | GPT 자동(쉬운 질문은 라우터 없이 luna · low, 업무 문서 · 어려움은 sol, 애매하면 luna 라우터 한 번, 라우터 실패 · 이상한 답 · 시간 초과면 sol · medium · 기본값, 이어 묻기, 첨부는 개수만) · Gemini 자동(3.8-flash · high / flash-lite · low / 3.6-flash · medium) · reasoning_effort · thinking 거절 시 빼고 다시 + 기억 · 자동이 아니면 안 붙음 · 대화 밖(askJson · askSeteuk)에서 자동 이름이 안 닿음 · 설정 기본 모델은 자동 불가 · 키 없음 |
+| `t_vertex.cjs` | geminiReady(key · vertex · express, 옛 설정은 key) · 주소 모양(key · vertex global · 리전 · express · 스트림 ?alt=sse · 이상한 위치는 global · 프로젝트 ID 인코딩) |
+| `run_vertex.cjs` | 잘못된 JSON(type · private_key · client_email · project_id · JSON 아님)은 한국어 오류에 아무것도 저장 안 함 · 일회용 RSA 키로 고르기(비밀 키가 local:load 에 없음 · 원본 복사 · 경로 기억 없음) · 화면의 저장이 서비스 계정 · Express 키를 지우지 못함 · 토큰 요청(form · JWT RS256 서명 · claims) → Bearer 호출(contents role) · 토큰 재사용 · 401 이면 새로 받아 한 번만 다시 · 403(API 사용 설정 · 역할) · 404 · 429 안내 · 리전 주소 · 만료 5분 전 갱신 · 동시에 불러도 토큰 1번 · 연결 확인 · Express(주소 · x-goog-api-key) · 키 방식은 그대로 · 서비스 계정 빼기 |
 | `t_catalog.cjs` | https 만 · 테마 토큰만 · 의견 설문지 · OCR 지침/모델(Gemini · OpenAI) · 실제 `remote/catalog.json` |

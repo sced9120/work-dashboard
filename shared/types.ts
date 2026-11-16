@@ -77,12 +77,26 @@ export type CustomModels = Partial<Record<Provider, string[]>>
  */
 export type HiddenModels = Partial<Record<Provider, string[]>>
 
+export type GeminiMode = 'key' | 'vertex' | 'express'
+
 /** 이 PC에만 남는 설정. 인수인계 DB에 포함되지 않는다. */
 export interface LocalSettings {
   /** 기능별 지정이 없을 때 쓸 기본 서비스 */
   provider: Provider
   openai_key: string
   gemini_key: string
+  /** Gemini 연결 방식 — key: Google AI Studio API 키(기본) · vertex: Google Cloud 서비스 계정 · express: Vertex AI Express 키 */
+  gemini_mode?: GeminiMode
+  /** Vertex AI: Cloud 프로젝트 ID · 위치(global · asia-northeast3 …) · 서비스 계정 이메일(표시용) */
+  vertex_project?: string
+  vertex_location?: string
+  vertex_email?: string
+  /** 서비스 계정 비밀 키(JSON 문자열) — 메인 프로세스 안에서만. 화면에는 vertex_sa_set 만 간다 */
+  vertex_sa?: string
+  vertex_sa_set?: boolean
+  /** Vertex AI Express 키 — 화면에는 vertex_express_key_set 만 간다(화면에서 새로 넣을 때만 값이 실려 간다) */
+  vertex_express_key?: string
+  vertex_express_key_set?: boolean
   claude_key: string
   /** LG AI연구원 K-EXAONE (docs.exaone.ai, 무료 · 글만) */
   exaone_key: string

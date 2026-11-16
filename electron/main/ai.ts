@@ -25,7 +25,8 @@ import { httpFetch } from './http'
 import { AUTO_MODELS, isAutoModel } from '../../shared/types'
 import { OPENAI_FALLBACK, GPT_CHEAP, autoLabel, decideGemini, decideOpenaiLocal, parseRoute, routeFromParsed, routerInput, routerPrompt, scoreTurns } from '../../shared/autoroute'
 import type { Effort, OpenaiRoute, ScoreMeta, ThinkingLevel } from '../../shared/autoroute'
-import { isModernGemini } from '../../shared/gemini'
+import { geminiModeOf, isModernGemini } from '../../shared/gemini'
+import { geminiCredential, geminiFetch, geminiMissingText, vertexErrorText } from './vertex'
 import { SETEUK_CHAT_KNOWLEDGE, wantsSeteukKnowledge } from '../../shared/seteukKnowledge'
 import { readSse } from './sse'
 import type { ChatSendTurn, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
@@ -478,19 +479,20 @@ async function streamExaone(key: string, model: string, system: string, turns: R
 }
 
 async function geminiChat(
-  key: string,
+  settings: LocalSettings,
   model: string,
   system: string,
   turns: ChatTurn[],
   json: boolean
 ): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
-  const res = await httpFetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
+  // 연결 방식(API 키 · Vertex 서비스 계정 · Express)에 맞는 주소 · 머리글은 geminiFetch 가 정한다
+  const res = await geminiFetch(
+    settings,
+    model,
+    'generateContent',
+    JSON.stringify({
       ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
-      // Gemini 는 도우미 차례를 'model' 로 부른다.
+      // Gemini 는 도우미 차례를 'model' 로 부른다(Vertex 는 role 이 꼭 있어야 한다).
       contents: turns.map((t) => ({
         role: t.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: t.content }]
@@ -501,9 +503,9 @@ async function geminiChat(
         ...(isModernGemini(model) ? {} : { temperature: 0.2 })
       }
     })
-  })
+  )
 
-  if (!res.ok) throw new Error(await describeHttpError(res, 'Gemini'))
+  if (!res.ok) throw new Error(await describeHttpError(res, 'Gemini', geminiModeOf(settings)))
   const data = (await res.json()) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[]
   }
@@ -546,13 +548,17 @@ async function claudeChat(
   return text
 }
 
-async function describeHttpError(res: Response, who: string): Promise<string> {
-  let detail = ''
+async function describeHttpError(res: Response, who: string, mode: 'key' | 'vertex' | 'express' = 'key'): Promise<string> {
+  let full = ''
   try {
-    detail = (await res.text()).slice(0, 300)
+    full = await res.text()
   } catch {
     /* 본문을 못 읽어도 상태 코드만으로 안내한다. */
   }
+  const detail = full.slice(0, 300)
+  // Vertex · Express 는 따로 풀어 쓴다(역할 · API 사용 설정 · 위치 · 할당량)
+  const vx = who === 'Gemini' ? vertexErrorText(mode, res.status, full) : null
+  if (vx) return vx
 
   switch (res.status) {
     case 401:
@@ -612,7 +618,8 @@ function keyFor(settings: LocalSettings, p: Provider): string {
   if (p === 'openai') return settings.openai_key
   if (p === 'claude') return settings.claude_key
   if (p === 'exaone') return settings.exaone_key ?? ''
-  return settings.gemini_key
+  // 연결 방식에 따라 API 키 · 'vertex' · Express 키 (화면 쪽 geminiReady 와 같은 뜻)
+  return geminiCredential(settings)
 }
 
 const PROVIDER_LABEL: Record<Provider, string> = {
@@ -636,11 +643,11 @@ async function chatModel(
 ): Promise<string> {
   const choice = resolveChoice(settings, feature, override)
   const key = keyFor(settings, choice.provider)
-  if (!key) throw new Error(`${PROVIDER_LABEL[choice.provider]} API 키가 설정되지 않았습니다.`)
+  if (!key) throw new Error(choice.provider === 'gemini' ? geminiMissingText(settings) : `${PROVIDER_LABEL[choice.provider]} API 키가 설정되지 않았습니다.`)
   if (choice.provider === 'openai') return openaiChat(key, choice.model, system, turns, json)
   if (choice.provider === 'claude') return claudeChat(key, choice.model, system, turns, json)
   if (choice.provider === 'exaone') return exaoneChat(key, choice.model, system, turns, json)
-  return geminiChat(key, choice.model, system, turns, json)
+  return geminiChat(settings, choice.model, system, turns, json)
 }
 
 async function callModel(
@@ -1529,8 +1536,8 @@ async function streamOpenai(key: string, model: string, system: string, turns: R
   return finish
 }
 
-async function streamGemini(key: string, model: string, system: string, turns: RichTurn[], temperature: number | null, onText: OnText, signal: AbortSignal, extras?: StreamExtras): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`
+async function streamGemini(settings: LocalSettings, model: string, system: string, turns: RichTurn[], temperature: number | null, onText: OnText, signal: AbortSignal, extras?: StreamExtras): Promise<string> {
+  const mode = geminiModeOf(settings)
   const body = (withThinking: boolean): string =>
     JSON.stringify({
       ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
@@ -1549,7 +1556,7 @@ async function streamGemini(key: string, model: string, system: string, turns: R
   let think = !!extras?.thinkingLevel && !geminiNoThinking.has(model)
   let res: Response
   for (;;) {
-    res = await httpFetch(url, { method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: body(think) })
+    res = await geminiFetch(settings, model, 'streamGenerateContent', body(think), signal)
     if (res.ok || res.status !== 400 || !think) break
     const txt = await res.text().catch(() => '')
     // 생각 정도를 못 받는 모델이면 빼고 다시, 이후 요청에도 안 보낸다
@@ -1558,9 +1565,9 @@ async function streamGemini(key: string, model: string, system: string, turns: R
       think = false
       continue
     }
-    throw new Error(await describeHttpError(new Response(txt, { status: res.status }), 'Gemini'))
+    throw new Error(await describeHttpError(new Response(txt, { status: res.status }), 'Gemini', mode))
   }
-  if (!res.ok) throw new Error(await describeHttpError(res, 'Gemini'))
+  if (!res.ok) throw new Error(await describeHttpError(res, 'Gemini', mode))
   let text = ''
   let finish = ''
   let blocked = ''
@@ -1655,7 +1662,7 @@ export async function streamChat(
 ): Promise<StreamResult> {
   const choice = resolveChoice(settings, feature, override)
   const key = keyFor(settings, choice.provider)
-  if (!key) throw new Error(`${PROVIDER_LABEL[choice.provider]} API 키가 설정되지 않았습니다.`)
+  if (!key) throw new Error(choice.provider === 'gemini' ? geminiMissingText(settings) : `${PROVIDER_LABEL[choice.provider]} API 키가 설정되지 않았습니다.`)
   let last = ''
   const seen: OnText = (full) => {
     last = full
@@ -1666,7 +1673,7 @@ export async function streamChat(
       choice.provider === 'openai'
         ? await streamOpenai(key, choice.model, system, turns, temperature, seen, signal, extras)
         : choice.provider === 'gemini'
-          ? await streamGemini(key, choice.model, system, turns, temperature, seen, signal, extras)
+          ? await streamGemini(settings, choice.model, system, turns, temperature, seen, signal, extras)
           : choice.provider === 'claude'
             ? await streamClaude(key, choice.model, system, turns, temperature, seen, signal)
             : await streamExaone(key, choice.model, system, turns, temperature, seen, signal)
@@ -1780,13 +1787,12 @@ export async function testConnection(
     provider: settings.provider,
     model: defaultModelFor(settings, settings.provider)
   }
+  // Vertex · Express 는 짧은 글로 확인한다(JSON 답을 강제하지 않는다)
+  const cloud = choice.provider === 'gemini' && geminiModeOf(settings) !== 'key'
   try {
-    const reply = await callModel(
-      settings,
-      'chat',
-      choice,
-      '연결 확인용 요청입니다. {"tasks":[]} 라고만 답하세요.'
-    )
+    const reply = cloud
+      ? await callModel(settings, 'chat', choice, '연결 확인이라고만 답해 줘.', false)
+      : await callModel(settings, 'chat', choice, '연결 확인용 요청입니다. {"tasks":[]} 라고만 답하세요.')
     return {
       ok: true,
       message: `연결에 성공했습니다. (${choice.model}) 응답: ${reply.trim().slice(0, 60)}`

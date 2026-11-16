@@ -1,6 +1,7 @@
 import Icon from '../components/Icon'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DocKind, ExtractedDoc, ModelChoice, TaskDraft } from '../../shared/types'
+import { geminiReady } from '../../shared/gemini'
 import { currentSchoolYear, schoolYearLabel } from '../../shared/types'
 import { groupNotices, joinNotice, parseNoticeName } from '../../shared/notice'
 import type { NoticeGroup } from '../../shared/notice'
@@ -88,7 +89,7 @@ export default function Learn({ jobTitle, onGo }: Props): JSX.Element {
   useEffect(() => {
     void (async () => {
       const s = await window.api.local.load()
-      setHasKey(!!(s.openai_key || s.gemini_key || s.claude_key || s.exaone_key))
+      setHasKey(!!(s.openai_key || geminiReady(s) || s.claude_key || s.exaone_key))
       setRoster(await window.api.setting.get('duty_roster'))
     })()
   }, [])

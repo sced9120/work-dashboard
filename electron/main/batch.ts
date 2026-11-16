@@ -18,13 +18,14 @@ import CFB from 'cfb'
 import { inflateSync, unzipSync } from 'fflate'
 import type { BatchFolder, BatchOptions, BatchProgress, BatchRequest, BatchResult, BatchRow, RawEntry } from '../../shared/batch'
 import { BATCH_MAX_DEPTH, BATCH_MAX_FILES, batchKindOf, batchSystem, batchTable, groupStudents, lengthOk, parseBatchAnswer, seteukFixText, seteukLength, toCsv } from '../../shared/batch'
-import { isModernGemini } from '../../shared/gemini'
+import { geminiModeOf, isModernGemini } from '../../shared/gemini'
 import type { LocalSettings, ModelChoice, Provider } from '../../shared/types'
 import { isAutoModel } from '../../shared/types'
 import { extractFile } from './extract'
 import { httpFetch } from './http'
 import { tablesToXlsx } from './ocr'
 import { loadLocalSettings } from './secrets'
+import { geminiCredential, geminiFetch, vertexErrorText } from './vertex'
 
 /** 동시에 읽는 학생 수 · 한 학생에 실어 보내는 파일 합 · 한글 · 워드 안의 그림 수 · 한 학생 기다리는 시간 */
 const PARALLEL = 3
@@ -228,11 +229,16 @@ interface Answer {
 
 async function failText(res: Response, who: string): Promise<string> {
   let detail = ''
+  let full = ''
   try {
-    detail = (await res.text()).slice(0, 300)
+    full = await res.text()
+    detail = full.slice(0, 300)
   } catch {
     /* 상태 코드만으로 */
   }
+  // Gemini 를 Vertex · Express 로 쓰면 그쪽 말로 (역할 · API 사용 설정 · 위치 · 할당량)
+  const vx = who === 'Gemini' ? vertexErrorText(geminiModeOf(loadLocalSettings()), res.status, full) : null
+  if (vx) return vx
   if (res.status === 401 || res.status === 403) return `${who} API 키가 올바르지 않거나 권한이 없습니다. [설정 → AI 연결] 에서 키를 확인해 주세요.`
   if (res.status === 404) return `${who} 에 그 모델이 없습니다. 다른 모델을 골라 주세요.`
   if (res.status === 413) return '보낼 파일이 너무 큽니다.'
@@ -241,15 +247,16 @@ async function failText(res: Response, who: string): Promise<string> {
   return `${who} 오류 (${res.status}) ${detail}`
 }
 
-async function askGemini(key: string, model: string, system: string, pieces: Piece[], json: boolean, signal: AbortSignal, thinking = true): Promise<Answer> {
+async function askGemini(model: string, system: string, pieces: Piece[], json: boolean, signal: AbortSignal, thinking = true): Promise<Answer> {
   const parts = pieces.map((p) =>
     p.type === 'text' ? { text: p.text } : { inlineData: { mimeType: p.type === 'pdf' ? 'application/pdf' : p.mime, data: p.data.toString('base64') } }
   )
-  const res = await httpFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: 'POST',
-    signal,
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
+  // 연결 방식(API 키 · Vertex · Express)에 맞는 주소 · 머리글은 geminiFetch 가 정한다
+  const res = await geminiFetch(
+    loadLocalSettings(),
+    model,
+    'generateContent',
+    JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
       contents: [{ role: 'user', parts }],
       generationConfig: {
@@ -257,11 +264,12 @@ async function askGemini(key: string, model: string, system: string, pieces: Pie
         ...(thinking ? { thinkingConfig: { thinkingLevel: 'LOW', includeThoughts: false } } : {}),
         ...(isModernGemini(model) ? {} : { temperature: 0.3 })
       }
-    })
-  })
+    }),
+    signal
+  )
   if (!res.ok) {
     const txt = await res.text().catch(() => '')
-    if (res.status === 400 && thinking && /thinking/i.test(txt)) return askGemini(key, model, system, pieces, json, signal, false)
+    if (res.status === 400 && thinking && /thinking/i.test(txt)) return askGemini(model, system, pieces, json, signal, false)
     throw new Error(await failText(new Response(txt, { status: res.status }), 'Gemini'))
   }
   const d = (await res.json()) as {
@@ -330,11 +338,11 @@ async function askClaude(key: string, model: string, system: string, pieces: Pie
 function ask(c: ModelChoice, key: string, system: string, pieces: Piece[], json: boolean, signal: AbortSignal): Promise<Answer> {
   if (c.provider === 'openai') return askOpenai(key, c.model, system, pieces, json, signal)
   if (c.provider === 'claude') return askClaude(key, c.model, system, pieces, signal)
-  return askGemini(key, c.model, system, pieces, json, signal)
+  return askGemini(c.model, system, pieces, json, signal)
 }
 
 // K-EXAONE 은 글만 읽어 학생 결과물(사진 · PDF)을 못 본다 — 폴더째 정리에서는 쓰지 않는다
-const keyOf = (s: LocalSettings, p: Provider): string => (p === 'exaone' ? '' : (p === 'openai' ? s.openai_key : p === 'claude' ? s.claude_key : s.gemini_key) ?? '').trim()
+const keyOf = (s: LocalSettings, p: Provider): string => (p === 'exaone' ? '' : (p === 'openai' ? s.openai_key : p === 'claude' ? s.claude_key : geminiCredential(s)) ?? '').trim()
 const defaultOf = (s: LocalSettings, p: Provider): string => (p === 'openai' ? s.openai_model : p === 'claude' ? s.claude_model : s.gemini_model)
 
 /** 고른 모델 → 없으면 이 기능에 저장한 것 → 기본 서비스 → 키가 있는 서비스 */
@@ -421,7 +429,7 @@ export async function runBatch(req: BatchRequest, send: (p: BatchProgress) => vo
         const msg = ctrl.signal.aborted ? '멈췄습니다.' : one.signal.aborted ? '너무 오래 걸려 멈췄습니다.' : e instanceof Error ? e.message : String(e)
         send({ job, key: s.key, status: 'error', error: msg })
         // 키 · 크레딧 문제면 나머지도 똑같이 실패하므로 멈춘다
-        if (/API 키|크레딧|모델이 없습니다/.test(msg)) ctrl.abort()
+        if (/API 키|크레딧|모델이 없습니다|Vertex AI/.test(msg)) ctrl.abort()
       } finally {
         clearTimeout(timer)
         ctrl.signal.removeEventListener('abort', stop)
