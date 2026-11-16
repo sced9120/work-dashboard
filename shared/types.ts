@@ -552,6 +552,13 @@ export const MODEL_UPGRADES: Record<string, string> = {
   'claude-haiku-4-5': 'claude-haiku-5-5'
 }
 
+/**
+ * 업무 도우미(chat) 전용 자동 모델 — 질문에 맞춰 작은 모델 · 큰 모델을 알아서 고른다 (shared/autoroute.ts).
+ * 모델 목록(BUILTIN_MODELS)에는 넣지 않는다 · 설정의 기본 모델로도 쓸 수 없다(대화 밖에서는 실제 모델로 바꿔 쓴다).
+ */
+export const AUTO_MODELS: Record<'openai' | 'gemini', string> = { openai: 'gpt-auto', gemini: 'gemini-auto' }
+export const isAutoModel = (m: string | null | undefined): boolean => m === AUTO_MODELS.openai || m === AUTO_MODELS.gemini
+
 /** 프로그램이 기본으로 아는 모델 목록. 여기 있는 것은 지울 수 없다. */
 export const BUILTIN_MODELS: Record<Provider, readonly string[]> = {
   gemini: GEMINI_MODELS,

@@ -3,6 +3,7 @@ import { blocksToMarkdown, markdownToHwpx, parse, patchHwp, patchHwpx } from 'ko
 import type { IRBlock, IRCell } from 'kordoc'
 import type { FormEdit, FormLayout, FormSpot, HwpKind } from '../../shared/hwpform'
 import { SLOT_RE, slotNamesIn } from '../../shared/hwpform'
+import { prepareAnswerMd } from '../../shared/answerdoc'
 
 /**
  * 학교 한글 양식의 {{칸}}·빈칸을 서식 그대로 채운다(인터넷 안 쓰는 [빈칸만 직접 채우기]).
@@ -522,4 +523,14 @@ export async function textToHwpx(text: string): Promise<Uint8Array> {
   for (const l of lines) parts.push(l.trim() ? literal(l.trim()) : '')
   const md = parts.join('\n\n').replace(/\n{3,}/g, '\n\n')
   return new Uint8Array(await markdownToHwpx(md))
+}
+
+/**
+ * 도우미 답(마크다운)을 한글 문서로 — 제목 · 목록 · 표 · 굵게를 살린다.
+ * (textToHwpx 는 기호를 모두 글자로 두는 위원회 문서용이라 따로 둔다.) 표 머리글 줄은 굵게.
+ */
+export async function answerToHwpx(markdown: string, title?: string): Promise<Uint8Array> {
+  const md = prepareAnswerMd(markdown, title)
+  if (!md.trim()) throw new Error('저장할 글이 없습니다.')
+  return new Uint8Array(await markdownToHwpx(md, { theme: { tableHeaderBold: true } }))
 }

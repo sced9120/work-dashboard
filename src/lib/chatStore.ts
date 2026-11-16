@@ -342,7 +342,7 @@ async function ask(id: string, rec: Rec, ctx: { jobTitle: string; model: ModelCh
   if (!res.ok) {
     reply = { role: 'assistant', content: res.error ?? '답변을 만들지 못했습니다.', error: true }
   } else if (cur.mode === 'free') {
-    reply = { role: 'assistant', content: res.answer || '(답을 받기 전에 멈췄습니다)', ...(res.stopped ? { stopped: true } : {}) }
+    reply = { role: 'assistant', content: res.answer || '(답을 받기 전에 멈췄습니다)', ...(res.routed?.label ? { routed: res.routed.label } : {}), ...(res.stopped ? { stopped: true } : {}) }
   } else {
     let split = splitAnswer(res.answer)
     // 문서를 부탁받고(또는 만든다고 말하고) 묶음을 빠뜨렸으면 한 번만 다시 받는다
@@ -387,6 +387,7 @@ async function ask(id: string, rec: Rec, ctx: { jobTitle: string; model: ModelCh
         ? '답이 비어 있습니다. 아래 [다시 받기] 를 눌러 주세요.'
         : answer || (plan.length ? '이렇게 넣을까요?' : docs.length ? `한글 파일 ${docs.length}개를 만들어 볼게요.` : res.stopped ? '(답을 받기 전에 멈췄습니다)' : ''),
       sources: res.sources,
+      ...(res.routed?.label ? { routed: res.routed.label } : {}),
       ...(res.links?.length ? { links: res.links } : {}),
       ...(plan.length ? { plan, picked: plan.map(() => true) } : {}),
       ...(docs.length ? { docs } : {}),

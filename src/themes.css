@@ -7348,3 +7348,16 @@ body {
   border: 1px solid var(--border);
   cursor: help;
 }
+
+/* 답 → 엑셀 · 한글 저장 — 말한 쪽 단추를 돋보이게 (3.7.3~) */
+:root .chat-act.chat-act-hot {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent, #fff);
+  font-weight: 600;
+}
+:root .chat-act.chat-act-hot:hover:not(:disabled) {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--on-accent, #fff);
+}

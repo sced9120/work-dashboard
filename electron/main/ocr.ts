@@ -23,6 +23,8 @@ import ExcelJS from 'exceljs'
 import { PDFDocument } from 'pdf-lib'
 import type { MdTable } from '../../shared/mdtable'
 import { answersToTables, dropPartialTail, extractTables, mergeChunkTables, plainCell, proseOf, tableToMd } from '../../shared/mdtable'
+import { cleanTitle } from '../../shared/answerdoc'
+import { cellMark, clampWidth, columnKind } from '../../shared/xlsxkind'
 import type { OcrAnswer, OcrFile, OcrProgress, OcrProvider, OcrRequest } from '../../shared/ocr'
 import {
   OCR_DEFAULT_MODEL,
@@ -801,7 +803,8 @@ function sheetName(raw: string, used: Set<string>, i: number): string {
   return name
 }
 
-const cleanFile = (s: string): string => s.replace(/[\\/*?:"<>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 50)
+/** 파일 이름 — 이모지 · 못 쓰는 글자를 빼고 40자까지 */
+const cleanFile = (s: string): string => cleanTitle(s, 40)
 
 /** 표들을 엑셀 통합 문서로 — 표마다 시트 하나, 모든 칸은 글자 그대로(학번 앞의 0 · 날짜 · 수식 모양을 지킨다) */
 export async function tablesToXlsx(tables: MdTable[]): Promise<Buffer> {
@@ -822,17 +825,25 @@ export async function tablesToXlsx(tables: MdTable[]): Promise<Buffer> {
       c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
       c.border = border
     })
-    const body = t.rows.map((r) => Array.from({ length: width }, (_, j) => fitCell(plainCell(r[j] ?? ''))))
+    // 칸 전체가 **굵게** · *기울임* · `코드` 이면 서식으로, 값은 언제나 글자 그대로
+    const marks = t.rows.map((r) => Array.from({ length: width }, (_, j) => cellMark((r[j] ?? '').trim())))
+    const body = marks.map((ms) => ms.map((m) => fitCell(plainCell(m.text))))
+    const kinds = header.map((h, j) => columnKind(h, body.map((r) => r[j])))
     body.forEach((values, ri) => {
       const row = ws.addRow(values)
-      row.eachCell({ includeEmpty: true }, (c) => {
-        c.font = { name: '맑은 고딕', size: 10 }
-        c.alignment = { vertical: 'top', wrapText: true }
+      row.eachCell({ includeEmpty: true }, (c, cn) => {
+        const m = marks[ri][cn - 1]
+        const kind = kinds[cn - 1] ?? 'text'
+        c.font = m?.code
+          ? { name: 'Consolas', size: 10, bold: m.bold, italic: m.italic }
+          : { name: '맑은 고딕', size: 10, ...(m?.bold ? { bold: true } : {}), ...(m?.italic ? { italic: true } : {}) }
+        c.alignment = { vertical: 'top', wrapText: true, horizontal: kind === 'number' ? 'right' : kind === 'text' ? 'left' : 'center' }
         c.border = border
-        if (ri % 2 === 1) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } }
+        if (m?.code) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } }
+        else if (ri % 2 === 1) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } }
       })
     })
-    const cols = columnWidths(header, body)
+    const cols = columnWidths(header, body).map((w, j) => clampWidth(kinds[j] ?? 'text', w))
     ws.columns.forEach((c, j) => (c.width = cols[j] ?? 8))
     body.forEach((values, ri) => (ws.getRow(ri + 2).height = Math.min(ROW_MAX, Math.max(18, linesOf(values, cols) * LINE))))
     ws.views = [{ state: 'frozen', ySplit: 1 }]

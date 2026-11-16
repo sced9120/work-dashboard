@@ -37,6 +37,8 @@ export interface ChatMsgBase {
   /** 답을 멈춰서 중간까지만 받았으면 */
   stopped?: boolean
   error?: boolean
+  /** 자동 모델이 고른 모델 안내 (예: "자동 → gpt-6-luna · 쉬운 질문") */
+  routed?: string
 }
 
 export interface ChatMeta {
@@ -91,6 +93,8 @@ export interface ChatStreamReply {
   /** 멈추기로 중간에 끊었으면 */
   stopped?: boolean
   error?: string
+  /** 자동 모델(GPT 자동 · Gemini 자동)이 이번 답에 고른 모델 */
+  routed?: { model: string; label: string }
 }
 
 /** 받는 중인 글 (메인 → 화면) */

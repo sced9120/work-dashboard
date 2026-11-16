@@ -30,7 +30,8 @@ import {
   testConnection,
   type SlideDraftInput
 } from './ai'
-import { fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
+import { answerToHwpx, fillSlots, kindOf, readLayout, textToHwpx } from './hwpdoc'
+import { exportFileName } from '../../shared/answerdoc'
 import { buildFromFrame, readFrame } from './hwpgen'
 import { helpCatalog, helpForChat, helpMatch, helpSearch, myHelpLine } from './helpdocs'
 import { clearGcalCache, exportIcs, gcalEvents, gcalTest } from './gcal'
@@ -603,6 +604,20 @@ function registerIpc(): void {
     try {
       const data = await textToHwpx(args.text)
       const target = await saveAs('한글 문서로 저장', args.name, 'hwpx', '한글 표준 문서')
+      if (!target) return { ok: false, message: '저장을 취소했습니다.' }
+      writeOut(target, data)
+      return { ok: true, message: `저장했습니다: ${target}`, path: target }
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  // 도우미 답(마크다운)을 제목 · 목록 · 표가 살아 있는 한글 문서로 — 저장 창은 언제나 뜬다
+  ipcMain.handle('hwp:answerDoc', async (_e, args: { name?: string; markdown: string }) => {
+    try {
+      const title = String(args?.name ?? '')
+      const data = await answerToHwpx(String(args?.markdown ?? ''), title)
+      const target = await saveAs('한글 문서로 저장', exportFileName(title, '업무도우미_문서'), 'hwpx', '한글 표준 문서')
       if (!target) return { ok: false, message: '저장을 취소했습니다.' }
       writeOut(target, data)
       return { ok: true, message: `저장했습니다: ${target}`, path: target }

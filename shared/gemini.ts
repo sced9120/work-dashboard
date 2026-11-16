@@ -8,10 +8,12 @@
  */
 export function isModernGemini(model: string): boolean {
   const m = model.toLowerCase()
+  // 자동 모델 이름은 실제 모델이 아니다 — 어떤 모델이 걸려도 temperature 는 빼 둔다
+  if (m === 'gemini-auto') return true
   if (m.startsWith('gemini-3.5-flash-lite')) return true
   const v = /^gemini-(\d+)\.(\d+)/.exec(m)
   return !!v && (Number(v[1]) > 3 || (Number(v[1]) === 3 && Number(v[2]) >= 6))
 }
 
 /** 쓸 수 있는 Gemini 모델 이름인가 */
-export const isGeminiModel = (m: string): boolean => /^gemini-[a-z0-9][a-z0-9.-]{0,60}$/.test(m)
+export const isGeminiModel = (m: string): boolean => /^gemini-[a-z0-9][a-z0-9.-]{0,60}$/.test(m) && m !== 'gemini-auto'

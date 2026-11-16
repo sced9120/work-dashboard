@@ -5,7 +5,7 @@ import type {
   ModelChoice,
   Provider
 } from '../../shared/types'
-import { addModel, modelsFor } from '../../shared/types'
+import { AUTO_MODELS, addModel, isAutoModel, modelsFor } from '../../shared/types'
 
 interface Props {
   feature: AiFeature
@@ -41,6 +41,10 @@ function defaultModel(s: LocalSettings, p: Provider): string {
 }
 
 const ORDER: Provider[] = ['gemini', 'openai', 'claude', 'exaone']
+
+/** 업무 도우미에서만 보이는 자동 모델 — 질문에 맞춰 작은 모델 · 큰 모델을 알아서 고른다 */
+const AUTO_LABEL: Partial<Record<Provider, string>> = { openai: 'GPT 자동', gemini: 'Gemini 자동' }
+const AUTO_TIP = '쉬운 질문은 작은 모델로, 어려운 일은 큰 모델로 알아서 고릅니다'
 
 /**
  * 이 기능에 쓸 (서비스·모델). 저장된 선택이 있으면 그것, 없으면 전역 기본.
@@ -153,13 +157,11 @@ export default function ModelPicker({
 
   const selectValue = `${choice.provider}${OPT_SEP}${choice.model}`
   // 현재 모델이 목록에 없으면 select 에 표시할 임시 옵션을 넣어 준다.
-  const extraOption = !modelsFor(
-    choice.provider,
-    settings.custom_models,
-    settings.hidden_models
-  ).includes(choice.model)
-    ? choice.model
-    : null
+  const extraOption =
+    !modelsFor(choice.provider, settings.custom_models, settings.hidden_models).includes(choice.model) &&
+    !(feature === 'chat' && isAutoModel(choice.model))
+      ? choice.model
+      : null
 
   return (
     <div className="model-picker">
@@ -174,6 +176,11 @@ export default function ModelPicker({
           {availableProviders.map((p) => {
             return (
               <optgroup key={p} label={PROVIDER_LABEL[p]}>
+                {feature === 'chat' && (p === 'openai' || p === 'gemini') && (
+                  <option value={`${p}${OPT_SEP}${AUTO_MODELS[p]}`} title={AUTO_TIP}>
+                    {AUTO_LABEL[p]}
+                  </option>
+                )}
                 {modelsFor(p, settings.custom_models, settings.hidden_models).map((m) => (
                   <option key={m} value={`${p}${OPT_SEP}${m}`}>
                     {m}

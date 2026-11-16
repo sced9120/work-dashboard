@@ -6,7 +6,7 @@ let fails = 0
 const ok = (c, m) => { console.log(c ? '  ✓' : '  ✗', m); if (!c) fails++ }
 
 console.log('1. 나이스 바이트')
-ok(S.byteLen('가나다') === 9 && S.byteLen('abc 1.') === 6 && S.byteLen('가\n나') === 8 && S.byteLen(null) === 0, '한글 3 · 영문 숫자 빈칸 문장부호 1 · 줄바꿈 2')
+ok(S.byteLen('가나다') === 9 && S.byteLen('abc 1.') === 6 && S.byteLen('가\n나') === 7 && S.byteLen('가\r\n나') === 7 && S.byteLen('가\r나') === 7 && S.byteLen(null) === 0, '한글 3 · 영문 숫자 빈칸 문장부호 1 · 줄바꿈 1 (CR LF 한 쌍도 1)')
 
 console.log('\n2. 명단 붙여넣기')
 let r = S.parseRoster('반\t번호\t이름\n1\t1\t가나다\n1\t2\t라마바\n2\t1\t사아자\n')

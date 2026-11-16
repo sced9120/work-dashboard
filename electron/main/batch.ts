@@ -20,6 +20,7 @@ import type { BatchFolder, BatchOptions, BatchProgress, BatchRequest, BatchResul
 import { BATCH_MAX_DEPTH, BATCH_MAX_FILES, batchKindOf, batchSystem, batchTable, groupStudents, lengthOk, parseBatchAnswer, seteukFixText, seteukLength, toCsv } from '../../shared/batch'
 import { isModernGemini } from '../../shared/gemini'
 import type { LocalSettings, ModelChoice, Provider } from '../../shared/types'
+import { isAutoModel } from '../../shared/types'
 import { extractFile } from './extract'
 import { httpFetch } from './http'
 import { tablesToXlsx } from './ocr'
@@ -343,7 +344,9 @@ function resolve(s: LocalSettings, want: ModelChoice | null): { choice: ModelCho
   const saved = s.feature_models?.batch
   if (saved?.model) tries.push(saved)
   for (const p of [s.provider, 'gemini', 'openai', 'claude'] as Provider[]) tries.push({ provider: p, model: defaultOf(s, p) })
-  for (const c of tries) {
+  for (const c0 of tries) {
+    // 자동 모델 이름은 업무 도우미 전용 — 여기서는 그 서비스의 기본 모델로
+    const c = isAutoModel(c0.model) ? { provider: c0.provider, model: isAutoModel(defaultOf(s, c0.provider)) ? (c0.provider === 'openai' ? 'gpt-6-sol' : 'gemini-3.6-flash') : defaultOf(s, c0.provider) } : c0
     const key = keyOf(s, c.provider)
     if (key && c.model) return { choice: c, key }
   }

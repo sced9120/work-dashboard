@@ -10,7 +10,10 @@ import type {
   ModelChoice,
   Provider
 } from '../../shared/types'
-import { MODEL_UPGRADES } from '../../shared/types'
+import { MODEL_UPGRADES, isAutoModel } from '../../shared/types'
+
+/** 자동 모델 이름은 업무 도우미 전용 — 설정의 기본 모델로는 받지 않는다 */
+const concrete = (m: string | undefined, d: string): string => (m && !isAutoModel(m) ? m : d)
 
 /**
  * 모델 기본값을 몇 번째로 바꿨는지. 저장된 값이 이보다 낮으면 예전 기본 모델을 같은 등급의 새 모델로 한 번 바꾼다.
@@ -193,8 +196,8 @@ function readLocalSettings(): LocalSettings {
     gemini_key,
     claude_key,
     exaone_key,
-    openai_model: raw.openai_model || DEFAULTS.openai_model,
-    gemini_model: raw.gemini_model || DEFAULTS.gemini_model,
+    openai_model: concrete(raw.openai_model, DEFAULTS.openai_model),
+    gemini_model: concrete(raw.gemini_model, DEFAULTS.gemini_model),
     claude_model: raw.claude_model || DEFAULTS.claude_model,
     exaone_model: raw.exaone_model || DEFAULTS.exaone_model,
     feature_models: coerceFeatureModels(raw.feature_models),
@@ -218,8 +221,8 @@ export function saveLocalSettings(next: LocalSettings): void {
   const out: StoredShape = {
     provider: next.provider,
     models_rev: MODELS_REV,
-    openai_model: next.openai_model || DEFAULTS.openai_model,
-    gemini_model: next.gemini_model || DEFAULTS.gemini_model,
+    openai_model: concrete(next.openai_model, DEFAULTS.openai_model),
+    gemini_model: concrete(next.gemini_model, DEFAULTS.gemini_model),
     claude_model: next.claude_model || DEFAULTS.claude_model,
     exaone_model: next.exaone_model || DEFAULTS.exaone_model,
     feature_models: next.feature_models ?? {},

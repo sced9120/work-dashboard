@@ -16,7 +16,7 @@ export const OCR_OPENAI_MODEL = 'gpt-6-luna'
 export type OcrProvider = 'gemini' | 'openai'
 
 /** OpenAI 모델 이름 (gpt-… · o3 · chatgpt-…) */
-export const isOpenaiModel = (m: string): boolean => /^(gpt-|chatgpt-|o\d)[a-z0-9.-]{0,60}$/.test(m)
+export const isOpenaiModel = (m: string): boolean => /^(gpt-|chatgpt-|o\d)[a-z0-9.-]{0,60}$/.test(m) && m !== 'gpt-auto'
 
 /** 모델 이름으로 어느 서비스로 읽을지 */
 export function ocrProviderOf(model: string): OcrProvider | null {

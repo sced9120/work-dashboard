@@ -530,6 +530,8 @@ const api = {
       name: string
     }): Promise<FormFillResult> => ipcRenderer.invoke('hwpforms:fillSlots', args),
     newDoc: (args: { name: string; text: string }): Promise<ActionResult> => ipcRenderer.invoke('hwp:newDoc', args),
+    /** 도우미 답(마크다운)을 제목 · 목록 · 표를 살린 한글 문서로 — name 은 문서 제목(없으면 빈 글) */
+    answerDoc: (args: { name: string; markdown: string }): Promise<ActionResult> => ipcRenderer.invoke('hwp:answerDoc', args),
     /** 이 프로그램이 방금 저장한 파일만 열 수 있다 */
     open: (target: string): Promise<string> => ipcRenderer.invoke('files:openSaved', target),
     reveal: (target: string): Promise<void> => ipcRenderer.invoke('files:revealSaved', target)

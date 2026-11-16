@@ -152,14 +152,15 @@ export const seteukRowsKey = (actId: string): string => `seteuk_rows_${actId}`
 
 /* ---------- 바이트 ---------- */
 
-/** 나이스 바이트 — 한글 3, 영문 · 숫자 · 공백 · 문장부호 1, 줄바꿈 2 */
+/** 나이스 바이트 — 한글 3, 영문 · 숫자 · 공백 · 문장부호 1, 줄바꿈 1 (CR LF 한 쌍도 1) */
 export function byteLen(s: string | null | undefined): number {
   if (s === null || s === undefined) return 0
   const t = String(s)
   let n = 0
   for (let i = 0; i < t.length; i++) {
     const c = t.charCodeAt(i)
-    if (c === 10 || c === 13) n += 2
+    if (c === 13) n += t.charCodeAt(i + 1) === 10 ? 0 : 1
+    else if (c === 10) n += 1
     else if (c > 127) n += 3
     else n += 1
   }
@@ -795,7 +796,7 @@ export function activeRules(c: SeteukConfig = CONFIG): SeteukRule[] {
 /** 설정 화면에서 묶어 보여 줄 기본 검사 */
 export const RULE_GROUPS: { key: string; name: string; desc: string; rules: SeteukRule[] }[] = [
   { key: 'neis', name: '기재 금지', desc: '2026 기재요령에서 학생부에 쓰지 못하게 한 것', rules: SETEUK_BANNED },
-  { key: 'format', name: '형식', desc: '어미 · 학생 주어 · 특수문자 · 줄바꿈', rules: SETEUK_FORMAT },
+  { key: 'format', name: '형식', desc: '어미 · 학생 주어 · 특수문자 · 줄바꿈 · 한자 · 영문 · 문단 번호', rules: SETEUK_FORMAT },
   { key: 'ai', name: 'AI 말투', desc: 'AI 글에 흔한 번역투 · 상투어 — 확인으로만 알린다', rules: SETEUK_AI_TELL }
 ]
 

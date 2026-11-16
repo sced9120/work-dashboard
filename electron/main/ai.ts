@@ -22,7 +22,11 @@ import { frameOutline, readFrame } from './hwpgen'
 import type { Deck } from '../../shared/slides'
 import { normalizeDeck } from '../../shared/slides'
 import { httpFetch } from './http'
+import { AUTO_MODELS, isAutoModel } from '../../shared/types'
+import { OPENAI_FALLBACK, GPT_CHEAP, autoLabel, decideGemini, decideOpenaiLocal, parseRoute, routeFromParsed, routerInput, routerPrompt, scoreTurns } from '../../shared/autoroute'
+import type { Effort, OpenaiRoute, ScoreMeta, ThinkingLevel } from '../../shared/autoroute'
 import { isModernGemini } from '../../shared/gemini'
+import { SETEUK_CHAT_KNOWLEDGE, wantsSeteukKnowledge } from '../../shared/seteukKnowledge'
 import { readSse } from './sse'
 import type { ChatSendTurn, ChatStreamReply, ChatStreamRequest } from '../../shared/chat'
 import { CHAT_IMAGE_TYPES, CHAT_MAX_BINARY, CHAT_MAX_FILE, CHAT_MAX_TEXT } from '../../shared/chat'
@@ -318,6 +322,43 @@ function jsonSystem(system: string): string {
  * 프로세스 안에서만 기억한다(간단하고, 잘못 학습돼도 재시작이면 초기화된다).
  */
 const openaiNoTemperature = new Set<string>()
+/** reasoning_effort 를 거절한 모델들 (자동 모델이 붙이는 값 — 400 이 나면 빼고 다시 보내고, 이후 요청부터 뺀다) */
+const openaiNoEffort = new Set<string>()
+/** thinkingConfig(thinkingLevel) 를 거절한 Gemini 모델들 — 같은 방식 */
+const geminiNoThinking = new Set<string>()
+const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions'
+
+/**
+ * OpenAI 요청 한 번. 모르던 거절(400)은 그 항목(temperature · reasoning_effort)만 빼고 한 번씩 다시 보낸다.
+ * 다른 까닭의 400 은 안내 글로 던진다. 성공하지 않은 다른 응답은 그대로 돌려준다(부른 쪽이 오류 안내를 만든다).
+ */
+async function openaiPost(
+  model: string,
+  headers: Record<string, string>,
+  mk: (o: { temp: boolean; effort: boolean }) => string,
+  first: { temp: boolean; effort: boolean },
+  signal?: AbortSignal
+): Promise<Response> {
+  let temp = first.temp
+  let effort = first.effort && !openaiNoEffort.has(model)
+  for (;;) {
+    const res = await httpFetch(OPENAI_CHAT_URL, { method: 'POST', headers, body: mk({ temp, effort }), ...(signal ? { signal } : {}) })
+    if (res.ok || res.status !== 400 || (!temp && !effort)) return res
+    const txt = await res.text().catch(() => '')
+    if (effort && /reasoning/i.test(txt)) {
+      openaiNoEffort.add(model)
+      effort = false
+      continue
+    }
+    if (temp && /temperature/i.test(txt) && /unsupported|does not support|not.*supported/i.test(txt)) {
+      openaiNoTemperature.add(model)
+      temp = false
+      continue
+    }
+    // 재시도 없음. 아래 공통 처리로 넘긴다.
+    throw new Error(await describeHttpError(new Response(txt, { status: res.status }), 'OpenAI'))
+  }
+}
 
 function openaiSupportsTemperature(model: string): boolean {
   if (openaiNoTemperature.has(model)) return false
@@ -334,42 +375,32 @@ async function openaiChat(
   model: string,
   system: string,
   turns: ChatTurn[],
-  json: boolean
+  json: boolean,
+  /** 자동 모델의 라우터 호출만 쓴다 */
+  opts?: { effort?: Effort; maxTokens?: number; signal?: AbortSignal }
 ): Promise<string> {
   const messages: { role: string; content: string }[] = []
   const sys = json ? jsonSystem(system) : system
   if (sys) messages.push({ role: 'system', content: sys })
   for (const t of turns) messages.push({ role: t.role, content: t.content })
 
-  const body = (withTemperature: boolean): string =>
+  const body = (o: { temp: boolean; effort: boolean }): string =>
     JSON.stringify({
       model,
       messages,
       ...(json ? { response_format: { type: 'json_object' } } : {}),
-      ...(withTemperature ? { temperature: 0.2 } : {})
+      ...(o.temp ? { temperature: 0.2 } : {}),
+      ...(o.effort && opts?.effort ? { reasoning_effort: opts.effort } : {}),
+      ...(opts?.maxTokens ? { max_completion_tokens: opts.maxTokens } : {})
     })
 
-  const url = 'https://api.openai.com/v1/chat/completions'
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${key}`
   }
 
-  let useTemperature = openaiSupportsTemperature(model)
-  let res = await httpFetch(url, { method: 'POST', headers, body: body(useTemperature) })
-
   // temperature 를 못 받는 걸 미처 몰랐던 모델은 한 번만 재시도한다.
-  if (!res.ok && useTemperature && res.status === 400) {
-    const txt = await res.text().catch(() => '')
-    if (/temperature/i.test(txt) && /unsupported|does not support|not.*supported/i.test(txt)) {
-      openaiNoTemperature.add(model)
-      useTemperature = false
-      res = await httpFetch(url, { method: 'POST', headers, body: body(false) })
-    } else {
-      // 재시도 없음. 아래 공통 처리로 넘긴다.
-      throw new Error(await describeHttpError(new Response(txt, { status: res.status }), 'OpenAI'))
-    }
-  }
+  const res = await openaiPost(model, headers, body, { temp: openaiSupportsTemperature(model), effort: !!opts?.effort }, opts?.signal)
 
   if (!res.ok) throw new Error(await describeHttpError(res, 'OpenAI'))
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
@@ -552,7 +583,9 @@ function defaultModelFor(settings: LocalSettings, p: Provider): string {
 function resolveChoice(
   settings: LocalSettings,
   feature: AiFeature,
-  override?: ModelChoice | null
+  override?: ModelChoice | null,
+  /** 업무 도우미만 true — 자동 모델 이름을 그대로 둔다(그 밖에는 실제 모델로 바꿔 HTTP 에 닿지 않게) */
+  keepAuto = false
 ): ModelChoice {
   const pick = (): ModelChoice => {
     const from = override ?? settings.feature_models?.[feature]
@@ -560,11 +593,19 @@ function resolveChoice(
     if (from?.provider) return { provider: from.provider, model: defaultModelFor(settings, from.provider) }
     return { provider: settings.provider, model: defaultModelFor(settings, settings.provider) }
   }
+  const fin = (c: ModelChoice): ModelChoice => (!keepAuto && isAutoModel(c.model) ? { provider: c.provider, model: concreteDefault(settings, c.provider) } : c)
   const choice = pick()
   // 고른 서비스의 키가 없고 다른 서비스 키만 있으면 그쪽 기본 모델로 (화면의 모델 고르개도 키 있는 서비스만 보여 준다)
-  if (keyFor(settings, choice.provider)) return choice
+  if (keyFor(settings, choice.provider)) return fin(choice)
   const other = (['gemini', 'openai', 'claude', 'exaone'] as Provider[]).find((p) => keyFor(settings, p))
-  return other ? { provider: other, model: defaultModelFor(settings, other) } : choice
+  return fin(other ? { provider: other, model: defaultModelFor(settings, other) } : choice)
+}
+
+/** 자동 모델 이름 대신 쓸 실제 모델 — 설정의 기본 모델(그것도 자동이면 서비스별 기본) */
+function concreteDefault(settings: LocalSettings, p: Provider): string {
+  const d = defaultModelFor(settings, p)
+  if (d && !isAutoModel(d)) return d
+  return p === 'openai' ? 'gpt-6-sol' : p === 'gemini' ? 'gemini-3.6-flash' : d
 }
 
 function keyFor(settings: LocalSettings, p: Provider): string {
@@ -1357,6 +1398,10 @@ export function richTurns(history: ChatSendTurn[], provider: Provider): RichTurn
 const XLSX_RULE =
   '엑셀 · 표로 달라고 하면 Markdown 표(첫 줄 머리글, 둘째 줄 |---|)로 답하세요. 답 아래 [엑셀로 저장] 단추가 그 표를 엑셀 파일로 만들어 주므로 "엑셀 파일은 만들 수 없다" 고 하지 마세요. 표가 여럿이면 표마다 바로 위에 ### 제목을 달면 시트 이름이 됩니다. 칸 안에서는 줄을 바꾸지 말고 " / " 로 나눕니다.'
 
+/** 한글 · 문서로 달라고 할 때 — 답 아래 [한글로 저장] 이 그 답을 .hwpx 로 만든다 */
+const HWP_RULE =
+  '한글 · 문서(보고서 · 공문 · 안내문)로 달라고 하면 # 제목, ## 소제목, 목록, 표를 갖춘 깔끔한 Markdown 으로 답하세요. 답 아래 [한글로 저장] 단추가 그 답을 한글 파일로 만들어 주므로 "한글 파일은 만들 수 없다" 고 하지 말고, 답 끝에 한 번만 그 단추를 알려 주세요. 불필요한 이모지는 쓰지 않습니다.'
+
 /** 업무 도우미 지침 — 근거를 예산 안에서 담고, 실제로 담긴 것만 출처로 남긴다 */
 export function workSystem(jobTitle: string, mine: string, sources: SourceItem[], today: string, forms: string[]): { system: string; used: string[] } {
   let used = 0
@@ -1391,6 +1436,7 @@ export function workSystem(jobTitle: string, mine: string, sources: SourceItem[]
 - 도움자료는 파일 이름만 있고 내용은 모릅니다. 파일 내용을 지어내지 말고, 쓸 만한 파일(업무흐름도·계획 예시·서식 등)의 이름을 짚어
   "자료 폴더를 열어 보세요" 라고 안내하세요. 폴더 주소는 답 아래에 버튼으로 따로 나오므로 적지 않아도 됩니다.
 - ${XLSX_RULE}
+- ${HWP_RULE}
 - 한국어로, 담당자가 바로 활용할 수 있도록 간결하고 실무적으로 답하세요.
 
 ${actionGuide(today)}
@@ -1414,7 +1460,8 @@ export function freeSystem(instruction: string, today: string): string {
       '- 학생 실명 · 연락처 같은 개인정보를 새로 지어내지 않습니다.',
       '- 그림 · 사진을 만들어 달라는 부탁에는 그림은 만들 수 없다고 말하고, 글로 도울 방법을 제안합니다.',
       '- 표 · 목록이 읽기 좋으면 Markdown 으로 씁니다.',
-      `- ${XLSX_RULE}`
+      `- ${XLSX_RULE}`,
+      `- ${HWP_RULE}`
     ].join('\n')
   ]
     .filter(Boolean)
@@ -1429,7 +1476,15 @@ export interface StreamResult {
 
 type OnText = (full: string) => void
 
-async function streamOpenai(key: string, model: string, system: string, turns: RichTurn[], temperature: number | null, onText: OnText, signal: AbortSignal): Promise<string> {
+/** 자동 모델이 정한 요청별 값 — 자동이 아니면 비어 있다 */
+export interface StreamExtras {
+  /** OpenAI reasoning_effort */
+  effort?: Effort
+  /** Gemini generationConfig.thinkingConfig.thinkingLevel */
+  thinkingLevel?: ThinkingLevel
+}
+
+async function streamOpenai(key: string, model: string, system: string, turns: RichTurn[], temperature: number | null, onText: OnText, signal: AbortSignal, extras?: StreamExtras): Promise<string> {
   const messages: unknown[] = []
   if (system) messages.push({ role: 'system', content: system })
   for (const t of turns) {
@@ -1448,20 +1503,10 @@ async function streamOpenai(key: string, model: string, system: string, turns: R
       })
     } else messages.push({ role: t.role, content: t.text })
   }
-  const body = (withTemperature: boolean): string =>
-    JSON.stringify({ model, messages, stream: true, ...(withTemperature ? { temperature } : {}) })
-  const url = 'https://api.openai.com/v1/chat/completions'
+  const body = (o: { temp: boolean; effort: boolean }): string =>
+    JSON.stringify({ model, messages, stream: true, ...(o.temp ? { temperature } : {}), ...(o.effort && extras?.effort ? { reasoning_effort: extras.effort } : {}) })
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }
-  let useTemperature = temperature !== null && openaiSupportsTemperature(model)
-  let res = await httpFetch(url, { method: 'POST', headers, body: body(useTemperature), signal })
-  if (!res.ok && useTemperature && res.status === 400) {
-    const txt = await res.text().catch(() => '')
-    if (/temperature/i.test(txt) && /unsupported|does not support|not.*supported/i.test(txt)) {
-      openaiNoTemperature.add(model)
-      useTemperature = false
-      res = await httpFetch(url, { method: 'POST', headers, body: body(false), signal })
-    } else throw new Error(await describeHttpError(new Response(txt, { status: res.status }), 'OpenAI'))
-  }
+  const res = await openaiPost(model, headers, body, { temp: temperature !== null && openaiSupportsTemperature(model), effort: !!extras?.effort }, signal)
   if (!res.ok) throw new Error(await describeHttpError(res, 'OpenAI'))
   let text = ''
   let finish = ''
@@ -1484,12 +1529,10 @@ async function streamOpenai(key: string, model: string, system: string, turns: R
   return finish
 }
 
-async function streamGemini(key: string, model: string, system: string, turns: RichTurn[], temperature: number | null, onText: OnText, signal: AbortSignal): Promise<string> {
-  const res = await httpFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
-    method: 'POST',
-    signal,
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
+async function streamGemini(key: string, model: string, system: string, turns: RichTurn[], temperature: number | null, onText: OnText, signal: AbortSignal, extras?: StreamExtras): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`
+  const body = (withThinking: boolean): string =>
+    JSON.stringify({
       ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
       contents: turns.map((t) => ({
         role: t.role === 'assistant' ? 'model' : 'user',
@@ -1498,10 +1541,25 @@ async function streamGemini(key: string, model: string, system: string, turns: R
       })),
       generationConfig: {
         // Gemini 3.6 Flash 이후 · 3.5 Flash-Lite 는 temperature 를 받지 않는다
-        ...(temperature !== null && !isModernGemini(model) ? { temperature } : {})
+        ...(temperature !== null && !isModernGemini(model) ? { temperature } : {}),
+        // 자동 모델이 정한 생각 정도 (생각 요약 includeThoughts 는 켜지 않는다)
+        ...(withThinking && extras?.thinkingLevel ? { thinkingConfig: { thinkingLevel: extras.thinkingLevel } } : {})
       }
     })
-  })
+  let think = !!extras?.thinkingLevel && !geminiNoThinking.has(model)
+  let res: Response
+  for (;;) {
+    res = await httpFetch(url, { method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: body(think) })
+    if (res.ok || res.status !== 400 || !think) break
+    const txt = await res.text().catch(() => '')
+    // 생각 정도를 못 받는 모델이면 빼고 다시, 이후 요청에도 안 보낸다
+    if (/thinking/i.test(txt)) {
+      geminiNoThinking.add(model)
+      think = false
+      continue
+    }
+    throw new Error(await describeHttpError(new Response(txt, { status: res.status }), 'Gemini'))
+  }
   if (!res.ok) throw new Error(await describeHttpError(res, 'Gemini'))
   let text = ''
   let finish = ''
@@ -1592,7 +1650,8 @@ export async function streamChat(
   turns: RichTurn[],
   temperature: number | null,
   onText: OnText,
-  signal: AbortSignal
+  signal: AbortSignal,
+  extras?: StreamExtras
 ): Promise<StreamResult> {
   const choice = resolveChoice(settings, feature, override)
   const key = keyFor(settings, choice.provider)
@@ -1602,14 +1661,61 @@ export async function streamChat(
     last = full
     onText(full)
   }
-  const run = choice.provider === 'openai' ? streamOpenai : choice.provider === 'claude' ? streamClaude : choice.provider === 'exaone' ? streamExaone : streamGemini
   try {
-    const finish = await run(key, choice.model, system, turns, temperature, seen, signal)
+    const finish =
+      choice.provider === 'openai'
+        ? await streamOpenai(key, choice.model, system, turns, temperature, seen, signal, extras)
+        : choice.provider === 'gemini'
+          ? await streamGemini(key, choice.model, system, turns, temperature, seen, signal, extras)
+          : choice.provider === 'claude'
+            ? await streamClaude(key, choice.model, system, turns, temperature, seen, signal)
+            : await streamExaone(key, choice.model, system, turns, temperature, seen, signal)
     return { text: last, finish, stopped: false }
   } catch (e) {
     if (signal.aborted) return { text: last, finish: 'stopped', stopped: true }
     throw e
   }
+}
+
+/** 라우터(싼 모델) 한 번 부르는 데 기다리는 시간 — 넘으면 기본값으로 */
+const ROUTER_TIMEOUT = 6000
+
+/** GPT 자동 — 애매한 질문만 gpt-6-luna 에게 한 번 물어 모델 · 강도를 정한다. 실패 · 시간 초과 · 이상한 답이면 null */
+async function askRouter(key: string, text: string, prevAssistant: string, meta: ScoreMeta, signal: AbortSignal): Promise<OpenaiRoute | null> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), ROUTER_TIMEOUT)
+  const onAbort = (): void => ctrl.abort()
+  signal.addEventListener('abort', onAbort)
+  try {
+    const raw = await openaiChat(key, GPT_CHEAP, routerPrompt(), [{ role: 'user', content: routerInput(text, prevAssistant, meta) }], true, { effort: 'low', signal: ctrl.signal })
+    const parsed = parseRoute(raw)
+    return parsed ? routeFromParsed(parsed) : null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
+/** 자동 모델 → 이번 질문에 쓸 실제 모델 · 요청별 값 · 화면에 보일 안내. Gemini 는 규칙만(AI 를 따로 부르지 않는다) */
+async function autoRoute(
+  key: string,
+  provider: 'openai' | 'gemini',
+  history: ChatSendTurn[],
+  signal: AbortSignal
+): Promise<{ model: string; extras: StreamExtras; label: string }> {
+  const list = (Array.isArray(history) ? history : []).filter((t) => t && (t.role === 'user' || t.role === 'assistant'))
+  const lastUser = [...list].reverse().find((t) => t.role === 'user')
+  const atts = Array.isArray(lastUser?.attachments) ? lastUser!.attachments! : []
+  const meta: ScoreMeta = { images: atts.filter((a) => a.kind === 'image').length, docs: atts.filter((a) => a.kind !== 'image').length }
+  const sc = scoreTurns(list.map((t) => ({ role: t.role, content: String(t.content ?? '') })), meta)
+  if (provider === 'gemini') {
+    const g = decideGemini(sc.score)
+    return { model: g.model, extras: { thinkingLevel: g.thinkingLevel }, label: g.label }
+  }
+  const r = decideOpenaiLocal(sc.text, sc.score, { ...meta, reasons: sc.reasons }) ?? (await askRouter(key, sc.text, sc.prevAssistant, meta, signal)) ?? OPENAI_FALLBACK
+  return { model: r.model, extras: { effort: r.effort }, label: autoLabel(r.model, r.why) }
 }
 
 /** 업무 도우미 · 일반 대화 한 번 — 받는 대로 onText 로, 다 받으면 답을 */
@@ -1620,20 +1726,42 @@ export async function chatStream(
   onText: OnText,
   signal: AbortSignal
 ): Promise<ChatStreamReply> {
-  const choice = resolveChoice(settings, 'chat', req.model ?? null)
+  let choice = resolveChoice(settings, 'chat', req.model ?? null, true)
   const turns = richTurns(req.history, choice.provider)
   if (!turns.length || turns[turns.length - 1].role !== 'user') return { ok: false, answer: '', sources: [], error: '보낼 질문이 없습니다.' }
+  // 자동 모델(GPT 자동 · Gemini 자동)이면 이번 질문에 쓸 실제 모델을 먼저 정한다
+  let routed: { model: string; label: string } | undefined
+  let extras: StreamExtras | undefined
+  if (isAutoModel(choice.model)) {
+    const key = keyFor(settings, choice.provider)
+    if (key && (choice.provider === 'openai' || choice.provider === 'gemini') && choice.model === AUTO_MODELS[choice.provider]) {
+      try {
+        const r = await autoRoute(key, choice.provider, req.history, signal)
+        choice = { provider: choice.provider, model: r.model }
+        extras = r.extras
+        routed = { model: r.model, label: r.label }
+      } catch {
+        choice = { provider: choice.provider, model: concreteDefault(settings, choice.provider) }
+      }
+    } else choice = { provider: choice.provider, model: concreteDefault(settings, choice.provider) }
+  }
   const free = req.mode === 'free'
   const work = free ? null : workSystem(String(req.jobTitle ?? ''), extra.mine, extra.sources, extra.today, extra.forms)
-  const system = free ? freeSystem(String(req.instruction ?? ''), extra.today) : work!.system
+  const base = free ? freeSystem(String(req.instruction ?? ''), extra.today) : work!.system
+  // 학생부 이야기일 때만 2026 기재 지식을 붙인다 (다른 질문에는 토큰을 쓰지 않는다)
+  const lastAsk = [...(Array.isArray(req.history) ? req.history : [])].reverse().find((t) => t && t.role === 'user')
+  const system = wantsSeteukKnowledge(String(lastAsk?.content ?? '')) ? `${base}
+
+${SETEUK_CHAT_KNOWLEDGE}` : base
   try {
-    const r = await streamChat(settings, 'chat', choice, system, turns, free ? null : 0.2, onText, signal)
+    const r = await streamChat(settings, 'chat', choice, system, turns, free ? null : 0.2, onText, signal, extras)
     if (!r.text.trim() && !r.stopped) return { ok: false, answer: '', sources: [], error: 'AI 가 빈 답을 보냈습니다. 다시 해 보거나 다른 모델을 골라 주세요.' }
     const cut = !r.stopped && /^(max_tokens|length|MAX_TOKENS)$/.test(r.finish)
     return {
       ok: true,
       answer: r.text.trim() + (cut ? '\n\n(… 답이 길어 여기서 끊겼습니다. "이어서 써 줘" 라고 하면 이어 씁니다)' : ''),
       sources: work?.used ?? [],
+      ...(routed ? { routed } : {}),
       ...(r.stopped ? { stopped: true } : {})
     }
   } catch (e) {

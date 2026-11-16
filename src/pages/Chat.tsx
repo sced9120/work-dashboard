@@ -4,6 +4,7 @@ import type { ChatAttachment, ChatMeta, ChatMode } from '../../shared/chat'
 import { CHAT_MODES, chatGroup } from '../../shared/chat'
 import type { HwpForm } from '../../shared/hwpform'
 import { extractTables } from '../../shared/mdtable'
+import { exportIntent, firstHeading, prepareAnswerMd } from '../../shared/answerdoc'
 import type { ModelChoice } from '../../shared/types'
 import type { PageId } from '../App'
 import { queueCommitteeTab, takeChat } from '../lib/chatBridge'
@@ -534,9 +535,21 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
   const saveXlsx = async (text: string): Promise<void> => {
     const tables = extractTables(text)
     if (!tables.length) return
-    const title = rec && isSaved(rec.id) ? rec.title : free ? 'AI_대화_표' : '업무도우미_표'
+    const title = rec && isSaved(rec.id) ? rec.title : tables[0].title || (free ? 'AI_대화_표' : '업무도우미_표')
     const r = await window.api.ocr.save(tables, title)
     if (r.message !== '취소했습니다.') toast(r.message, r.ok ? 'ok' : 'err')
+  }
+
+  // 답 전체를 한글 문서로 — 제목 · 목록 · 표 · 굵게를 살린다. 저장 창은 언제나 뜬다
+  const [hwpSaved, setHwpSaved] = useState<Record<string, string>>({})
+  const saveHwp = async (text: string, key: string): Promise<void> => {
+    if (!prepareAnswerMd(text).trim()) return
+    const saved = rec && isSaved(rec.id) ? rec.title : ''
+    const res = await window.api.hwp.answerDoc({ name: saved || firstHeading(text), markdown: text })
+    if (res.message === '저장을 취소했습니다.') return
+    toast(res.message, res.ok ? 'ok' : 'err')
+    // 토스트에는 단추를 달 수 없어, 저장한 답 아래에 [한글로 열기] 줄을 남긴다(한글 카드와 같은 모양)
+    if (res.ok && res.path) setHwpSaved((p) => ({ ...p, [key]: res.path ?? '' }))
   }
 
   // 끌어 놓기 — 창 어디에 놓아도 이 화면이면 올린다
@@ -626,6 +639,11 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
       {m.role === 'assistant' && avatar}
       <div className={`chat-bubble ${m.role} ${m.error ? 'err' : ''}`}>
         {m.role === 'assistant' && who}
+        {m.role === 'assistant' && m.routed && (
+          <div className="muted small" style={{ margin: '-2px 0 6px' }} title="자동 모델이 이 답에 고른 모델입니다">
+            {m.routed}
+          </div>
+        )}
         {m.attachments && m.attachments.length > 0 && (
           <div className="chat-files">
             {m.attachments.map((a, ai) => (
@@ -736,17 +754,39 @@ export default function Chat({ jobTitle, onGo }: Props): JSX.Element {
             </button>
             {(() => {
               const n = extractTables(m.content).length
-              return n > 0 ? (
-                <button className="chat-act chat-act-xlsx" onClick={() => void saveXlsx(m.content)} title={n > 1 ? `답의 표 ${n}개를 시트 ${n}장짜리 엑셀 파일로 저장합니다` : '답의 표를 엑셀 파일로 저장합니다'}>
-                  엑셀로 저장{n > 1 ? ` (표 ${n}개)` : ''}
-                </button>
-              ) : null
+              // 바로 앞 질문이 엑셀 · 한글을 달라는 말이면 그 단추를 돋보이게 — 저장은 언제나 클릭 + 저장 창
+              const want = exportIntent(i > 0 && msgs[i - 1]?.role === 'user' ? msgs[i - 1].content : '')
+              return (
+                <>
+                  {n > 0 && (
+                    <button className={`chat-act chat-act-xlsx ${want.xlsx ? 'chat-act-hot' : ''}`} onClick={() => void saveXlsx(m.content)} title={n > 1 ? `답의 표 ${n}개를 시트 ${n}장짜리 엑셀 파일로 저장합니다` : '답의 표를 엑셀 파일로 저장합니다'}>
+                      엑셀로 저장{n > 1 ? ` (표 ${n}개)` : ''}
+                    </button>
+                  )}
+                  <button className={`chat-act chat-act-hwp ${want.hwp ? 'chat-act-hot' : ''}`} onClick={() => void saveHwp(m.content, `${id}:${i}`)} title="이 답을 제목 · 목록 · 표를 살린 한글 파일(.hwpx)로 저장합니다">
+                    한글로 저장
+                  </button>
+                </>
+              )
             })()}
             {i === lastAssistant && (
               <button className="chat-act" onClick={() => void regenerate(id, { jobTitle, model }).then(after)} disabled={busy} title="같은 질문으로 답을 다시 받습니다">
                 다시 받기
               </button>
             )}
+          </div>
+        )}
+        {m.role === 'assistant' && hwpSaved[`${id}:${i}`] && (
+          <div className="note note-ok" style={{ marginTop: 6 }}>
+            한글 파일로 저장했습니다: {hwpSaved[`${id}:${i}`]}
+            <div className="row" style={{ marginTop: 6 }}>
+              <button className="btn btn-sm btn-primary" onClick={() => void window.api.hwp.open(hwpSaved[`${id}:${i}`])}>
+                한글로 열기
+              </button>
+              <button className="btn btn-sm" onClick={() => void window.api.hwp.reveal(hwpSaved[`${id}:${i}`])}>
+                폴더 열기
+              </button>
+            </div>
           </div>
         )}
         {m.error && i === lastAssistant && (
