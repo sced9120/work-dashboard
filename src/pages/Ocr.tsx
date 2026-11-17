@@ -9,6 +9,7 @@ import { modelsFor } from '../../shared/types'
 import type { PageId } from '../App'
 import FolderBatch from '../components/FolderBatch'
 import Icon from '../components/Icon'
+import SendScanToSeteuk from '../components/SendScanToSeteuk'
 import { useCatalog } from '../lib/catalog'
 import { useConfirm } from '../lib/confirm'
 import type { OcrTab } from '../lib/ocrStore'
@@ -51,8 +52,9 @@ const WHO: Record<OcrProvider, { name: string; company: string }> = {
 const PREVIEW_ROWS = 200
 
 /** 탭 하나 — 파일 고르기 · 읽기 · 결과 */
-function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null; models: OcrModels }): JSX.Element {
+function TabView({ tab, hasKey, models, onGo }: { tab: OcrTab; hasKey: boolean | null; models: OcrModels; onGo: (p: PageId) => void }): JSX.Element {
   const toast = useToast()
+  const [sendOpen, setSendOpen] = useState(false)
   const remote = useCatalog().catalog.ocr
   const id = tab.id
   const [seconds, setSeconds] = useState(0)
@@ -298,11 +300,15 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
             <button className="btn btn-sm" onClick={() => void copy()} disabled={!tables.length || busy}>
               표 복사
             </button>
+            <button className="btn btn-sm" onClick={() => setSendOpen((v) => !v)} disabled={!tables.length || busy} aria-expanded={sendOpen} title="표의 학번 · 이름으로 학생을 맞춰, 만들어 둔 세특 활동의 관찰 기록으로 넣습니다">
+              세특 활동으로 보내기
+            </button>
             <button className="btn btn-sm btn-ghost" onClick={() => patchTab(id, { showRaw: !tab.showRaw })}>
               {tab.showRaw ? '받은 글 닫기' : '받은 글 보기'}
             </button>
             <span className="muted small">{tab.savedAt ? '엑셀로 저장했습니다.' : '결과는 프로그램을 끄거나 이 탭을 닫으면 사라집니다 — 엑셀로 저장해 두세요.'}</span>
           </div>
+          {sendOpen && <SendScanToSeteuk tables={tables} onGo={onGo} onClose={() => setSendOpen(false)} />}
           {tab.showRaw && <pre className="ocr-raw">{text}</pre>}
           {tables.map((t, ti) => (
             <div className="ocr-table-wrap" key={ti}>
@@ -491,7 +497,7 @@ export default function Ocr({ onGo }: Props): JSX.Element {
         </span>
       </div>
 
-      <TabView key={tab.id} tab={tab} hasKey={hasKey} models={models} />
+      <TabView key={tab.id} tab={tab} hasKey={hasKey} models={models} onGo={onGo} />
     </>
   )
 }

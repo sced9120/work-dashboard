@@ -5,7 +5,7 @@
  */
 import type { BatchRow } from './batch'
 import { joinFields, matchNotes } from './seteuk'
-import type { SeteukActivity, SeteukRow, SeteukRows, SeteukStudent } from './seteuk'
+import type { SeteukActivity, SeteukRow, SeteukRows, SeteukSheet, SeteukStudent } from './seteuk'
 
 export interface BatchSendOptions {
   /** 정리한 내용 → 관찰 기록 */
@@ -90,4 +90,48 @@ export function planBatchSend(rows: BatchRow[], students: SeteukStudent[], act: 
     else kept++
   }
   return { patch, matched, missed, kept }
+}
+
+/** 스캔한 표를 보낼 때 이미 적힌 관찰 기록을 어떻게 할지 */
+export type SheetSendMode = 'empty' | 'append' | 'overwrite'
+
+export interface SheetSendPlan {
+  patch: Record<string, Partial<SeteukRow>>
+  /** 맞춘 학생 수(보낼 글이 있는 줄만) */
+  matched: number
+  /** 못 맞춘 줄 — '3반 5번 이름' */
+  missed: string[]
+  /** 빈 칸에만 넣기라서 건너뛴 학생 수 */
+  kept: number
+}
+
+/**
+ * 스캔한 표(문서 스캔 · 정리 → 파일을 표로 옮기기) → 활동의 관찰 기록 (3.7.7~).
+ * 학생 맞추기와 내용 칸 잇기는 관찰 기록 가져오기와 같은 규칙(matchNotes)을 쓴다.
+ * 활동에 입력 항목이 여럿이면 첫 칸으로 넣는다. empty: 빈 칸에만 · append: 적힌 글 뒤에 이어 붙임 · overwrite: 덮어씀.
+ */
+export function planSheetSend(sheets: SeteukSheet[], students: SeteukStudent[], act: Pick<SeteukActivity, 'columns'>, cur: SeteukRows, mode: SheetSendMode): SheetSendPlan {
+  const m = matchNotes(sheets, students)
+  const patch: Record<string, Partial<SeteukRow>> = {}
+  let matched = 0
+  let kept = 0
+  const cols = act.columns
+  for (const h of m.hits) {
+    const text = h.text.trim()
+    if (!text) continue
+    matched++
+    const old: SeteukRow = cur[h.id] ?? { note: '', ai: '', final: '' }
+    const prev = cols.length >= 2 ? String(old.fields?.[cols[0]] ?? '') : old.note
+    if (mode === 'empty' && prev.trim()) {
+      kept++
+      continue
+    }
+    const next = mode === 'append' && prev.trim() ? prev.replace(/\s+$/, '') + '\n' + text : text
+    if (cols.length >= 2) {
+      const flat = next.replace(/\s*\n\s*/g, ' ')
+      const fields = { ...(old.fields ?? {}), [cols[0]]: flat }
+      patch[h.id] = { fields: { [cols[0]]: flat }, note: joinFields(cols, fields) }
+    } else patch[h.id] = { note: next }
+  }
+  return { patch, matched, missed: m.misses.map((x) => x.label), kept }
 }

@@ -51,5 +51,20 @@ ok(w3.patch['1-1'].fields['가'].includes('주제: 가나다 주제'), '맞는 �
 const w4 = B.planBatchSend([row('10101', '가나다')], roster, act2, { '1-1': { note: '', ai: '', final: '', fields: { 주제: '있음' } } }, items, { note: true, ai: false, overwrite: false })
 ok(w4.matched === 1 && w4.kept === 1, '그 칸이 차 있으면 빈 칸에만 — 건너뜀')
 
+console.log('5. 스캔한 표 → 활동 (3.7.7~)')
+const sheet = [{ header: ['학번', '이름', '소감'], rows: [['10101', '가나다', '발표가 어려웠다'], ['10199', '없는애', '무시'], ['10102', '라마바', '그래프를 그렸다']] }]
+const sr = [{ id: '1-1', cls: '1', no: '1', name: '가나다' }, { id: '1-2', cls: '1', no: '2', name: '라마바' }]
+const e1 = B.planSheetSend(sheet, sr, { columns: [] }, {}, 'empty')
+ok(e1.matched === 2 && e1.patch['1-1'].note === '발표가 어려웠다' && e1.missed.length === 1, '표 → 관찰 기록, 못 맞춘 줄은 따로')
+const cur2 = { '1-1': { note: '먼저 적음', ai: '', final: '' } }
+const e2 = B.planSheetSend(sheet, sr, { columns: [] }, cur2, 'empty')
+ok(e2.kept === 1 && !e2.patch['1-1'] && e2.patch['1-2'], '빈 칸에만 — 적힌 학생은 건너뜀')
+const e3 = B.planSheetSend(sheet, sr, { columns: [] }, cur2, 'append')
+ok(e3.patch['1-1'].note === '먼저 적음\n발표가 어려웠다', '이어 붙이기')
+const e4 = B.planSheetSend(sheet, sr, { columns: [] }, cur2, 'overwrite')
+ok(e4.patch['1-1'].note === '발표가 어려웠다', '덮어쓰기')
+const e5 = B.planSheetSend(sheet, sr, { columns: ['주제', '과정'] }, {}, 'empty')
+ok(e5.patch['1-1'].fields['주제'] === '발표가 어려웠다' && e5.patch['1-1'].note === '주제: 발표가 어려웠다', '입력 항목이 여럿이면 첫 칸으로')
+
 console.log(fails ? `\n실패 ${fails}` : '\n모두 통과')
 process.exit(fails ? 1 : 0)
