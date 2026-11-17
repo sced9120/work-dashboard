@@ -137,8 +137,8 @@ export default function SeteukRules({ config, preview, actName, onChange, onClos
             <div key={i} className="stk-myword">
               <input type="text" value={m.words} onChange={(e) => setMine(i, { words: e.target.value })} placeholder="예: 리더십을 발휘함, 열정적, 솔선수범" aria-label={`내 금지어 ${i + 1}`} />
               <select value={m.level} onChange={(e) => setMine(i, { level: e.target.value as 'block' | 'check' })} aria-label="수준">
-                <option value="check">확인 — 알리기만</option>
-                <option value="block">고침 — 꼭 고치기</option>
+                <option value="check">살펴볼 곳 — 알리기만</option>
+                <option value="block">고칠 곳 — 꼭 고치기</option>
               </select>
               <input type="text" value={m.why} onChange={(e) => setMine(i, { why: e.target.value })} placeholder="이유 (보이기만 함)" aria-label="이유" />
               <button className="btn btn-sm btn-ghost" onClick={() => change({ mine: config.mine.filter((_x, k) => k !== i) }, true)} aria-label={`내 금지어 ${i + 1} 빼기`}>
@@ -149,7 +149,7 @@ export default function SeteukRules({ config, preview, actName, onChange, onClos
           <button className="btn btn-sm" onClick={addMine}>
             ＋ 금지어 줄 더하기
           </button>
-          <p className="small muted">"고침"은 나이스 파일을 만들 때 빠지고 자동 고쳐쓰기가 고칩니다. "확인"은 표에 알리기만 합니다.</p>
+          <p className="small muted">"고칠 곳"은 나이스 파일을 만들 때 빠지고 자동 고쳐쓰기가 고칩니다. "살펴볼 곳"은 표에 알리기만 합니다.</p>
         </div>
       )}
 
@@ -184,7 +184,7 @@ export default function SeteukRules({ config, preview, actName, onChange, onClos
                         <input type="checkbox" checked={!off.has(r.re)} onChange={() => toggleRule(r.re)} />
                         <span>
                           <b>
-                            {r.label} <span className={`stk-badge ${r.level === 'block' ? 'block' : 'check'}`}>{r.level === 'block' ? '고침' : '확인'}</span>
+                            {r.label} <span className={`stk-badge ${r.level === 'block' ? 'block' : 'check'}`}>{r.level === 'block' ? '고칠 곳' : '살펴볼 곳'}</span>
                           </b>
                           <small>
                             {r.why}

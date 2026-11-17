@@ -19,7 +19,7 @@ const concrete = (m: string | undefined, d: string): string => (m && !isAutoMode
  * 모델 기본값을 몇 번째로 바꿨는지. 저장된 값이 이보다 낮으면 예전 기본 모델을 같은 등급의 새 모델로 한 번 바꾼다.
  * 2 = v3.3.1 (GPT-6 · Claude 5.5). 저장할 때 늘 이 값을 적으므로, 그 뒤에 사람이 고른 예전 모델은 건드리지 않는다.
  */
-const MODELS_REV = 2
+const MODELS_REV = 3
 
 /**
  * API 키는 인수인계 DB가 아니라 이 PC에만 저장한다.
@@ -39,8 +39,8 @@ const DEFAULTS: LocalSettings = {
   vertex_express_key: '',
   claude_key: '',
   exaone_key: '',
-  openai_model: 'gpt-6-sol',
-  gemini_model: 'gemini-3.6-flash',
+  openai_model: 'gpt-6.1-sol',
+  gemini_model: 'gemini-3.8-flash',
   claude_model: 'claude-sonnet-5-5',
   exaone_model: 'k-exaone_v2.5',
   feature_models: {},

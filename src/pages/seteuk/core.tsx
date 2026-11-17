@@ -3,6 +3,7 @@
  * 화면 조각(seteuk/*.tsx)은 이 훅이 돌려주는 값(SeteukState)만 받아 그린다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { seteukJob } from '../../lib/seteukJob'
 import type { ModelChoice } from '../../../shared/types'
 import {
   COLUMN_SETS,
@@ -126,22 +127,28 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   const [finalOnly, setFinalOnly] = useState(false)
   const [rev, setRev] = useState(0)
   const [intro, setIntro] = useState(() => stored(INTRO_KEY) !== '1')
-  const [job, setJob] = useState('')
-  const [prog, setProg] = useState<{ done: number; total: number } | null>(null)
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  // 받는 일은 화면 밖(seteukJob)의 줄에 둔다 — 다른 화면에 갔다 와도 이어서 보이고, 여러 개를 쌓을 수 있다
+  const [, setJobTick] = useState(0)
+  const [doneErrors, setDoneErrors] = useState<Record<string, string>>({})
   const [equity, setEquity] = useState<EquityReport | null>(null)
 
   const pending = useRef<{ actId: string; patch: Patch } | null>(null)
   const timer = useRef<number | undefined>(undefined)
   const actsTimer = useRef<number | undefined>(undefined)
   const actsRef = useRef<SeteukActivity[] | null>(null)
-  const jobRef = useRef({ id: '', act: '' })
 
   const info = modeInfo(mode)
   const students = rosters[mode]
   const modeActs = useMemo(() => acts.filter((a) => modeOfRec(a.rec) === mode), [acts, mode])
   const act = modeActs.find((a) => a.id === actIds[mode]) ?? modeActs[0] ?? null
   const limit = act ? limitOf(act) : 0
+  // 이 활동에서 받는 일(도는 것 · 대기) — 다른 활동의 일은 이 활동 화면을 막지 않는다
+  const jobsNow = seteukJob.list()
+  const curJob = act ? jobsNow.find((j) => j.kind === 'write' && j.ref === act.id) : undefined
+  const job = curJob?.id ?? ''
+  const prog = curJob ? { done: curJob.done, total: curJob.total } : null
+  const errors: Record<string, string> = { ...doneErrors }
+  if (act) for (const j of jobsNow) if (j.kind === 'write' && j.ref === act.id) Object.assign(errors, j.errors)
   const cur: SeteukRows = (act && rows[act.id]) || {}
 
   /* ---------- 읽기 · 저장 ---------- */
@@ -196,16 +203,16 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
     [flush]
   )
 
+  useEffect(() => seteukJob.subscribe(() => setJobTick((n) => n + 1)), [])
+
   useEffect(() => {
     return window.api.seteuk.onProgress((p) => {
-      if (p.job !== jobRef.current.id) return
-      setProg({ done: p.done, total: p.total })
+      const a = seteukJob.get(p.job)?.ref
+      if (!a) return
       const id = p.id
       if (!id) return
-      if (p.error) setErrors((e) => ({ ...e, [id]: p.error as string }))
       const got = p.row
       if (got) {
-        const a = jobRef.current.act
         // 관찰 기록 · 최종본은 그사이 고쳤을 수 있으니 받은 칸만 바꾼다
         setRows((prev) => ({ ...prev, [a]: { ...(prev[a] ?? {}), [id]: { ...(prev[a]?.[id] ?? emptyRow()), ai: got.ai, repaired: got.repaired, ground: got.ground } } }))
       }
@@ -240,7 +247,7 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   const resetView = (): void => {
     setSel(new Set())
     setFocus('')
-    setErrors({})
+    setDoneErrors({})
     setImportOpen(false)
     setCfgOpen(false)
   }
@@ -248,7 +255,7 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   /* ---------- 모드 · 보기 ---------- */
 
   const switchMode = async (m: SeteukMode): Promise<void> => {
-    if (m === mode || job) return
+    if (m === mode) return
     await flush()
     setMode(m)
     remember(MODE_KEY, m)
@@ -258,7 +265,7 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   }
 
   const switchView = async (v: 'acts' | 'sum' | 'scan'): Promise<void> => {
-    if (v === view || job) return
+    if (v === view) return
     await flush()
     setImportOpen(false)
     setView(v)
@@ -502,10 +509,12 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
     const ids = shown.map((s) => s.id)
     return sel.size ? ids.filter((id) => sel.has(id)) : ids
   }, [shown, sel])
-  const ready = targets.filter((id) => cur[id]?.note.trim())
+  // 이미 받는 중이거나 대기 중인 학생은 다시 세우지 않는다
+  const busy = act ? seteukJob.busyIds('write', act.id) : new Set<string>()
+  const ready = targets.filter((id) => cur[id]?.note.trim() && !busy.has(id))
 
   const write = async (): Promise<void> => {
-    if (!act || !ready.length || job) return
+    if (!act || !ready.length) return
     const again = ready.filter((id) => cur[id]?.ai.trim()).length
     if (again) {
       const ok = await ask({
@@ -516,18 +525,26 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
       if (!ok) return
     }
     await flush()
-    const id = newId()
-    jobRef.current = { id, act: act.id }
-    setJob(id)
-    setErrors({})
-    setProg({ done: 0, total: ready.length })
-    const r = await window.api.seteuk.write({ job: id, actId: act.id, ids: ready, model: model ?? undefined })
-    jobRef.current = { id: '', act: '' }
-    setJob('')
-    setProg(null)
-    if (!r.ok) return toast(r.error ?? '초안을 받지 못했습니다.', 'err')
-    const tail = (r.failed ? ` · 받지 못한 학생 ${r.failed}명` : '') + (r.canceled ? ' · 멈춤' : '')
-    toast(`${r.written}명의 초안을 받았습니다${tail}. 읽고 다듬어 최종본에 옮기세요.`, r.failed ? 'err' : 'ok')
+    const actId = act.id
+    const ids = ready
+    const picked = model ?? undefined
+    setDoneErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => !ids.includes(k))))
+    // 같은 서비스(API 키)로 가는 일은 줄을 서고, 다른 서비스로 가는 일은 함께 돈다
+    seteukJob.enqueue({
+      kind: 'write',
+      ref: actId,
+      label: act.name,
+      provider: picked?.provider ?? 'default',
+      ids,
+      run: async (id) => {
+        const r = await window.api.seteuk.write({ job: id, actId, ids, model: picked })
+        const errs = seteukJob.get(id)?.errors ?? {}
+        if (Object.keys(errs).length) setDoneErrors((e) => ({ ...e, ...errs }))
+        if (!r.ok) return toast(r.error ?? '초안을 받지 못했습니다.', 'err')
+        const tail = (r.failed ? ` · 받지 못한 학생 ${r.failed}명` : '') + (r.canceled ? ' · 멈춤' : '')
+        toast(`「${seteukJob.get(id)?.label ?? ''}」 ${r.written}명의 초안을 받았습니다${tail}. 읽고 다듬어 최종본에 옮기세요.`, r.failed ? 'err' : 'ok')
+      }
+    })
   }
 
   /** 키 없이 — 규칙과 이름을 가린 관찰 기록을 복사한다. AI 앱에서 받은 답은 [AI 초안] 칸에 붙여 넣는다 */
@@ -631,7 +648,7 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   const rec = act ? recordOf(act.rec) : null
   const rules = useMemo(() => (act ? buildSeteukPrompt(act, { style, config }) : ''), [act, style, config])
 
-  return { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents }
+  return { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, prog, errors, pending, timer, actsTimer, actsRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents }
 }
 
 export type SeteukState = ReturnType<typeof useSeteuk>

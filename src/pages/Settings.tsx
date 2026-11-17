@@ -30,8 +30,8 @@ const DEFAULT_LOCAL: LocalSettings = {
   vertex_location: 'global',
   claude_key: '',
   exaone_key: '',
-  openai_model: 'gpt-6-sol',
-  gemini_model: 'gemini-3.6-flash',
+  openai_model: 'gpt-6.1-sol',
+  gemini_model: 'gemini-3.8-flash',
   claude_model: 'claude-sonnet-5-5',
   exaone_model: 'k-exaone_v2.5',
   feature_models: {},
@@ -421,6 +421,10 @@ export default function Settings({ onProfileChanged }: Props): JSX.Element {
 
       <div className="card">
         <div className="card-title">AI 연결</div>
+
+        <div className="note" style={{ marginBottom: 10 }}>
+          키를 넣으면 한 반을 한 번에 받고, [자동 고쳐쓰기]·[근거 확인]을 쓸 수 있습니다. 키 없이도 [요청 글 복사]로 끝까지 할 수 있습니다.
+        </div>
 
         <div className="note note-info" style={{ marginBottom: 14 }}>
           API 키는 <b>이 컴퓨터에만</b> 저장되며, 인수인계 파일에는 들어가지 않습니다.

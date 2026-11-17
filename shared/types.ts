@@ -548,7 +548,7 @@ export interface PickedFile {
 }
 
 /** 기본 목록 — 새로 나온 것을 앞에 둔다. GPT-6 (2026.9): sol 이 주력, luna 가 싼 등급(스캔 문서 → 엑셀의 OpenAI 권장) */
-export const OPENAI_MODELS = ['gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-astra', 'gpt-6-luna', 'gpt-6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'] as const
+export const OPENAI_MODELS = ['gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-astra', 'gpt-6-luna', 'gpt-5.6-terra', 'gpt-5.6-luna'] as const
 /** gemini-4-* 는 공식 모델 안내에 올라 있으나 안정(stable)/미리보기(preview) 표시는 없다(2026-11 확인) — 쓰기 전에 안내를 보세요. 앞의 3.x 는 안정 */
 export const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-4-hydrogen', 'gemini-4-argon', 'gemini-4-carbon'] as const
 /** LG AI연구원 K-EXAONE 2.5 (2026.11 무료 공개). 글만 읽는다 — 사진 · 스캔 PDF 는 못 읽음 */
@@ -560,7 +560,8 @@ export const CLAUDE_MODELS = ['claude-fable-5-2', 'claude-opus-5-5', 'claude-son
  * 바뀐 뒤에 사람이 다시 예전 모델을 고르면 그대로 둔다.
  */
 export const MODEL_UPGRADES: Record<string, string> = {
-  'gpt-5.6-terra': 'gpt-6-sol',
+  'gpt-5.6-terra': 'gpt-6.1-sol',
+  'gpt-6-sol': 'gpt-6.1-sol',
   'gpt-5.6-luna': 'gpt-6-luna',
   'claude-opus-5': 'claude-opus-5-5',
   'claude-sonnet-5': 'claude-sonnet-5-5',

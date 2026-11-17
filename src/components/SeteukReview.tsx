@@ -298,7 +298,7 @@ export default function SeteukReview({ students: pStudents, rosters: pRosters, a
         <ul className="stk-issues stk-review-banned">
           {banned.map((x, i) => (
             <li key={i} className={x.level}>
-              <b>{x.level === 'block' ? '고침' : '확인'}</b> {x.label}
+              <b>{x.level === 'block' ? '고칠 곳' : '살펴볼 곳'}</b> {x.label}
               {x.hit && <span className="hit"> — {x.hit}</span>}
               {x.why && <span className="why">{x.why}</span>}
             </li>

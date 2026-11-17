@@ -431,12 +431,23 @@ async function exaoneFetch(key: string, body: Record<string, unknown>, signal?: 
   return res
 }
 
-async function exaoneChat(key: string, model: string, system: string, turns: ChatTurn[], json: boolean): Promise<string> {
+/** 세특처럼 답이 짧은 일은 생각을 덜 시켜 빨리 받는다(3.7.6~). 값을 못 알아들으면(400) 예전처럼 high 로 한 번 더 */
+async function exaoneChat(
+  key: string,
+  model: string,
+  system: string,
+  turns: ChatTurn[],
+  json: boolean,
+  opts?: { signal?: AbortSignal; effort?: string; maxTokens?: number }
+): Promise<string> {
   const messages: { role: string; content: string }[] = []
   const sys = json ? jsonSystem(system) : system
   if (sys) messages.push({ role: 'system', content: sys })
   for (const t of turns) messages.push({ role: t.role, content: t.content })
-  const res = await exaoneFetch(key, { model, messages, stream: false, max_tokens: EXAONE_MAX_TOKENS, reasoning_effort: 'high' })
+  const body = (effort: string): Record<string, unknown> => ({ model, messages, stream: false, max_tokens: opts?.maxTokens ?? EXAONE_MAX_TOKENS, reasoning_effort: effort })
+  const first = opts?.effort ?? 'high'
+  let res = await exaoneFetch(key, body(first), opts?.signal)
+  if (res.status === 400 && first !== 'high') res = await exaoneFetch(key, body('high'), opts?.signal)
   if (!res.ok) throw new Error(await describeHttpError(res, 'K-EXAONE'))
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
   const text = (data.choices?.[0]?.message?.content ?? '').trim()
@@ -485,13 +496,12 @@ async function geminiChat(
   model: string,
   system: string,
   turns: ChatTurn[],
-  json: boolean
+  json: boolean,
+  /** 세특처럼 글만 다듬는 일은 생각을 줄여 빨리 받는다(3.7.6~). 모델이 거절하면(400) 빼고 다시 */
+  opts?: { thinkingLevel?: string; signal?: AbortSignal }
 ): Promise<string> {
   // 연결 방식(API 키 · Vertex 서비스 계정 · Express)에 맞는 주소 · 머리글은 geminiFetch 가 정한다
-  const res = await geminiFetch(
-    settings,
-    model,
-    'generateContent',
+  const body = (withThinking: boolean): string =>
     JSON.stringify({
       ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
       // Gemini 는 도우미 차례를 'model' 로 부른다(Vertex 는 role 이 꼭 있어야 한다).
@@ -502,10 +512,23 @@ async function geminiChat(
       generationConfig: {
         ...(json ? { responseMimeType: 'application/json' } : {}),
         // Gemini 3.6 Flash 이후 · 3.5 Flash-Lite 는 temperature 를 받지 않는다(Google 이 밝힌 바뀐 점)
-        ...(isModernGemini(model) ? {} : { temperature: 0.2 })
+        ...(isModernGemini(model) ? {} : { temperature: 0.2 }),
+        ...(withThinking && opts?.thinkingLevel ? { thinkingConfig: { thinkingLevel: opts.thinkingLevel } } : {})
       }
     })
-  )
+  let think = !!opts?.thinkingLevel && !geminiNoThinking.has(model)
+  let res: Response
+  for (;;) {
+    res = await geminiFetch(settings, model, 'generateContent', body(think), opts?.signal)
+    if (res.ok || res.status !== 400 || !think) break
+    const txt = await res.text().catch(() => '')
+    if (/thinking/i.test(txt)) {
+      geminiNoThinking.add(model)
+      think = false
+      continue
+    }
+    throw new Error(await describeHttpError(new Response(txt, { status: res.status }), 'Gemini', geminiModeOf(settings)))
+  }
 
   if (!res.ok) throw new Error(await describeHttpError(res, 'Gemini', geminiModeOf(settings)))
   const data = (await res.json()) as {
@@ -521,11 +544,13 @@ async function claudeChat(
   model: string,
   system: string,
   turns: ChatTurn[],
-  json: boolean
+  json: boolean,
+  signal?: AbortSignal
 ): Promise<string> {
   const sys = json ? jsonSystem(system) : system
   const res = await httpFetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
+    ...(signal ? { signal } : {}),
     headers: {
       'content-type': 'application/json',
       'x-api-key': key,
@@ -613,7 +638,7 @@ function resolveChoice(
 function concreteDefault(settings: LocalSettings, p: Provider): string {
   const d = defaultModelFor(settings, p)
   if (d && !isAutoModel(d)) return d
-  return p === 'openai' ? 'gpt-6-sol' : p === 'gemini' ? 'gemini-3.6-flash' : d
+  return p === 'openai' ? 'gpt-6.1-sol' : p === 'gemini' ? 'gemini-3.8-flash' : d
 }
 
 function keyFor(settings: LocalSettings, p: Provider): string {
@@ -641,15 +666,17 @@ async function chatModel(
   override: ModelChoice | undefined | null,
   system: string,
   turns: ChatTurn[],
-  json: boolean
+  json: boolean,
+  /** 멈추기 — 받는 중인 요청을 바로 끊는다 (K-EXAONE · OpenAI · Claude) */
+  signal?: AbortSignal
 ): Promise<string> {
   const choice = resolveChoice(settings, feature, override)
   const key = keyFor(settings, choice.provider)
   if (!key) throw new Error(choice.provider === 'gemini' ? geminiMissingText(settings) : `${PROVIDER_LABEL[choice.provider]} API 키가 설정되지 않았습니다.`)
-  if (choice.provider === 'openai') return openaiChat(key, choice.model, system, turns, json)
-  if (choice.provider === 'claude') return claudeChat(key, choice.model, system, turns, json)
-  if (choice.provider === 'exaone') return exaoneChat(key, choice.model, system, turns, json)
-  return geminiChat(settings, choice.model, system, turns, json)
+  if (choice.provider === 'openai') return openaiChat(key, choice.model, system, turns, json, signal ? { signal } : undefined)
+  if (choice.provider === 'claude') return claudeChat(key, choice.model, system, turns, json, signal)
+  if (choice.provider === 'exaone') return exaoneChat(key, choice.model, system, turns, json, { signal, ...(feature === 'seteuk' ? { effort: 'medium', maxTokens: 12000 } : {}) })
+  return geminiChat(settings, choice.model, system, turns, json, { signal, ...(feature === 'seteuk' ? { thinkingLevel: 'low' } : {}) })
 }
 
 async function callModel(
@@ -668,8 +695,8 @@ export async function askJson(settings: LocalSettings, override: ModelChoice | u
 }
 
 /** 세특 작성실(shared/seteuk.ts)이 쓰는 한 번 묻기 — 규칙은 system, 이름을 가린 관찰 기록만 user 로 넣어 부른다 */
-export async function askSeteuk(settings: LocalSettings, override: ModelChoice | undefined | null, system: string, user: string, json = false): Promise<string> {
-  return chatModel(settings, 'seteuk', override, system, [{ role: 'user', content: user }], json)
+export async function askSeteuk(settings: LocalSettings, override: ModelChoice | undefined | null, system: string, user: string, json = false, signal?: AbortSignal): Promise<string> {
+  return chatModel(settings, 'seteuk', override, system, [{ role: 'user', content: user }], json, signal)
 }
 
 /** 시간표 AI 읽기(shared/ttai.ts)가 쓰는 한 번 묻기 — 글자를 가린 표만 보낸다 */

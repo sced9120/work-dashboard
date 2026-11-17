@@ -180,7 +180,7 @@ export interface OpenaiRoute {
 }
 
 export const GPT_CHEAP = 'gpt-6-luna'
-export const GPT_BIG = 'gpt-6-sol'
+export const GPT_BIG = 'gpt-6.1-sol'
 
 /** 라우터가 실패했을 때 */
 export const OPENAI_FALLBACK: OpenaiRoute = { model: GPT_BIG, effort: 'medium', why: '기본값' }

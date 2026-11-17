@@ -55,11 +55,14 @@ function areaNow(rec: string): { area: SeteukArea; rows: Record<string, SeteukRo
 
 /* ---------- 압축 ---------- */
 
-const jobs = new Map<string, { stop: boolean }>()
+const jobs = new Map<string, { stop: boolean; ctrl: AbortController }>()
 
 export function seteukCompressCancel(job: string): void {
   const j = jobs.get(String(job))
-  if (j) j.stop = true
+  if (j) {
+    j.stop = true
+    j.ctrl.abort() // 받는 중인 요청도 바로 끊는다
+  }
 }
 
 export async function seteukCompress(req: SeteukCompressRequest, onProgress: (p: SeteukSumProgress) => void): Promise<SeteukCompressReply> {
@@ -75,7 +78,7 @@ export async function seteukCompress(req: SeteukCompressRequest, onProgress: (p:
   if (!todo.length) return { ok: false, error: '줄일 글이 있는 학생이 없습니다.', ...none, empty }
 
   const job = String(req.job)
-  const state = { stop: false }
+  const state = { stop: false, ctrl: new AbortController() }
   jobs.set(job, state)
   const system = compressPrompt(area.rec)
   const settings = loadLocalSettings()
@@ -83,20 +86,22 @@ export async function seteukCompress(req: SeteukCompressRequest, onProgress: (p:
   let failed = 0
   let done = 0
   try {
-    for (const { id, merged } of todo) {
-      if (state.stop) break
+    const one = async ({ id, merged }: { id: string; merged: string }): Promise<void> => {
+      if (state.stop) return
       const { masked, pairs, leaks } = maskSeteuk(merged, names)
       let error = ''
       let ok = false
       if (leaks.length) error = '이름을 다 가리지 못해 보내지 않았습니다. 활동별 글의 이름을 지우고 다시 해 주세요.'
       else {
         try {
-          const text = trimToBytes(cleanSeteuk(unmaskText(await askSeteuk(settings, req.model, system, compressUser(masked)), pairs)), area.limit)
+          const text = trimToBytes(cleanSeteuk(unmaskText(await askSeteuk(settings, req.model, system, compressUser(masked), false, state.ctrl.signal), pairs)), area.limit)
           if (!text) throw new Error('빈 답이 왔습니다.')
           const before = sumsOf(area.rec.key)[id]
           seteukSaveSum(area.rec.key, { [id]: adoptCompressed(before, merged, text, area.limit) ? { ai: text, final: text } : { ai: text } })
           ok = true
         } catch (e) {
+          // 멈추기로 끊긴 것은 실패로 세지 않는다
+          if (state.stop) return
           error = (e as Error).message || 'AI 에 묻지 못했습니다.'
         }
       }
@@ -105,6 +110,12 @@ export async function seteukCompress(req: SeteukCompressRequest, onProgress: (p:
       else failed++
       onProgress({ job, done, total: todo.length, id, sum: ok ? sumsOf(area.rec.key)[id] : undefined, error: error || undefined })
     }
+    // 3명씩 함께 줄인다
+    let next = 0
+    const worker = async (): Promise<void> => {
+      while (!state.stop && next < todo.length) await one(todo[next++])
+    }
+    await Promise.all(Array.from({ length: Math.min(3, todo.length) }, () => worker()))
   } finally {
     jobs.delete(job)
   }

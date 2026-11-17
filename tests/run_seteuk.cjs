@@ -9,11 +9,14 @@ const call = (ch, ...args) => handlers.get(ch)({}, ...args)
 
 const log = []
 let script = []
+// K-EXAONE 은 3명씩 함께 받으므로 요청 순서가 정해져 있지 않다 — 요청 글 속 학생 번호로 답을 고르는 길 (3.7.6~)
+let route = null
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json' } })
 const answer = (text) => () => json({ choices: [{ message: { role: 'assistant', content: text } }] })
 global.fetch = async (url, opts = {}) => {
   const entry = { url: String(url), body: opts.body ? JSON.parse(opts.body) : null }
   log.push(entry)
+  if (route) return route(entry)
   const step = script.shift()
   if (!step) throw new Error('예상 못 한 요청 ' + url)
   return step(entry)
@@ -71,12 +74,13 @@ global.fetch = async (url, opts = {}) => {
   ok(prog.length === 3 && prog[2].done === 3 && prog[2].total === 3 && prog[0].id === '1-1' && prog[0].row.ai.includes('변화율') && prog.every((x) => x.job === 'j1'), '진행 소식 — 학생마다 한 번, 받은 글과 함께')
 
   console.log('\n3. 오류 · 멈추기')
-  script = [() => json({ error: { message: 'bad key' } }, 401), answer('두 번째는 받음.')]
+  route = (e) => (e.body.messages[1].content.includes('학생1') ? json({ error: { message: 'bad key' } }, 401) : answer('두 번째는 받음.')())
   calls.sent.length = 0
   r = await call('seteuk:write', { job: 'j2', actId: 'a1', ids: ['1-1', '1-4'] })
+  route = null
   all = await call('seteuk:load')
   const p2 = calls.sent.filter((x) => x.ch === 'seteuk:progress').map((x) => x.payload)
-  ok(r.ok && r.written === 1 && r.failed === 1 && p2[0].error && !p2[0].row && all.rows.a1['1-1'].ai.includes('변화율') && all.rows.a1['1-4'].ai === '두 번째는 받음.', '한 명이 실패해도 다음 학생은 받고, 실패한 학생의 옛 초안은 그대로')
+  ok(r.ok && r.written === 1 && r.failed === 1 && p2.some((x) => x.error && !x.row) && all.rows.a1['1-1'].ai.includes('변화율') && all.rows.a1['1-4'].ai === '두 번째는 받음.', '한 명이 실패해도 다음 학생은 받고, 실패한 학생의 옛 초안은 그대로')
   script = [async () => { await call('seteuk:cancel', 'j3'); return json({ choices: [{ message: { content: '첫 학생.' } }] }) }, answer('오면 안 됨')]
   r = await call('seteuk:write', { job: 'j3', actId: 'a1', ids: ['1-1', '1-2', '1-4'] })
   ok(r.canceled && r.written === 1 && script.length === 1, '멈추면 받던 학생까지만')

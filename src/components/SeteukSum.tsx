@@ -8,6 +8,8 @@ import type { NeisPreviewReply } from '../../shared/seteukNeis'
 import Icon from './Icon'
 import ModelPicker from './ModelPicker'
 import { useConfirm } from '../lib/confirm'
+import { seteukJob } from '../lib/seteukJob'
+import SeteukJobBars from './SeteukJobBars'
 import { useToast } from '../lib/toast'
 
 /**
@@ -38,8 +40,9 @@ export default function SeteukSumView({ students, acts, rows }: Props): JSX.Elem
   const [focus, setFocus] = useState('')
   const [save, setSave] = useState<'saved' | 'dirty' | 'saving'>('saved')
   const [model, setModel] = useState<ModelChoice | null>(null)
-  const [job, setJob] = useState('')
-  const [prog, setProg] = useState<{ done: number; total: number } | null>(null)
+  // 받는 일은 화면 밖(seteukJob)의 줄에 둔다 — 다른 화면에 갔다 와도 이어서 보이고, 여러 개를 쌓을 수 있다
+  const [, setJobTick] = useState(0)
+  useEffect(() => seteukJob.subscribe(() => setJobTick((n) => n + 1)), [])
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [equity, setEquity] = useState<EquityReport | null>(null)
   const [neis, setNeis] = useState<NeisPreviewReply | null>(null)
@@ -47,10 +50,13 @@ export default function SeteukSumView({ students, acts, rows }: Props): JSX.Elem
 
   const pending = useRef<{ rec: string; patch: SeteukSumPatch } | null>(null)
   const timer = useRef<number | undefined>(undefined)
-  const jobRef = useRef({ id: '', rec: '' })
 
   const area = areas.find((a) => a.rec.key === recKey) ?? areas[0] ?? null
   const rec = area?.rec.key ?? ''
+  // 이 기록 영역의 압축(도는 것 · 대기) — 다른 영역의 일은 이 화면을 막지 않는다
+  const jobsNow = seteukJob.list()
+  const job = jobsNow.find((j) => j.kind === 'compress' && j.ref === rec)?.id ?? ''
+  const busyIds = rec ? seteukJob.busyIds('compress', rec) : new Set<string>()
   const cur: SeteukSums = (sums && rec && sums[rec]) || {}
 
   useEffect(() => {
@@ -70,14 +76,12 @@ export default function SeteukSumView({ students, acts, rows }: Props): JSX.Elem
 
   useEffect(() => {
     return window.api.seteuk.onSumProgress((p) => {
-      if (p.job !== jobRef.current.id) return
-      setProg({ done: p.done, total: p.total })
+      const r = seteukJob.get(p.job)?.ref
+      if (!r) return
       const id = p.id
       if (!id) return
-      if (p.error) setErrors((e) => ({ ...e, [id]: p.error as string }))
       const got = p.sum
       if (got) {
-        const r = jobRef.current.rec
         setSums((prev) => ({ ...(prev ?? {}), [r]: { ...(prev?.[r] ?? {}), [id]: got } }))
       }
     })
@@ -132,10 +136,10 @@ export default function SeteukSumView({ students, acts, rows }: Props): JSX.Elem
 
   // 아직 줄여야 하는 학생 — 합본이 한도를 넘는데 한도 안의 최종본이 없다 (이미 줄였거나 다듬은 학생은 빼고)
   const over = lines.filter((l) => l.state === 'over')
-  const targets = sel.size ? lines.filter((l) => sel.has(l.s.id) && l.merged) : over
+  const targets = (sel.size ? lines.filter((l) => sel.has(l.s.id) && l.merged) : over).filter((l) => !busyIds.has(l.s.id))
 
   const compress = async (): Promise<void> => {
-    if (!area || !targets.length || job) return
+    if (!area || !targets.length) return
     const edited = targets.filter((l) => l.state === 'edit').length
     const ok = await ask({
       title: `${targets.length}명의 합본을 ${area.limit}바이트 안으로 줄일까요?`,
@@ -146,17 +150,24 @@ export default function SeteukSumView({ students, acts, rows }: Props): JSX.Elem
     })
     if (!ok) return
     await flush()
-    const id = newId()
-    jobRef.current = { id, rec }
-    setJob(id)
-    setErrors({})
-    setProg({ done: 0, total: targets.length })
-    const r = await window.api.seteuk.compress({ job: id, rec, ids: targets.map((l) => l.s.id), model: model ?? undefined })
-    jobRef.current = { id: '', rec: '' }
-    setJob('')
-    setProg(null)
-    if (!r.ok) return toast(r.error ?? '줄이지 못했습니다.', 'err')
-    toast(`${r.written}명의 압축본을 받았습니다${r.failed ? ` · 받지 못한 학생 ${r.failed}명` : ''}${r.canceled ? ' · 멈춤' : ''}. 읽고 다듬어 주세요.`, r.failed ? 'err' : 'ok')
+    const ids = targets.map((l) => l.s.id)
+    const picked = model ?? undefined
+    const recKey = rec
+    // 같은 서비스(API 키)로 가는 일은 줄을 서고, 다른 서비스로 가는 일은 함께 돈다
+    seteukJob.enqueue({
+      kind: 'compress',
+      ref: recKey,
+      label: `${recKey} 압축`,
+      provider: picked?.provider ?? 'default',
+      ids,
+      run: async (id) => {
+        const r = await window.api.seteuk.compress({ job: id, rec: recKey, ids, model: picked })
+        const errs = seteukJob.get(id)?.errors ?? {}
+        if (Object.keys(errs).length) setErrors((e) => ({ ...e, ...errs }))
+        if (!r.ok) return toast(r.error ?? '줄이지 못했습니다.', 'err')
+        toast(`${recKey} 압축 — ${r.written}명의 압축본을 받았습니다${r.failed ? ` · 받지 못한 학생 ${r.failed}명` : ''}${r.canceled ? ' · 멈춤' : ''}. 읽고 다듬어 주세요.`, r.failed ? 'err' : 'ok')
+      }
+    })
   }
 
   /* ---------- 학생 간 점검 · 복사 · 나이스 ---------- */
@@ -253,15 +264,9 @@ export default function SeteukSumView({ students, acts, rows }: Props): JSX.Elem
         )}
         <ModelPicker feature="seteuk" label="모델" onReady={setModel} onChange={setModel} />
         <span className="spacer" />
-        {job ? (
-          <button className="btn btn-sm" onClick={() => void window.api.seteuk.compressCancel(job)}>
-            멈추기
-          </button>
-        ) : (
-          <button className="btn btn-primary btn-sm" onClick={() => void compress()} disabled={!targets.length} title="합본을 한도 안으로 줄입니다. 학생을 체크하면 그 학생만, 아니면 한도를 넘는 학생 모두">
-            <Icon name="spark" size={14} /> {sel.size ? `고른 ${targets.length}명` : `한도 넘는 ${targets.length}명`} 압축
-          </button>
-        )}
+        <button className="btn btn-primary btn-sm" onClick={() => void compress()} disabled={!targets.length} title="합본을 한도 안으로 줄입니다. 학생을 체크하면 그 학생만, 아니면 한도를 넘는 학생 모두">
+          <Icon name="spark" size={14} /> {sel.size ? `고른 ${targets.length}명` : `한도 넘는 ${targets.length}명`} 압축
+        </button>
         <button className="btn btn-sm" onClick={runEquity} title="같은 문장 · 분량 차이 · 빈 학생을 이 화면 안에서 견줍니다(AI 로 보내지 않음)">
           학생 간 점검
         </button>
@@ -273,16 +278,7 @@ export default function SeteukSumView({ students, acts, rows }: Props): JSX.Elem
         </button>
       </div>
 
-      {prog && (
-        <div className="stk-prog" role="status">
-          <div className="progress">
-            <div style={{ width: `${prog.total ? Math.round((prog.done / prog.total) * 100) : 0}%` }} />
-          </div>
-          <span className="small muted">
-            {prog.done} / {prog.total}명
-          </span>
-        </div>
-      )}
+      <SeteukJobBars kind="compress" />
 
       {equity && (
         <div className="stk-panel">
@@ -486,7 +482,7 @@ export default function SeteukSumView({ students, acts, rows }: Props): JSX.Elem
                       <ul className="stk-issues">
                         {l.check.issues.map((x, i) => (
                           <li key={i} className={x.level}>
-                            <b>{x.level === 'block' ? '고침' : '확인'}</b> {x.label}
+                            <b>{x.level === 'block' ? '고칠 곳' : '살펴볼 곳'}</b> {x.label}
                             {x.hit && <span className="hit"> — {x.hit}</span>}
                             {x.fix && <span className="fix"> → {x.fix}</span>}
                             {x.why && <span className="why">{x.why}</span>}

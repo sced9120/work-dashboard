@@ -217,7 +217,7 @@ export default function ModelPicker({
             onKeyDown={(e) => {
               if (e.key === 'Enter') commitCustom()
             }}
-            placeholder="예: gpt-6-sol · claude-opus-5-5 · gemini-3.6-flash"
+            placeholder="예: gpt-6.1-sol · claude-opus-5-5 · gemini-3.8-flash"
             className="model-picker-input"
           />
           <button className="btn btn-sm btn-primary" onClick={commitCustom} disabled={!custom.trim()}>

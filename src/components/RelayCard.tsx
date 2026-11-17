@@ -102,7 +102,7 @@ export default function RelayCard({ tab, needs, title, desc, howTo, startOpen = 
           {info.connected && (outdated || unknown) && need > 1 && (
             <div className="note note-warn small relay-upgrade">
               <b>{outdated ? `폰 화면이 예전 판(v${info.ver})입니다.` : '폰 화면의 판을 아직 모릅니다.'}</b>{' '}
-              {outdated ? `이 기능을 쓰려면 코드를 새 판(v${info.latest})으로 한 번 바꿔 주세요. 주소와 QR 은 그대로입니다.${need >= 3 ? ' 처음 한 번 구글이 스프레드시트 읽기 권한을 물어봅니다.' : ''}` : '[지금 가져오기] 를 한 번 누르면 확인합니다. 예전 판이면 아래처럼 코드를 바꿔 주세요.'}
+              {outdated ? `이 기능을 쓰려면 코드를 새 판(v${info.latest})으로 한 번 바꿔 주세요. 주소와 QR 은 그대로입니다.${need >= 3 ? ' 새 판은 구글 설문지 응답 시트를 읽어 관찰 기록으로 가져오기 위해서만 스프레드시트 읽기 권한을 씁니다. 이 PC 의 명단은 구글로 가지 않습니다. 처음 한 번 구글이 그 권한을 물어봅니다.' : ''}` : '[지금 가져오기] 를 한 번 누르면 확인합니다. 예전 판이면 아래처럼 코드를 바꿔 주세요.'}
               <ol>
                 <li>
                   <button className="btn btn-sm btn-primary" onClick={() => void copy(info.script, '새 코드')}>

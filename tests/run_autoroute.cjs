@@ -44,7 +44,7 @@ const GEM = { provider: 'gemini', model: 'gemini-auto' }
   require(path.join(__dirname, '../out/main/index.js'))
   for (let i = 0; i < 100 && !handlers.has('ai:chatStream'); i++) await new Promise((r) => setTimeout(r, 50))
   const s = await call('local:load')
-  await call('local:save', { ...s, provider: 'openai', openai_key: 'TEST-OPENAI', gemini_key: 'TEST-GEMINI', claude_key: '', exaone_key: '', openai_model: 'gpt-6-sol', gemini_model: 'gemini-3.6-flash' })
+  await call('local:save', { ...s, provider: 'openai', openai_key: 'TEST-OPENAI', gemini_key: 'TEST-GEMINI', claude_key: '', exaone_key: '', openai_model: 'gpt-6.1-sol', gemini_model: 'gemini-3.6-flash' })
 
   console.log('1. GPT 자동 — 쉬운 질문은 라우터 없이 luna · low')
   script = [() => openai('안녕하세요, 선생님!')]
@@ -57,16 +57,16 @@ const GEM = { provider: 'gemini', model: 'gemini-auto' }
   log.length = 0
   script = [() => openai('초안입니다.')]
   r = await chat('3학년 수행평가 루브릭 초안 만들어 줘', GPT)
-  ok(log.length === 1 && last().body.model === 'gpt-6-sol' && last().body.reasoning_effort === 'medium' && r.routed.label === '자동 → gpt-6-sol · 업무 문서', '업무 문서 → sol · medium')
+  ok(log.length === 1 && last().body.model === 'gpt-6.1-sol' && last().body.reasoning_effort === 'medium' && r.routed.label === '자동 → gpt-6.1-sol · 업무 문서', '업무 문서 → sol · medium')
   ok(!last().body.messages[0].content.includes('# 2026 학교생활기록부 기재'), '학생부 이야기가 아니면 기재 지식을 붙이지 않음')
   log.length = 0
   script = [() => openai('세특 초안입니다.')]
   r = await chat('세특 초안 써 줘', GPT)
-  ok(last().body.messages[0].content.includes('# 2026 학교생활기록부 기재') && last().body.model === 'gpt-6-sol', '세특 이야기면 2026 기재 지식을 붙임 · sol')
+  ok(last().body.messages[0].content.includes('# 2026 학교생활기록부 기재') && last().body.model === 'gpt-6.1-sol', '세특 이야기면 2026 기재 지식을 붙임 · sol')
   log.length = 0
   script = [() => openai('증명입니다.')]
   r = await chat('이 정리를 엄밀하게 증명해 줘', GPT)
-  ok(log.length === 1 && last().body.model === 'gpt-6-sol' && last().body.reasoning_effort === 'high' && r.routed.label === '자동 → gpt-6-sol · 어려운 추론', '어려움 → sol · high')
+  ok(log.length === 1 && last().body.model === 'gpt-6.1-sol' && last().body.reasoning_effort === 'high' && r.routed.label === '자동 → gpt-6.1-sol · 어려운 추론', '어려움 → sol · high')
 
   console.log('\n3. 애매하면 라우터(gpt-6-luna)에게 한 번 물음')
   const vague = '우리 반 학생들이 요즘 쉬는 시간에 복도에서 자꾸 뛰어다니는데 어떻게 지도하면 좋을지 모르겠어요. 야단치면 더 심해지는 것 같고 조용히 타이르면 듣지 않아요. 선생님들은 보통 어떻게 하시는지, 그리고 학부모께는 어떻게 말씀드리면 좋을지도 함께 알려 주세요.'
@@ -81,26 +81,26 @@ const GEM = { provider: 'gemini', model: 'gemini-auto' }
   log.length = 0
   script = [routerSays('{"tier":"expensive","effort":"high","reason":"여러 조건"}'), () => openai('꼼꼼히 봤습니다.')]
   r = await chat(vague, GPT)
-  ok(log[1].body.model === 'gpt-6-sol' && log[1].body.reasoning_effort === 'high' && r.routed.label === '자동 → gpt-6-sol · 여러 조건', '라우터가 expensive · high 라 하면 sol · high')
+  ok(log[1].body.model === 'gpt-6.1-sol' && log[1].body.reasoning_effort === 'high' && r.routed.label === '자동 → gpt-6.1-sol · 여러 조건', '라우터가 expensive · high 라 하면 sol · high')
 
   console.log('\n4. 라우터가 실패하면 sol · medium · 기본값')
   for (const [name, step] of [['이상한 글', routerSays('잘 모르겠어요')], ['정해진 값 밖', routerSays('{"tier":"standard","effort":"low","reason":"x"}')], ['HTTP 오류', () => json({ error: { message: 'boom' } }, 500)]]) {
     log.length = 0
     script = [step, () => openai('답')]
     r = await chat(vague, GPT)
-    ok(log.length === 2 && log[1].body.model === 'gpt-6-sol' && log[1].body.reasoning_effort === 'medium' && r.ok && r.routed.label === '자동 → gpt-6-sol · 기본값', `${name} → ${r.routed && r.routed.label}`)
+    ok(log.length === 2 && log[1].body.model === 'gpt-6.1-sol' && log[1].body.reasoning_effort === 'medium' && r.ok && r.routed.label === '자동 → gpt-6.1-sol · 기본값', `${name} → ${r.routed && r.routed.label}`)
   }
   log.length = 0
   script = [() => new Promise(() => {}), () => openai('답')]
   const t0 = Date.now()
   r = await chat(vague, GPT)
-  ok(Date.now() - t0 < 9000 && log[0].signal && log[0].signal.aborted && log[1].body.model === 'gpt-6-sol' && r.routed.label.endsWith('기본값'), `응답이 없으면 6초쯤 뒤 끊고 기본값 (${Date.now() - t0}ms)`)
+  ok(Date.now() - t0 < 9000 && log[0].signal && log[0].signal.aborted && log[1].body.model === 'gpt-6.1-sol' && r.routed.label.endsWith('기본값'), `응답이 없으면 6초쯤 뒤 끊고 기본값 (${Date.now() - t0}ms)`)
 
   console.log('\n5. 이어 묻기 — 짧은 질문은 앞 질문을 이어받음')
   log.length = 0
   script = [() => openai('이어서 씁니다.')]
   r = await call('ai:chatStream', { reqId: 'f1', mode: 'free', jobTitle: '', instruction: '', model: GPT, history: [{ role: 'user', content: '이 정리를 엄밀하게 증명해 줘' }, { role: 'assistant', content: '증명 1단계…' }, { role: 'user', content: '계속' }] })
-  ok(log.length === 1 && last().body.model === 'gpt-6-sol' && last().body.reasoning_effort === 'high', '"계속" → 앞의 어려운 질문처럼 sol · high')
+  ok(log.length === 1 && last().body.model === 'gpt-6.1-sol' && last().body.reasoning_effort === 'high', '"계속" → 앞의 어려운 질문처럼 sol · high')
   log.length = 0
   script = [() => openai('네')]
   r = await call('ai:chatStream', { reqId: 'f2', mode: 'free', jobTitle: '', instruction: '', model: GPT, history: [{ role: 'user', content: '안녕' }, { role: 'assistant', content: '안녕하세요' }, { role: 'user', content: '고마워' }] })
@@ -140,7 +140,7 @@ const GEM = { provider: 'gemini', model: 'gemini-auto' }
   log.length = 0
   script = [() => json({ error: { message: "Unsupported parameter: 'reasoning_effort' is not supported with this model." } }, 400), () => openai('다시 보냈습니다.')]
   r = await chat('이 정리를 엄밀하게 증명해 줘', GPT)
-  ok(log.length === 2 && log[0].body.reasoning_effort === 'high' && !('reasoning_effort' in log[1].body) && log[1].body.model === 'gpt-6-sol' && r.ok && r.answer.includes('다시'), 'OpenAI 400(reasoning_effort) → 빼고 한 번 더')
+  ok(log.length === 2 && log[0].body.reasoning_effort === 'high' && !('reasoning_effort' in log[1].body) && log[1].body.model === 'gpt-6.1-sol' && r.ok && r.answer.includes('다시'), 'OpenAI 400(reasoning_effort) → 빼고 한 번 더')
   log.length = 0
   script = [() => openai('바로 보냅니다.')]
   r = await chat('이 정리를 엄밀하게 증명해 줘', GPT)
@@ -169,7 +169,7 @@ const GEM = { provider: 'gemini', model: 'gemini-auto' }
   log.length = 0
   script = [routerSays('{"todos":[]}')]
   await call('msg:extract', '내일 회의 있어요', GPT)
-  ok(log.length === 1 && log[0].body.model === 'gpt-6-sol' && !names().includes('auto'), `askJson + gpt-auto → ${log[0].body.model} (설정의 기본 모델)`)
+  ok(log.length === 1 && log[0].body.model === 'gpt-6.1-sol' && !names().includes('auto'), `askJson + gpt-auto → ${log[0].body.model} (설정의 기본 모델)`)
   log.length = 0
   script = [() => json({ candidates: [{ content: { parts: [{ text: '{"todos":[]}' }] } }] })]
   await call('msg:extract', '내일 회의 있어요', GEM)
@@ -180,7 +180,7 @@ const GEM = { provider: 'gemini', model: 'gemini-auto' }
   log.length = 0
   script = [routerSays('## 잘 드러난 것\n- 의견입니다')]
   const adv = await call('seteuk:advice', 'a1', '1-1', GPT)
-  ok(adv.ok && log.length === 1 && log[0].body.model === 'gpt-6-sol' && !('reasoning_effort' in log[0].body) && !names().includes('auto'), `askSeteuk + gpt-auto → ${log[0].body.model}`)
+  ok(adv.ok && log.length === 1 && log[0].body.model === 'gpt-6.1-sol' && !('reasoning_effort' in log[0].body) && !names().includes('auto'), `askSeteuk + gpt-auto → ${log[0].body.model}`)
   // 설정의 기본 모델이 다른 것이면 그것으로
   await call('local:save', { ...(await call('local:load')), openai_model: 'gpt-6-luna' })
   log.length = 0
@@ -192,7 +192,7 @@ const GEM = { provider: 'gemini', model: 'gemini-auto' }
   const cur = await call('local:load')
   await call('local:save', { ...cur, openai_model: 'gpt-auto', gemini_model: 'gemini-auto', feature_models: { chat: GPT } })
   const back = await call('local:load')
-  ok(back.openai_model === 'gpt-6-sol' && back.gemini_model === 'gemini-3.6-flash', `기본 모델: ${back.openai_model} · ${back.gemini_model}`)
+  ok(back.openai_model === 'gpt-6.1-sol' && back.gemini_model === 'gemini-3.8-flash', `기본 모델: ${back.openai_model} · ${back.gemini_model}`)
   ok(back.feature_models.chat && back.feature_models.chat.model === 'gpt-auto', '업무 도우미에 고른 자동은 저장됨')
   log.length = 0
   script = [routerSays('{"todos":[]}')]

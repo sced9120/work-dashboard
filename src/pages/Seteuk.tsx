@@ -61,7 +61,8 @@ type Props = Parameters<typeof useSeteuk>[0]
 
 export default function Seteuk(props: Props): JSX.Element {
   const c = useSeteuk(props)
-  const { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules } = c
+  const { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, prog, errors, pending, timer, actsTimer, actsRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules } = c
+  const DEMO_BLOCKED = demo.filled ? '체험 자료가 이미 들어 있습니다 — [체험 자료 지우기]로 지울 수 있습니다' : '명단에 학생이 있어 체험 자료를 넣을 수 없습니다 — 체험하려면 명단을 비우세요'
 
   if (!loaded) return <></>
 
@@ -91,19 +92,18 @@ export default function Seteuk(props: Props): JSX.Element {
               초안을 읽고 고쳐 <b>최종본</b>으로 두면, [취합 · 나이스]에서 모아 나이스 파일로 받습니다.
             </li>
           </ol>
-          <div className="row">
-            {demo.canFill && (
-              <button className="btn btn-primary btn-sm" onClick={() => void fillDemo()}>
-                체험 자료로 먼저 보기
-              </button>
-            )}
-            <button className="btn btn-sm" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1' }))}>
-              화면 따라 배우기 (F1)
-            </button>
-            <button className="btn btn-sm btn-ghost" onClick={closeIntro}>
-              닫기
+          <div className="row stk-intro-row">
+            <button className="btn btn-primary" onClick={() => void fillDemo()} disabled={!demo.canFill} title={demo.canFill ? undefined : DEMO_BLOCKED}>
+              체험 자료로 먼저 보기
             </button>
             {demo.canFill && <span className="small muted">지어낸 학생 16명과 채워진 활동이 들어갑니다. 한 번에 지울 수 있습니다.</span>}
+            <span className="spacer" />
+            <button className="link small" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1' }))}>
+              화면 따라 배우기 (F1)
+            </button>
+            <button className="link small" onClick={closeIntro}>
+              닫기
+            </button>
           </div>
         </section>
       )}
@@ -122,7 +122,7 @@ export default function Seteuk(props: Props): JSX.Element {
 
       <div className="ocr-modes stk-modes" role="tablist" aria-label="모드">
         {SETEUK_MODES.map((m) => (
-          <button key={m.key} role="tab" aria-selected={m.key === mode} className={`ocr-mode ${m.key === mode ? 'active' : ''}`} onClick={() => void switchMode(m.key)} disabled={!!job}>
+          <button key={m.key} role="tab" aria-selected={m.key === mode} className={`ocr-mode ${m.key === mode ? 'active' : ''}`} onClick={() => void switchMode(m.key)}>
             {m.name}
             <small>
               {m.desc} · {rosters[m.key].length ? `${m.who} ${rosters[m.key].length}명` : '명단 없음'}
@@ -136,14 +136,22 @@ export default function Seteuk(props: Props): JSX.Element {
           <button role="radio" aria-checked={view === 'acts'} className={view === 'acts' ? 'on' : ''} onClick={() => void switchView('acts')}>
             활동별 작성
           </button>
-          <button role="radio" aria-checked={view === 'sum'} className={view === 'sum' ? 'on' : ''} onClick={() => void switchView('sum')} disabled={!!job}>
+          <button role="radio" aria-checked={view === 'sum'} className={view === 'sum' ? 'on' : ''} onClick={() => void switchView('sum')}>
             취합 · 나이스
           </button>
-          <button role="radio" aria-checked={view === 'scan'} className={view === 'scan' ? 'on' : ''} onClick={() => void switchView('scan')} disabled={!!job} title="스캔 · 사진 속 표를 글자 그대로 읽어 엑셀로 · 폴더째 학생별 정리">
+          <button role="radio" aria-checked={view === 'scan'} className={view === 'scan' ? 'on' : ''} onClick={() => void switchView('scan')} title="스캔 · 사진 속 표를 글자 그대로 읽어 엑셀로 · 폴더째 학생별 정리">
             문서 스캔
           </button>
         </div>
         <span className="spacer" />
+        <button
+          className="btn btn-sm btn-ghost"
+          onClick={() => void fillDemo()}
+          disabled={!demo.canFill || !!job}
+          title={demo.canFill ? '지어낸 학생 16명과 채워진 활동을 넣어 먼저 써 봅니다. 한 번에 지울 수 있습니다.' : DEMO_BLOCKED}
+        >
+          체험 자료로 먼저 보기
+        </button>
         <span className="small muted stk-save" aria-live="polite">
           {save === 'saved' ? '저장됨' : save === 'saving' ? '저장 중…' : '적는 중…'}
         </span>

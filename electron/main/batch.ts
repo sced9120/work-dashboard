@@ -354,7 +354,7 @@ function resolve(s: LocalSettings, want: ModelChoice | null): { choice: ModelCho
   for (const p of [s.provider, 'gemini', 'openai', 'claude'] as Provider[]) tries.push({ provider: p, model: defaultOf(s, p) })
   for (const c0 of tries) {
     // 자동 모델 이름은 업무 도우미 전용 — 여기서는 그 서비스의 기본 모델로
-    const c = isAutoModel(c0.model) ? { provider: c0.provider, model: isAutoModel(defaultOf(s, c0.provider)) ? (c0.provider === 'openai' ? 'gpt-6-sol' : 'gemini-3.6-flash') : defaultOf(s, c0.provider) } : c0
+    const c = isAutoModel(c0.model) ? { provider: c0.provider, model: isAutoModel(defaultOf(s, c0.provider)) ? (c0.provider === 'openai' ? 'gpt-6.1-sol' : 'gemini-3.8-flash') : defaultOf(s, c0.provider) } : c0
     const key = keyOf(s, c.provider)
     if (key && c.model) return { choice: c, key }
   }

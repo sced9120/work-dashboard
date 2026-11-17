@@ -48,6 +48,7 @@ import {
   seteukUser,
   styleUser,
   styleTail,
+  studentLabel,
   validateSeteuk
 } from '../../shared/seteuk'
 import type {
@@ -275,18 +276,33 @@ export function seteukSaveStyle(style: SeteukStyle): SeteukStyle {
 function rulesFor(act: SeteukActivity, names: SeteukStudent[]): { system: string; style: SeteukStyle; leaks: string[] } {
   seteukApplyConfig()
   const leaks: string[] = []
-  const hide = (t: string): string => {
+  // leaks 에는 '어느 글의 어느 이름'인지 사람이 읽을 말을 담는다 (3.7.6~)
+  const hide = (t: string, where: string): string => {
     const m = maskSeteuk(t, names)
-    leaks.push(...m.leaks)
+    for (const l of new Set(m.leaks)) leaks.push(`${where}의 '${l}'`)
     return m.masked
   }
   const raw = seteukStyle()
-  const style: SeteukStyle = raw.on ? { on: true, samples: raw.samples.map(hide), card: hide(raw.card) } : raw
-  const masked: SeteukActivity = { ...act, examples: act.examples.map((e) => ({ note: hide(e.note), result: hide(e.result) })) }
+  const style: SeteukStyle = raw.on ? { on: true, samples: raw.samples.map((t, i) => hide(t, `문체 예시 ${i + 1}`)), card: hide(raw.card, '내 문체 카드') } : raw
+  const masked: SeteukActivity = { ...act, examples: act.examples.map((e, i) => ({ note: hide(e.note, `예시 ${i + 1}의 입력 칸`), result: hide(e.result, `예시 ${i + 1}의 결과 칸`) })) }
   return { system: buildSeteukPrompt(masked, { style }), style, leaks }
 }
 
-const RULE_LEAK = '예시나 내 문체 글에 든 이름을 다 가리지 못해 보내지 않았습니다. 그 글의 이름을 지우고 다시 해 주세요.'
+/** 가리지 못했을 때 덧붙이는 길 — 이름 앞에 한글이 붙으면('친구서가람') 가리지 못한다. 막는 것 자체는 안전하다 */
+const LEAK_TIP = '이름 앞 글자와 띄어 쓰면 가려집니다(예: 친구 서가람). 아니면 이름을 지우고 다시 해 주세요.'
+
+/** 예시 · 내 문체 글에서 걸렸을 때 — 어느 글의 어느 이름인지 */
+function ruleLeakText(leaks: string[]): string {
+  const shown = leaks.slice(0, 3).join(', ') + (leaks.length > 3 ? ` 외 ${leaks.length - 3}곳` : '')
+  return `${shown}에서 이름을 다 가리지 못해 보내지 않았습니다. ${LEAK_TIP}`
+}
+
+/** 한 학생의 한 칸에서 걸렸을 때 — 어느 학생의 어느 칸인지 (이름은 이 PC 안에서만 보인다) */
+function studentLeakText(s: SeteukStudent | undefined, field: string, leaks: string[], sent = '보내지 않았습니다'): string {
+  const who = s ? `${studentLabel(s)} ${s.name}` : '이 학생'
+  const found = [...new Set(leaks)].slice(0, 3).join(', ')
+  return `${who}의 ${field}에서 이름(${found})을 다 가리지 못해 ${sent}. ${LEAK_TIP}`
+}
 
 /**
  * 예전에 쓴 세특에서 문체 카드를 뽑는다(쓰는 방식만 — 내용은 옮기지 않는다). 이름은 가려 보낸다.
@@ -446,7 +462,7 @@ export function seteukGemText(actId: string): { ok: boolean; text?: string; erro
   const act = seteukActs().find((a) => a.id === actId)
   if (!act) return { ok: false, error: '활동을 찾지 못했습니다.' }
   const rules = rulesFor(act, seteukMaskNames())
-  if (rules.leaks.length) return { ok: false, error: RULE_LEAK }
+  if (rules.leaks.length) return { ok: false, error: ruleLeakText(rules.leaks) }
   return { ok: true, text: buildGemText(rules.system) }
 }
 
@@ -455,7 +471,7 @@ export async function seteukSkillSave(win: BrowserWindow | null, actId: string):
   const act = seteukActs().find((a) => a.id === actId)
   if (!win || !act) return { ok: false, message: '활동을 찾지 못했습니다.' }
   const rules = rulesFor(act, seteukMaskNames())
-  if (rules.leaks.length) return { ok: false, message: RULE_LEAK }
+  if (rules.leaks.length) return { ok: false, message: ruleLeakText(rules.leaks) }
   const n = seteukActs().filter((a) => a.rec === act.rec).findIndex((a) => a.id === act.id) + 1
   const name = skillName(act.rec, n)
   const md = buildSkillMd({ name, activity: act.name, record: recordOf(act.rec).name, system: rules.system })
@@ -513,20 +529,23 @@ export function seteukRequest(actId: string, sid: string): { ok: boolean; text?:
   if (!note.trim()) return { ok: false, error: '관찰 기록을 먼저 적어 주세요.' }
   const names = seteukMaskNames()
   const { masked, leaks } = maskSeteuk(note, names)
-  if (leaks.length) return { ok: false, error: '이름을 다 가리지 못했습니다. 관찰 기록의 이름을 지우고 다시 해 주세요.' }
+  if (leaks.length) return { ok: false, error: studentLeakText(seteukRosterOf(modeOfRec(act.rec)).find((s) => s.id === String(sid)), '관찰 기록 칸', leaks, '요청 글을 만들지 않았습니다') }
   const rules = rulesFor(act, names)
-  if (rules.leaks.length) return { ok: false, error: RULE_LEAK }
+  if (rules.leaks.length) return { ok: false, error: ruleLeakText(rules.leaks) }
   const grade = recordOf(act.rec).useGrade ? rowsOf(act.id)[String(sid)]?.grade : undefined
   return { ok: true, text: `${rules.system}\n\n${seteukUser(masked, rules.style, grade)}` }
 }
 
 /* ---------- 초안 받기 ---------- */
 
-const jobs = new Map<string, { stop: boolean }>()
+const jobs = new Map<string, { stop: boolean; ctrl: AbortController }>()
 
 export function seteukCancel(job: string): void {
   const j = jobs.get(String(job))
-  if (j) j.stop = true
+  if (j) {
+    j.stop = true
+    j.ctrl.abort() // 받는 중인 요청도 바로 끊는다
+  }
 }
 
 export async function seteukWrite(req: SeteukWriteRequest, onProgress: (p: SeteukProgress) => void): Promise<SeteukWriteReply> {
@@ -542,9 +561,9 @@ export async function seteukWrite(req: SeteukWriteRequest, onProgress: (p: Seteu
   if (!ids.length) return { ok: false, error: '관찰 기록이 적힌 학생이 없습니다.', ...none, empty }
 
   const rules = rulesFor(act, names)
-  if (rules.leaks.length) return { ok: false, error: RULE_LEAK, ...none, empty }
+  if (rules.leaks.length) return { ok: false, error: ruleLeakText(rules.leaks), ...none, empty }
   const job = String(req.job)
-  const state = { stop: false }
+  const state = { stop: false, ctrl: new AbortController() }
   jobs.set(job, state)
   const system = rules.system
   const settings = loadLocalSettings()
@@ -554,17 +573,17 @@ export async function seteukWrite(req: SeteukWriteRequest, onProgress: (p: Seteu
   let failed = 0
   let done = 0
   try {
-    for (const id of ids) {
-      if (state.stop) break
+    const one = async (id: string): Promise<void> => {
+      if (state.stop) return
       const note = rowsOf(act.id)[id]?.note ?? ''
       const grade = recordOf(act.rec).useGrade ? rowsOf(act.id)[id]?.grade : undefined
       const { masked, pairs, leaks } = maskSeteuk(note, names)
       let error = ''
       let row: SeteukRow | undefined
-      if (leaks.length) error = '이름을 다 가리지 못해 보내지 않았습니다. 관찰 기록의 이름을 지우고 다시 해 주세요.'
+      if (leaks.length) error = studentLeakText(roster.find((s) => s.id === id), '관찰 기록 칸', leaks)
       else {
         try {
-          let text = cleanSeteuk(unmaskText(await askSeteuk(settings, req.model, system, seteukUser(masked, rules.style, grade)), pairs))
+          let text = cleanSeteuk(unmaskText(await askSeteuk(settings, req.model, system, seteukUser(masked, rules.style, grade), false, state.ctrl.signal), pairs))
           if (!text) throw new Error('빈 답이 왔습니다.')
           let repaired = false
           // 자동 고쳐쓰기 — '고침'이 나온 학생만 걸린 점을 짚어 한 번 더. 나아진 경우에만 바꾼다
@@ -573,7 +592,7 @@ export async function seteukWrite(req: SeteukWriteRequest, onProgress: (p: Seteu
             const ask = maskSeteuk(buildRepairUser(note, text, v1.issues, limit), names)
             if (!ask.leaks.length) {
               try {
-                const t2 = cleanSeteuk(unmaskText(await askSeteuk(settings, req.model, system, ask.masked + styleTail(rules.style)), ask.pairs))
+                const t2 = cleanSeteuk(unmaskText(await askSeteuk(settings, req.model, system, ask.masked + styleTail(rules.style), false, state.ctrl.signal), ask.pairs))
                 if (t2 && betterCheck(v1, validateSeteuk(t2, limit)) === 'b') {
                   text = t2
                   repaired = true
@@ -594,6 +613,8 @@ export async function seteukWrite(req: SeteukWriteRequest, onProgress: (p: Seteu
           seteukSaveRows(act.id, { [id]: { ai: text, repaired, ground } })
           row = rowsOf(act.id)[id]
         } catch (e) {
+          // 멈추기로 끊긴 것은 실패로 세지 않는다
+          if (state.stop) return
           error = (e as Error).message || 'AI 에 묻지 못했습니다.'
         }
       }
@@ -601,7 +622,14 @@ export async function seteukWrite(req: SeteukWriteRequest, onProgress: (p: Seteu
       if (row) written++
       else failed++
       onProgress({ job, done, total: ids.length, id, row, error: error || undefined })
-    }
+  }
+  // 3명씩 함께 받는다(K-EXAONE 의 1초 1번 · 1분 60번 한도 안). 한 명씩 받던 것보다 훨씬 빠르다
+  const width = 3
+  let next = 0
+  const worker = async (): Promise<void> => {
+    while (!state.stop && next < ids.length) await one(ids[next++])
+  }
+  await Promise.all(Array.from({ length: Math.min(width, ids.length) }, () => worker()))
   } finally {
     jobs.delete(job)
   }

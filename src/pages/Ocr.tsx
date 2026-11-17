@@ -245,6 +245,7 @@ function TabView({ tab, hasKey, models }: { tab: OcrTab; hasKey: boolean | null;
           )}
           학교 · 교육청의 생성형 AI 지침을 먼저 확인하세요. 받은 결과는 이 프로그램에 저장하지 않습니다.
         </div>
+        <p className="small muted ocr-agree-benefit">동의하면 고른 파일의 글자가 {who.name} 로 가서 표로 돌아오고, 엑셀로 저장할 수 있습니다.</p>
         <label className="ocr-agree">
           <input type="checkbox" checked={tab.agree} onChange={(e) => patchTab(id, { agree: e.target.checked })} disabled={busy} />
           위 내용을 확인했고, 이 파일을 {who.name} 로 보내도 됩니다

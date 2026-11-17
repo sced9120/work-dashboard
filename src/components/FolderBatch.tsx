@@ -5,7 +5,7 @@ import { geminiReady } from '../../shared/gemini'
 import { BATCH_DEFAULT_ITEMS, batchTable, lengthOk, seteukLength } from '../../shared/batch'
 import type { BatchOptions, BatchRow } from '../../shared/batch'
 import { planBatchSend } from '../../shared/batchSend'
-import { modeInfo, modeOfRec } from '../../shared/seteuk'
+import { byteLen, limitOf, modeInfo, modeOfRec } from '../../shared/seteuk'
 import type { SeteukActivity, SeteukRosters, SeteukRows } from '../../shared/seteuk'
 import { queueSeteukAct } from '../lib/seteukBridge'
 import type { PageId } from '../App'
@@ -109,6 +109,9 @@ function SendToSeteuk({ rows, o, onGo, onClose }: { rows: BatchRow[]; o: BatchOp
     [data, act, rows, putNote, putAi, overwrite, hasSeteuk, o.items]
   )
   const n = plan ? Object.keys(plan.patch).length : 0
+  // 세특 작성실은 바이트로 센다 — 받는 활동의 한도보다 긴 초안이 몇 명인지 (3.7.6~)
+  const limit = act ? limitOf(act) : 0
+  const tooLong = putAi && hasSeteuk && limit ? rows.filter((r) => r.result?.seteuk && byteLen(r.result.seteuk) > limit).length : 0
 
   const go = (id: string): void => {
     queueSeteukAct(id)
@@ -175,6 +178,11 @@ function SendToSeteuk({ rows, o, onGo, onClose }: { rows: BatchRow[]; o: BatchOp
               <input type="radio" checked={overwrite} onChange={() => setOverwrite(true)} /> 덮어쓰기
             </label>
           </div>
+          {tooLong > 0 && (
+            <p className="note note-warn small" style={{ marginTop: 8 }}>
+              세특 초안 {tooLong}명이 「{act?.name}」의 한도({limit}바이트)보다 깁니다. 보낸 뒤 표에서 줄여 주세요.
+            </p>
+          )}
           {act && students.length === 0 ? (
             <p className="note note-warn small" style={{ marginTop: 8 }}>
               「{act.name}」 활동의 {modeInfo(modeOfRec(act.rec)).name} 명단이 비어 있습니다. 세특 작성실에서 명단을 먼저 넣어 주세요.
@@ -441,6 +449,10 @@ export default function FolderBatch({ onSettings, onGo }: { onSettings: () => vo
                 aria-label="세특 글자 수"
               />
               자 안팎 (공백 포함)
+              <span className="small muted batch-bytes" title="한글 한 글자는 3바이트, 공백은 1바이트로 세므로 실제는 이보다 조금 적습니다. 세특 작성실은 바이트로 셉니다.">
+                {' '}
+                ≈ {o.seteukLength * 3}바이트(나이스 기준)
+              </span>
             </label>
             {o.seteuk && (
               <textarea

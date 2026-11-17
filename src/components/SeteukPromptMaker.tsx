@@ -21,7 +21,7 @@ interface Props {
 }
 
 /** 선생님이 고치는 칸 */
-const MINE = ['# 과제', '# 세특 구성', '# 선생님 요청사항', '# 분량']
+const MINE = ['# 과제', '# 세특 구성', '# 선생님 요청사항', '# 분량', '# 예시', '# 문체 예시', '# 내 문체', '# 활동 이름']
 
 export default function SeteukPromptMaker({ act, style, config, onPatch, onClose }: Props): JSX.Element {
   const toast = useToast()
@@ -128,6 +128,36 @@ export default function SeteukPromptMaker({ act, style, config, onPatch, onClose
               </button>
             </div>
             <p className="small muted">학생 이름이나 관찰 기록은 들어가지 않습니다. 예시 · 문체에 든 이름도 가려서 내보냅니다.</p>
+            <details className="stk-howto">
+              <summary>처음이면 — Gem · GPT 만드는 순서</summary>
+              <div className="stk-howto-body">
+                <b>공통</b>
+                <ol>
+                  <li>위의 [Gem · GPT · 프로젝트 지침 복사]를 누릅니다. 활동마다 규칙이 달라, 쓸 활동마다 따로 만듭니다.</li>
+                  <li>아래 순서로 만들 때 지침 칸에 붙여 넣습니다(Ctrl+V). 이름과 설명은 아무렇게나 적어도 됩니다.</li>
+                </ol>
+                <b>Gemini — Gem</b>
+                <ol>
+                  <li>gemini.google.com 왼쪽의 [Gems] → [새 Gem].</li>
+                  <li>[이름]에 활동 이름(예: 통계 포스터 발표 세특). [설명]은 비워도 됩니다.</li>
+                  <li>[요청 사항] 칸에 복사한 글을 붙여 넣습니다. [기본 도구]는 '기본 도구 없음' 그대로, [지식]에 파일은 넣지 않아도 됩니다.</li>
+                  <li>오른쪽 [미리보기]에서 학생 자료 한 명분을 붙여 시험해 보고, 맞으면 [저장].</li>
+                </ol>
+                <b>ChatGPT — GPT</b>
+                <ol>
+                  <li>chatgpt.com 왼쪽의 [GPT 탐색] → 오른쪽 위 [만들기] (유료 요금제에서 만들 수 있습니다).</li>
+                  <li>[구성] 탭에서 [이름]을 적고, [지침] 칸에 복사한 글을 붙여 넣습니다.</li>
+                  <li>[기능]은 웹 검색 · 이미지 · 코드 실행을 모두 끕니다. 파일(지식)은 넣지 않습니다.</li>
+                  <li>[만들기]를 눌러 저장하고, 공유는 '나만 보기'로 둡니다.</li>
+                </ol>
+                <b>쓸 때</b>
+                <ol>
+                  <li>[키 없이 — 요청 글 복사]로 복사한 글에서 아래쪽 [학생 자료] 부분(이름은 가려져 있습니다)만 Gem · GPT 대화창에 붙여 넣습니다. 여러 명이면 [S1] [S2] 처럼 표시를 붙입니다.</li>
+                  <li>받은 본문을 읽고 관찰한 사실과 맞춰 본 뒤 [AI 초안] 칸에 붙여 넣습니다.</li>
+                </ol>
+                <p className="small muted">앱 화면 이름은 업데이트로 조금 달라질 수 있습니다. 학교 · 교육청의 생성형 AI 지침을 먼저 확인하세요. Claude 는 [Claude 스킬 파일로 저장] 또는 프로젝트의 지침 칸에 같은 글을 붙여 넣으면 됩니다.</p>
+              </div>
+            </details>
           </div>
         </div>
 

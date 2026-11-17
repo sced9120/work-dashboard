@@ -1,6 +1,8 @@
 /* 세특 작성실 — 활동 보기(활동 고르기 · 설정 · 학생 표) (Seteuk.tsx 에서 나눔, 3.8.0) */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ModelChoice } from '../../../shared/types'
+import { geminiReady } from '../../../shared/gemini'
+import SeteukJobBars from '../../components/SeteukJobBars'
 import {
   COLUMN_SETS,
   cleanGroup,
@@ -62,7 +64,17 @@ import Markdown from '../../components/Markdown'
 import { SAVE_DELAY, MODE_KEY, INTRO_KEY, newId, stored, remember } from './core'
 
 export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; rosterPanel: ReactNode }): JSX.Element {
-  const { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, setJob, prog, setProg, errors, setErrors, pending, timer, actsTimer, actsRef, jobRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents } = c
+  const { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, prog, errors, pending, timer, actsTimer, actsRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents } = c
+
+  /* 키가 있는지 — 없으면 [초안 받기] 등은 잠그고 대신 길을 안내한다 (3.7.6~). null 은 아직 읽는 중 */
+  const [hasKey, setHasKey] = useState<boolean | null>(null)
+  useEffect(() => {
+    void window.api.local.load().then((s) => setHasKey(!!(geminiReady(s) || s.openai_key?.trim() || s.claude_key?.trim() || s.exaone_key?.trim())))
+  }, [])
+  const noKey = hasKey === false
+  const openDlg = (): void => (setMakerOpen(true), setCfgOpen(false))
+  const closeDlg = (): void => (setMakerOpen(false), setCfgOpen(false))
+  const NO_KEY_TIP = 'AI 키가 없어 쓸 수 없습니다. [설정]에서 키를 넣으면 쓸 수 있습니다.'
 
   /* ---------- 엑셀에서 복사해 붙여 넣기 — 줄은 아래 학생으로, 탭은 오른쪽 칸으로 ---------- */
   const rowIds = shown.map((s) => s.id)
@@ -144,6 +156,11 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                 <button className="btn btn-sm" onClick={() => void addAct()} disabled={!!job}>
                   <Icon name="plus" size={14} /> 활동
                 </button>
+                {act && rec && (
+                  <button className="btn btn-sm stk-cfgbtn" onClick={openDlg} title="이 활동의 프롬프트 만들기 · 활동 규정(이름 · 기록 영역 · 분량 · 개요)을 창으로 엽니다">
+                    <Icon name="sliders" size={14} /> 활동 설정
+                  </button>
+                )}
               </div>
 
               {act && rec && (
@@ -153,37 +170,38 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                     {act.subject ? ` · ${act.subject}` : ''}
                   </span>
                   <span className="spacer" />
-                  <button
-                    className={`btn btn-sm ${makerOpen ? 'btn-primary' : ''}`}
-                    onClick={() => {
-                      setMakerOpen((v) => !v)
-                      setCfgOpen(false)
-                    }}
-                    aria-expanded={makerOpen}
-                    title="세특 구성 · 요청사항 · 분량을 적고, AI 에게 가는 프롬프트를 기재요령 틀과 함께 봅니다"
-                  >
-                    프롬프트 만들기
-                  </button>
-                  <button
-                    className="btn btn-sm btn-ghost"
-                    onClick={() => {
-                      setCfgOpen((v) => !v)
-                      setMakerOpen(false)
-                    }}
-                    aria-expanded={cfgOpen}
-                  >
-                    {cfgOpen ? '활동 설정 닫기' : '활동 설정'}
-                  </button>
                 </div>
               )}
 
-              {act && rec && makerOpen && <SeteukPromptMaker act={act} style={style} config={config} onPatch={patchAct} onClose={() => setMakerOpen(false)} />}
-
-              {act && rec && cfgOpen && (
+              {act && rec && (makerOpen || cfgOpen) && (
+                <div className="stk-modal-back" onMouseDown={(e) => e.target === e.currentTarget && closeDlg()}>
+                  <div className="stk-modal" role="dialog" aria-modal="true" aria-label="활동 설정">
+                    <div className="stk-modal-head">
+                      <b>활동 설정 — 「{act.name}」</b>
+                      <div className="stk-modal-tabs" role="tablist" aria-label="활동 설정 탭">
+                        <button role="tab" aria-selected={makerOpen} className={makerOpen ? 'on' : ''} onClick={() => (setMakerOpen(true), setCfgOpen(false))}>
+                          프롬프트 만들기
+                        </button>
+                        <button role="tab" aria-selected={cfgOpen} className={cfgOpen ? 'on' : ''} onClick={() => (setCfgOpen(true), setMakerOpen(false))}>
+                          활동 규정
+                        </button>
+                      </div>
+                      <span className="spacer" />
+                      <button className="btn btn-sm" onClick={closeDlg}>
+                        닫기
+                      </button>
+                    </div>
+                    <div className="stk-modal-body">
+                      {makerOpen && <SeteukPromptMaker act={act} style={style} config={config} onPatch={patchAct} onClose={closeDlg} />}
+                      {cfgOpen && (
                 <div className="stk-panel stk-cfg">
                   <label>
                     <span>활동 이름</span>
                     <input type="text" value={act.name} onChange={(e) => patchAct({ name: e.target.value })} />
+                  </label>
+                  <label className="stk-namein stk-wide">
+                    <input type="checkbox" checked={act.nameInText !== false} onChange={(e) => patchAct({ nameInText: e.target.checked })} />
+                    <span>글에 활동 이름 넣기 — 예: 「{act.name.trim() || '통계 포스터 발표'} 활동에서 …」 (끄면 이름 없이 씁니다. 받은 뒤에 지워도 됩니다)</span>
                   </label>
                   <label>
                     <span>기록 영역</span>
@@ -276,6 +294,10 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                     </button>
                   </div>
                 </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               )}
             </section>
 
@@ -321,27 +343,21 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                 )}
                 <div className="stk-tools">
                   <ModelPicker feature="seteuk" label="모델" onReady={setModel} onChange={setModel} />
-                  <label className="stk-opt small" title="검사에서 분량 초과 · 기재 금지 · 어미 같은 '고침'이 나온 학생만 걸린 점을 짚어 한 번 더 받습니다. 나아진 경우에만 바꿉니다.">
-                    <input type="checkbox" checked={options.autoRepair} onChange={(e) => saveOptions({ autoRepair: e.target.checked })} disabled={!!job} />
+                  <label className="stk-opt small" title="검사에서 분량 초과 · 기재 금지 · 어미 같은 '고칠 곳'이 나온 학생만 걸린 점을 짚어 한 번 더 받습니다. 나아진 경우에만 바꿉니다.">
+                    <input type="checkbox" checked={options.autoRepair && !noKey} onChange={(e) => saveOptions({ autoRepair: e.target.checked })} disabled={!!job || noKey} />
                     자동 고쳐쓰기
                   </label>
                   <label className="stk-opt small" title="초안을 받은 뒤 관찰 기록에 없는 활동 · 수치 · 과장된 평가가 있는지 한 번 더 묻습니다. 학생마다 AI 를 한 번 더 부릅니다.">
-                    <input type="checkbox" checked={options.ground} onChange={(e) => saveOptions({ ground: e.target.checked })} disabled={!!job} />
+                    <input type="checkbox" checked={options.ground && !noKey} onChange={(e) => saveOptions({ ground: e.target.checked })} disabled={!!job || noKey} />
                     근거 확인
                   </label>
                   <span className="spacer" />
                   <button className="btn btn-sm" onClick={() => setImportOpen((v) => !v)} disabled={!!job} aria-expanded={importOpen} title="스캔한 활동지 · 사진이나 엑셀 표에서 학생별 관찰 기록을 가져옵니다">
                     <Icon name="scan" size={14} /> 관찰 기록 가져오기
                   </button>
-                  {job ? (
-                    <button className="btn btn-sm" onClick={() => void window.api.seteuk.cancel(job)}>
-                      멈추기
-                    </button>
-                  ) : (
-                    <button className="btn btn-primary btn-sm" onClick={() => void write()} disabled={!ready.length}>
-                      <Icon name="spark" size={14} /> {sel.size ? `고른 ${ready.length}명` : `${ready.length}명`} 초안 받기
-                    </button>
-                  )}
+                  <button className="btn btn-primary btn-sm" onClick={() => void write()} disabled={!ready.length || noKey} title={noKey ? NO_KEY_TIP : undefined}>
+                    <Icon name="spark" size={14} /> {sel.size ? `고른 ${ready.length}명` : `${ready.length}명`} 초안 받기
+                  </button>
                   <button className={`btn btn-sm ${finalOnly ? 'btn-primary' : ''}`} onClick={() => setFinalOnly((v) => !v)} aria-pressed={finalOnly} title="표에서 학생과 최종본만 넓게 봅니다">
                     {finalOnly ? '모두 보기' : '최종본만 보기'}
                   </button>
@@ -360,6 +376,17 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                     학생끼리 견주기
                   </button>
                 </div>
+                {noKey && (
+                  <p className="small stk-nokey" role="note">
+                    키가 없으면 학생 줄을 눌러 [키 없이 — 요청 글 복사]로 AI 앱에서 받으세요 ·{' '}
+                    <button className="link" onClick={() => onGo('설정')}>
+                      설정에서 키 넣기
+                    </button>
+                  </p>
+                )}
+                {!shown.some((s) => s.id === focus) && (
+                  <p className="small muted stk-copyhint">학생 줄을 누르면 요청 글을 복사할 수 있습니다</p>
+                )}
                 {equity && (
                   <div className="stk-panel">
                     <div className="stk-import-head">
@@ -415,16 +442,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                   </div>
                 )}
                 {importOpen && <SeteukImport students={shown} actId={act?.id ?? ''} onApply={importNotes} onClose={() => setImportOpen(false)} />}
-                {prog && (
-                  <div className="stk-prog" role="status">
-                    <div className="progress">
-                      <div style={{ width: `${prog.total ? Math.round((prog.done / prog.total) * 100) : 0}%` }} />
-                    </div>
-                    <span className="small muted">
-                      {prog.done} / {prog.total}명
-                    </span>
-                  </div>
-                )}
+                <SeteukJobBars kind="write" />
                 <p className="small muted stk-count">
                   최종본 {filled} / {shown.length}명
                 </p>
@@ -561,20 +579,20 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                                   <button
                                     className="btn btn-sm btn-ghost"
                                     onClick={() => void checkGround(s.id)}
-                                    disabled={!!grounding || !!job}
-                                    title="최종본(없으면 초안)에 관찰 기록에 없는 내용이 있는지 AI 에게 묻습니다. 이름은 가려 보냅니다."
+                                    disabled={!!grounding || !!job || noKey}
+                                    title={noKey ? NO_KEY_TIP : "최종본(없으면 초안)에 관찰 기록에 없는 내용이 있는지 AI 에게 묻습니다. 이름은 가려 보냅니다."}
                                   >
-                                    {grounding === s.id ? '확인 중…' : '근거 확인'}
+                                    {grounding === s.id ? <><span className="stk-spin" aria-hidden="true" /> 확인 중…</> : '근거 확인'}
                                   </button>
                                 )}
                                 {on && shownText.trim() && (
                                   <button
                                     className="btn btn-sm btn-ghost"
                                     onClick={() => void adviseOne(s.id)}
-                                    disabled={!!advising || !!job}
-                                    title="이 글을 동료 교사의 눈으로 읽은 의견을 받습니다 — 흐름, 더 구체적으로 쓸 곳, 확인할 질문. 글을 대신 고쳐 주지는 않습니다. 이름은 가려 보냅니다."
+                                    disabled={!!advising || !!job || noKey}
+                                    title={noKey ? NO_KEY_TIP : "이 글을 동료 교사의 눈으로 읽은 의견을 받습니다 — 흐름, 더 구체적으로 쓸 곳, 확인할 질문. 글을 대신 고쳐 주지는 않습니다. 이름은 가려 보냅니다."}
                                   >
-                                    {advising === s.id ? '읽는 중…' : '이 글 조언'}
+                                    {advising === s.id ? <><span className="stk-spin" aria-hidden="true" /> 읽는 중…</> : '이 글 조언'}
                                   </button>
                                 )}
                                 {on && r.final.trim() && (
@@ -587,7 +605,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                                 <ul className="stk-issues stk-ground">
                                   {left.map((g, i) => (
                                     <li key={i} className="check">
-                                      <b>확인</b> 관찰 기록에 없는 내용<span className="hit"> — {g.quote}</span>
+                                      <b>살펴볼 곳</b> 관찰 기록에 없는 내용<span className="hit"> — {g.quote}</span>
                                       {g.why && <span className="why">{g.why}</span>}
                                     </li>
                                   ))}
@@ -623,7 +641,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                                 <ul className="stk-issues">
                                   {c.issues.map((x, i) => (
                                     <li key={i} className={x.level}>
-                                      <b>{x.level === 'block' ? '고침' : '확인'}</b> {x.label}
+                                      <b>{x.level === 'block' ? '고칠 곳' : '살펴볼 곳'}</b> {x.label}
                                       {x.hit && <span className="hit"> — {x.hit}</span>}
                                       {x.fix && <span className="fix"> → {x.fix}</span>}
                                       {x.why && <span className="why">{x.why}</span>}

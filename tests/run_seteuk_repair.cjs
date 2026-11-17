@@ -10,11 +10,14 @@ const call = (ch, ...args) => handlers.get(ch)({}, ...args)
 
 const log = []
 let script = []
+// K-EXAONE 은 3명씩 함께 받으므로 요청 순서가 정해져 있지 않다 — 학생(가명 번호)과 '처음/고쳐 쓰기'로 답을 고르는 길 (3.7.6~)
+let route = null
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json' } })
 const answer = (text) => () => json({ choices: [{ message: { role: 'assistant', content: text } }] })
 global.fetch = async (url, opts = {}) => {
   const entry = { url: String(url), body: opts.body ? JSON.parse(opts.body) : null }
   log.push(entry)
+  if (route) return route(entry)
   const step = script.shift()
   if (!step) throw new Error('예상 못 한 요청 ' + url)
   return step(entry)
@@ -46,15 +49,21 @@ ok(S.readOptions('').autoRepair === true && S.readOptions('').ground === false &
 
   console.log('\n1. 자동 고쳐쓰기 (기본으로 켜짐)')
   ok((await call('seteuk:load')).options.autoRepair === true, '처음엔 켜짐 · 근거 확인은 꺼짐')
-  script = [answer(BAD), answer(GOOD), answer(GOOD), answer(BAD), answer(WORSE)]
+  route = (e) => {
+    const u = e.body.messages[1].content
+    const n = /학생(\d)/.exec(u)[1]
+    return answer({ 1: [BAD, GOOD], 2: [GOOD], 3: [BAD, WORSE] }[n][u.includes('# 고쳐 쓸 초안') ? 1 : 0])()
+  }
   let r = await call('seteuk:write', { job: 'r1', actId: 'a1', ids: ['1-1', '1-2', '1-3'] })
+  route = null
   let rows = (await call('seteuk:load')).rows.a1
   ok(r.ok && r.written === 3 && log.length === 5, `고칠 곳이 나온 학생만 한 번 더 (요청 ${log.length}번)`)
   ok(rows['1-1'].ai === GOOD && rows['1-1'].repaired === true, '나아졌으면 고친 글로 · 표시')
   ok(rows['1-2'].ai === GOOD && !rows['1-2'].repaired, '처음부터 괜찮으면 그대로')
   ok(rows['1-3'].ai === BAD && !rows['1-3'].repaired, '고친 글이 더 나쁘면 처음 글을 둠')
-  const rep = log[1].body.messages
-  ok(rep[0].content === log[0].body.messages[0].content && rep[1].content.includes('# 고쳐 쓸 초안') && rep[1].content.includes('존댓말/평서형 어미'), '규칙은 처음과 같게 · 걸린 점을 짚어')
+  const first = log.find((e) => !e.body.messages[1].content.includes('# 고쳐 쓸 초안'))
+  const rep = log.find((e) => e.body.messages[1].content.includes('# 고쳐 쓸 초안') && e.body.messages[1].content.includes('학생1')).body.messages
+  ok(rep[0].content === first.body.messages[0].content && rep[1].content.includes('# 고쳐 쓸 초안') && rep[1].content.includes('존댓말/평서형 어미'), '규칙은 처음과 같게 · 걸린 점을 짚어')
   ok(!JSON.stringify(log.map((e) => e.body)).includes('가나다') && rep[1].content.includes('학생1가 기울기'), '고쳐 쓰기 요청에도 이름은 가명으로')
 
   console.log('\n2. 끄면 한 번만')

@@ -61,6 +61,8 @@ export interface SeteukActivity {
   columns: string[]
   /** 교과영역 — 고르면 그 교과의 핵심역량 문구가 서술 관점에 들어간다(비면 넣지 않는다) */
   area: string
+  /** 글에 활동 이름을 넣을지 — 기본 켬(false 일 때만 끔). 예: '통계 포스터 발표에서 …' (3.7.6~) */
+  nameInText?: boolean
   /** 이 활동의 예시 — 관찰 기록과 그것으로 쓴 글. 초안이 이 표현 방식과 흐름을 따른다 (앞에서 SETEUK_EXAMPLE_MAX 개까지) */
   examples: SeteukExample[]
 }
@@ -213,6 +215,7 @@ export function readActs(raw: string): SeteukActivity[] {
       request: str(x.request).slice(0, 2000),
       columns: readColumns(x.columns),
       area: SETEUK_SUBJECTS.some((sub) => sub.key === x.area) ? str(x.area) : '',
+      ...(x.nameInText === false ? { nameInText: false } : {}),
       examples: (Array.isArray(x.examples) ? (x.examples as Record<string, unknown>[]) : [])
         .map((e) => ({ note: str(e?.note).trim(), result: str(e?.result).trim() }))
         .filter((e) => e.result)
@@ -510,6 +513,26 @@ const FRAME_BEHAVIOR = [
 ]
 const FRAME_END = '- 문장은 학생이 한 일이나 낸 결론으로 끝맺는다.'
 
+/** 알맹이 — 매끄러운 문장보다 메모 속 구체적인 내용이 글에 남게 (3.7.6~) */
+export const SUBSTANCE_RULES =
+  '# 알맹이\n' +
+  '- 매끄러운 문장보다 알맹이가 먼저다. 메모에 있는 구체적인 소재 · 방법 · 자료 · 수치 · 결과 · 발견을 빠뜨리지 않고 글에 남긴다.\n' +
+  '- 문장을 부드럽게 하려고 그런 내용을 일반적인 말(열심히 참여함, 역량을 키움)로 바꾸거나 줄이지 않는다.\n' +
+  '- 한 문장에 무엇을 · 어떻게 · 그래서 무엇을 알았는지 가운데 메모가 뒷받침하는 만큼 담는다. 메모에 없는 것은 지어내지 않는다.'
+
+const PLACEHOLDER_ACT_NAMES = ['새 활동', '이름 없는 활동']
+
+/** 글에 활동 이름을 넣으라는 규칙 — 끄거나 이름이 없으면(처음 이름 그대로면) 넣지 않는다 (3.7.6~) */
+export function activityNameRule(act: Pick<SeteukActivity, 'name' | 'nameInText'>): string {
+  const name = (act.name ?? '').trim()
+  if (act.nameInText === false || !name || PLACEHOLDER_ACT_NAMES.includes(name)) return ''
+  return (
+    '# 활동 이름\n' +
+    `- 첫 문장 앞부분에 활동 이름 '${name}'이(가) 보이게 쓴다. 예) '${name} 활동에서 …', '${name}에서 …'. 글 전체에서 한 번만 쓰고, 이름 뒤에 '활동' 같은 말을 붙여 자연스럽게 잇는다.\n` +
+    '- 학생을 주어로 쓰지 않는다.'
+  )
+}
+
 /** 기록 영역에 맞는 서술 흐름 줄 */
 export function sentenceFrame(recKey: string): string {
   const k = String(recKey || '')
@@ -622,6 +645,9 @@ export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions 
   const sub = act.area ? subjectOf(act.area) : null
   const views = [cfg.sections.view ? rec.view : '', sub?.comp ?? ''].filter((x) => x && x.trim())
   if (views.length) P.push('# 서술 관점과 역량\n' + views.join('\n\n'))
+  P.push(SUBSTANCE_RULES)
+  const nameLine = activityNameRule(act)
+  if (nameLine) P.push(nameLine)
   const structure = lines(act.structure ?? '')
   if (structure.length) {
     P.push(
