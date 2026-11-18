@@ -550,6 +550,12 @@ const api = {
       blanks: Record<string, string>
       name: string
     }): Promise<FormFillResult> => ipcRenderer.invoke('hwpforms:fillSlots', args),
+    /** 출결 기록 → 결석계. 건마다 값을 양식에 넣어 폴더에 한 파일씩 저장 (3.7.8~) */
+    makeAttDocs: (args: {
+      ref: FormRef
+      items: { fileName: string; values: Record<string, string>; blanks: Record<string, string> }[]
+    }): Promise<{ ok: boolean; written: number; failed: { name: string; message: string }[]; folder: string; first: string; message: string }> =>
+      ipcRenderer.invoke('attdocs:make', args),
     newDoc: (args: { name: string; text: string }): Promise<ActionResult> => ipcRenderer.invoke('hwp:newDoc', args),
     /** 도우미 답(마크다운)을 제목 · 목록 · 표를 살린 한글 문서로 — name 은 문서 제목(없으면 빈 글) */
     answerDoc: (args: { name: string; markdown: string }): Promise<ActionResult> => ipcRenderer.invoke('hwp:answerDoc', args),

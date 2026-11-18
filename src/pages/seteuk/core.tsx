@@ -77,6 +77,8 @@ export type Panel = '' | 'roster' | 'xlsx' | 'rules' | 'style' | 'phone'
 export const SAVE_DELAY = 900
 export const MODE_KEY = 'wd.seteuk.mode'
 export const INTRO_KEY = 'wd.seteuk.intro'
+/** 체험 자료를 지웠으면 체험 안내(처음이시면 카드 · 체험 자료 단추)를 모두 감춘다 */
+export const DEMO_OFF_KEY = 'wd.seteuk.demoOff'
 export const newId = (): string => 'a' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36)
 
 export function stored(key: string): string {
@@ -127,6 +129,7 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   const [finalOnly, setFinalOnly] = useState(false)
   const [rev, setRev] = useState(0)
   const [intro, setIntro] = useState(() => stored(INTRO_KEY) !== '1')
+  const [demoOff, setDemoOff] = useState(() => stored(DEMO_OFF_KEY) === '1')
   // 받는 일은 화면 밖(seteukJob)의 줄에 둔다 — 다른 화면에 갔다 와도 이어서 보이고, 여러 개를 쌓을 수 있다
   const [, setJobTick] = useState(0)
   const [doneErrors, setDoneErrors] = useState<Record<string, string>>({})
@@ -153,7 +156,7 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
 
   /* ---------- 읽기 · 저장 ---------- */
 
-  const reload = useCallback(async (): Promise<void> => {
+  const reload = useCallback(async () => {
     const all = await window.api.seteuk.load()
     setRosters(all.rosters)
     setActs(all.acts)
@@ -166,6 +169,7 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
     setLoaded(true)
     // 취합 보기는 저장된 것을 처음에 한 번 읽으므로 다시 그리게 한다
     setRev((n) => n + 1)
+    return all
   }, [])
 
   useEffect(() => {
@@ -419,6 +423,8 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
     setActIds({})
     resetView()
     closeIntro()
+    remember(DEMO_OFF_KEY, '0')
+    setDemoOff(false)
     toast('체험 자료를 넣었습니다. 학생과 글은 모두 지어낸 것입니다.', 'ok')
   }
 
@@ -432,10 +438,15 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
     if (!ok) return
     await flush()
     await window.api.seteuk.demoClear()
-    await reload()
+    const all = await reload()
     setActIds({})
     resetView()
-    toast('체험 자료를 지웠습니다. 이제 실제 명단을 넣으세요.', 'ok')
+    // 체험을 마쳤으니 체험 안내는 모두 감춘다
+    closeIntro()
+    remember(DEMO_OFF_KEY, '1')
+    setDemoOff(true)
+    const left = Object.values(all.rosters).reduce((n, l) => n + l.length, 0)
+    toast(left ? `체험 자료를 지웠습니다. 선생님이 넣은 학생 ${left}명은 그대로 남아 있습니다.` : '체험 자료를 지웠습니다. 이제 실제 명단을 넣으세요.', 'ok')
   }
 
   /* ---------- 활동 ---------- */
@@ -648,7 +659,9 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   const rec = act ? recordOf(act.rec) : null
   const rules = useMemo(() => (act ? buildSeteukPrompt(act, { style, config }) : ''), [act, style, config])
 
-  return { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, prog, errors, pending, timer, actsTimer, actsRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents }
+  // 체험 안내를 감출지 — 체험 자료를 지웠거나, 체험이 아닌 실제 학생이 명단에 있으면 체험 안내는 필요 없다
+  const demoOffNow = demoOff || (loaded && !demo.filled && Object.values(rosters).some((l) => l.length > 0))
+  return { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, demoOff: demoOffNow, job, prog, errors, pending, timer, actsTimer, actsRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents }
 }
 
 export type SeteukState = ReturnType<typeof useSeteuk>

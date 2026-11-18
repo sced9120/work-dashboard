@@ -3,6 +3,7 @@ import type { AttProof, AttReason, AttRecord, AttType, Roster } from '../../shar
 import { ATT_PROOF_DAYS_KEY, ATT_REASONS, ATT_RECORDS_KEY, ATT_ROSTER_KEY, ATT_TYPES, MARK, addSchoolDays, defaultProof, parseRoster, readProofDays, readRecords, readRoster, recordsTsv, summarize, upsertRecords } from '../../shared/attendance'
 import { daysLeft, ddayLabel } from './Deadlines'
 import type { PageId } from '../App'
+import AttDocMaker from '../components/AttDocMaker'
 import Icon from '../components/Icon'
 import RelayCard from '../components/RelayCard'
 import { todayStr } from '../lib/util'
@@ -42,6 +43,7 @@ export default function Attendance({ onGo, embedded = false }: { onGo: (p: PageI
   const [editRoster, setEditRoster] = useState(false)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [proofDays, setProofDays] = useState(5)
+  const [docOpen, setDocOpen] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -362,6 +364,15 @@ export default function Attendance({ onGo, embedded = false }: { onGo: (p: PageI
             ))}
           </div>
         </section>
+      )}
+
+      {roster && roster.students.length > 0 && (
+        <>
+          <button className="btn btn-sm" onClick={() => setDocOpen((v) => !v)} aria-expanded={docOpen} style={{ marginTop: 12 }}>
+            결석계 만들기
+          </button>
+          {docOpen && <AttDocMaker records={records} roster={roster} month={month} />}
+        </>
       )}
     </div>
   )

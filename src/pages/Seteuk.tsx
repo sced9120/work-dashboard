@@ -75,7 +75,7 @@ export default function Seteuk(props: Props): JSX.Element {
         <p>관찰한 것을 적으면 AI 가 초안을 쓰고, 선생님이 다듬어 최종본으로 둡니다. 학생 이름은 AI 에 보내지 않습니다.</p>
       </div>
 
-      {intro && (
+      {intro && !c.demoOff && (
         <section className="card stk-intro">
           <div className="card-title">처음이시면</div>
           <ol>
@@ -144,14 +144,16 @@ export default function Seteuk(props: Props): JSX.Element {
           </button>
         </div>
         <span className="spacer" />
-        <button
-          className="btn btn-sm btn-ghost"
-          onClick={() => void fillDemo()}
-          disabled={!demo.canFill || !!job}
-          title={demo.canFill ? '지어낸 학생 16명과 채워진 활동을 넣어 먼저 써 봅니다. 한 번에 지울 수 있습니다.' : DEMO_BLOCKED}
-        >
-          체험 자료로 먼저 보기
-        </button>
+        {!c.demoOff && (
+          <button
+            className="btn btn-sm btn-ghost"
+            onClick={() => void fillDemo()}
+            disabled={!demo.canFill || !!job}
+            title={demo.canFill ? '지어낸 학생 16명과 채워진 활동을 넣어 먼저 써 봅니다. 한 번에 지울 수 있습니다.' : DEMO_BLOCKED}
+          >
+            체험 자료로 먼저 보기
+          </button>
+        )}
         <span className="small muted stk-save" aria-live="polite">
           {save === 'saved' ? '저장됨' : save === 'saving' ? '저장 중…' : '적는 중…'}
         </span>

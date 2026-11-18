@@ -312,7 +312,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                   「{act.name}」 활동은 만들어 두었습니다. {info.who} 명단만 붙여 넣으세요.
                 </p>
                 {rosterPanel}
-                {demo.canFill && (
+                {demo.canFill && !c.demoOff && (
                   <p className="small muted stk-first-demo">
                     어떻게 생겼는지 먼저 보려면{' '}
                     <button className="link" onClick={() => void fillDemo()}>

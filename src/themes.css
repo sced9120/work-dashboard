@@ -7841,3 +7841,12 @@ body {
 .stk-howto-body { padding: 4px 14px 12px; font-size: 13px; line-height: 1.6; }
 .stk-howto-body b { display: block; margin: 8px 0 2px; }
 .stk-howto-body ol { margin: 0; padding-left: 20px; }
+
+/* ================= 27. 출결 — 결석계 만들기 (v3.7.8) ================= */
+.att-doc { margin-top: 10px; }
+.att-doc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.att-doc-table th, .att-doc-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+.att-doc-table th { font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.att-doc-table select, .att-doc-table input[type='text'] { width: 100%; }
+.att-doc-pick tr.on { background: color-mix(in srgb, var(--hand, var(--accent)) 10%, transparent); }
+.att-doc-map { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }

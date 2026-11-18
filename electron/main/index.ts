@@ -615,6 +615,46 @@ function registerIpc(): void {
       finishFill(args.ref, args.name, (data) => fillSlots(data, args.values, args.blanks))
   )
 
+  // 출결 기록 → 결석계: 고른 양식에 건마다 값을 넣어 폴더에 파일 하나씩 저장한다 (3.7.8~). 인터넷 · AI 를 쓰지 않는다
+  ipcMain.handle(
+    'attdocs:make',
+    async (_e, args: { ref: FormRef; items: { fileName: string; values: Record<string, string>; blanks: Record<string, string> }[] }) => {
+      const none = { ok: false, written: 0, failed: [] as { name: string; message: string }[], folder: '', first: '' }
+      const form = loadForm(args.ref)
+      if (!form) return { ...none, message: '양식을 찾지 못했습니다.' }
+      if (!mainWindow) return { ...none, message: '창을 찾지 못했습니다.' }
+      const pick = await dialog.showOpenDialog(mainWindow, { title: '결석계를 저장할 폴더 고르기', properties: ['openDirectory', 'createDirectory'] })
+      if (pick.canceled || !pick.filePaths[0]) return { ...none, message: '저장을 취소했습니다.' }
+      const dir = pick.filePaths[0]
+      const used = new Set<string>()
+      let written = 0
+      let first = ''
+      const failed: { name: string; message: string }[] = []
+      for (const it of (args.items ?? []).slice(0, 300)) {
+        const label = String(it.fileName ?? '')
+        try {
+          const out = await fillSlots(form.data, it.values ?? {}, it.blanks ?? {})
+          if (!out.applied) {
+            failed.push({ name: label, message: '채울 칸이 없어 만들지 않았습니다. 양식의 칸 연결을 확인하세요.' })
+            continue
+          }
+          const base = label.replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 80) || '결석계'
+          let n = 1
+          let file = `${base}.${form.kind}`
+          while (used.has(file) || fs.existsSync(path.join(dir, file))) file = `${base}(${++n}).${form.kind}`
+          used.add(file)
+          const target = path.join(dir, file)
+          writeOut(target, out.data)
+          written++
+          if (!first) first = target
+        } catch (e) {
+          failed.push({ name: label, message: e instanceof Error ? e.message : String(e) })
+        }
+      }
+      return { ok: written > 0, written, failed, folder: dir, first, message: written ? `${written}건을 저장했습니다: ${dir}` : '만든 파일이 없습니다.' }
+    }
+  )
+
   // 양식 없이 글만으로 한글 문서를 만든다
   ipcMain.handle('hwp:newDoc', async (_e, args: { name: string; text: string }) => {
     try {
