@@ -234,14 +234,24 @@ export async function geminiTarget(
 /** 잠깐 쉬었다 다시 해 볼 만한 상태 — 호출 한도(429) · 일시적 과부하(503). 3.7.11~ */
 const RETRY_STATUS = new Set([429, 503])
 const RETRY_TIMES = 2
+/**
+ * "Resource exhausted, please try again later" — 종량제(pay-as-you-go)의 모델별 공유 용량이 붐빈다는 뜻이라
+ * 내 할당량과 무관하고 기다리면 풀린다. 구글 안내대로 더 길게(지수 백오프) 네 번까지 (Hydrogen 같은 큰 모델에서 잦다)
+ */
+const RETRY_TIMES_BUSY = 4
+const WAITS = [2000, 5000, 10000, 20000]
 
-/** 서버가 알려 준 대기(retry-after) 를 따르고, 없으면 2초 → 5초. 0.3초 안쪽으로 흩어 같은 때 몰리지 않게 한다 */
+/** 서버가 알려 준 대기(retry-after) 를 따르고, 없으면 2초 → 5초 → 10초 → 20초. 0.3초 안쪽으로 흩어 같은 때 몰리지 않게 한다 */
 export function retryWaitMs(res: Pick<Response, 'headers'>, attempt: number): number {
   const ms = Number(res.headers.get('retry-after-ms'))
   const s = Number(res.headers.get('retry-after'))
-  const base = ms > 0 ? ms : s > 0 ? s * 1000 : attempt === 0 ? 2000 : 5000
-  return Math.min(base, 8000) + Math.floor(Math.random() * 300)
+  const base = ms > 0 ? ms : s > 0 ? s * 1000 : WAITS[Math.min(attempt, WAITS.length - 1)]
+  return Math.min(base, 30000) + Math.floor(Math.random() * 300)
 }
+
+/** 한도(429) · 붐빔(503)을 받은 횟수 — 세특처럼 여럿을 함께 받는 쪽이 보고 차례로 받기로 바꾼다 (3.7.11~) */
+let busyHits = 0
+export const geminiBusyHits = (): number => busyHits
 
 function sleepAbortable(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -258,7 +268,7 @@ function sleepAbortable(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
-/** Gemini 로 POST — 연결 방식에 맞는 주소 · 머리글로. Vertex 가 401 이면 토큰을 새로 받아 한 번만 다시, 429 · 503 이면 쉬었다 두 번까지 다시 */
+/** Gemini 로 POST — 연결 방식에 맞는 주소 · 머리글로. Vertex 가 401 이면 토큰을 새로 받아 한 번만 다시, 429 · 503 이면 쉬었다 두 번까지(공유 용량 붐빔이면 네 번까지) 다시 */
 export async function geminiFetch(
   settings: LocalSettings,
   model: string,
@@ -275,9 +285,12 @@ export async function geminiFetch(
     await res.text().catch(() => '')
     res = await go(true)
   }
-  for (let k = 0; k < RETRY_TIMES && RETRY_STATUS.has(res.status); k++) {
+  for (let k = 0; RETRY_STATUS.has(res.status); k++) {
+    busyHits++
     const wait = retryWaitMs(res, k)
-    await res.text().catch(() => '')
+    const txt = await res.text().catch(() => '')
+    const max = /resource exhausted/i.test(txt) ? RETRY_TIMES_BUSY : RETRY_TIMES
+    if (k >= max) return new Response(txt, { status: res.status, statusText: res.statusText, headers: res.headers })
     await sleepAbortable(wait, signal)
     res = await go(false)
   }

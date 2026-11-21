@@ -24,7 +24,7 @@ global.fetch = async (url, opts = {}) => {
   inflight++
   maxInflight = Math.max(maxInflight, inflight)
   try {
-    return await handler(String(url))
+    return await handler(String(url), opts.body ? String(opts.body) : '', inflight)
   } finally {
     inflight--
   }
@@ -47,14 +47,48 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   let r = await call('seteuk:write', { job: 'q1', actId: 'a1', ids: ['1-1'] })
   ok(r.ok && r.written === 1 && r.failed === 0 && log.length === 2, `429 한 번 → 두 번째에 성공 (요청 ${log.length}번)`)
 
-  console.log('\n2. 계속 걸리면 두 번까지만 다시 — 그래도 안 되면 실패로, 구글이 알려 준 까닭과 함께')
+  console.log('\n2. 공유 용량 붐빔(Resource exhausted)이 계속되면 네 번까지만 다시 — 그래도 안 되면 실패로')
   log = []
   handler = async () => tooMany()
-  let sent = null
   r = await call('seteuk:write', { job: 'q2', actId: 'a1', ids: ['1-2'] })
-  ok(r.ok && r.written === 0 && r.failed === 1 && log.length === 3, `처음 + 다시 2번 = 3번 (요청 ${log.length}번)`)
+  ok(r.ok && r.written === 0 && r.failed === 1 && log.length === 5, `처음 + 다시 4번 = 5번 (요청 ${log.length}번)`)
   const rows = (await call('seteuk:load')).rows.a1
   ok(!rows['1-2']?.ai, '실패한 학생의 칸은 비어 있음')
+  log = []
+  handler = async () =>
+    new Response(JSON.stringify({ error: { code: 429, message: 'Quota exceeded for metric x', status: 'RESOURCE_EXHAUSTED' } }), {
+      status: 429,
+      headers: { 'content-type': 'application/json', 'retry-after-ms': '20' }
+    })
+  r = await call('seteuk:write', { job: 'q2b', actId: 'a1', ids: ['1-2'] })
+  ok(r.failed === 1 && log.length === 3, `다른 429(할당량)는 두 번까지만 (요청 ${log.length}번)`)
+
+  console.log('\n2-1. 받는 중에 한 번 걸리면 남은 학생은 한 명씩')
+  await call('seteuk:options', { autoRepair: true, ground: false, parallel: 3 })
+  log = []
+  let first = true
+  const lateStart = [] // 4 · 5번째 학생 요청이 시작될 때 함께 떠 있던 요청 수
+  handler = async (_url, body, now) => {
+    if (first) {
+      first = false
+      return tooMany()
+    }
+    if (/학생[45]/.test(body)) lateStart.push(now)
+    await sleep(80)
+    return gemOk()
+  }
+  r = await call('seteuk:write', { job: 'q2c', actId: 'a1', ids: ['1-1', '1-2', '1-3', '1-4', '1-5'] })
+  ok(r.ok && r.written === 5, `5명 모두 받음 (${JSON.stringify(r)})`)
+  // 처음 3명은 이미 함께 보냈고, 걸린 뒤 새로 시작하는 학생(4 · 5번)은 혼자 떠 있어야 한다
+  ok(lateStart.length === 2 && lateStart.every((n) => n === 1), `걸린 뒤엔 한 명씩 (4 · 5번 시작 때 떠 있던 요청: ${lateStart.join(', ')})`)
+  log = []
+  handler = async () => {
+    await sleep(80)
+    return gemOk()
+  }
+  r = await call('seteuk:write', { job: 'q2e', actId: 'a1', ids: ['1-1', '1-2', '1-3'] })
+  ok(r.written === 3 && maxInflight === 3, `새 작업은 다시 정한 수(3명)로 시작 (동시에 최대 ${maxInflight}명)`)
+  await call('seteuk:options', { autoRepair: true, ground: false, parallel: 0 })
 
   console.log('\n3. Gemini 는 2명씩 동시에')
   log = []

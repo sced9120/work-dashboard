@@ -9,6 +9,10 @@ import fs from 'node:fs'
 import { strToU8, zipSync } from 'fflate'
 import * as db from './db'
 import { askSeteuk, seteukProvider } from './ai'
+import { geminiBusyHits } from './vertex'
+
+/** 한도 · 붐빔을 만난 뒤 학생 사이에 두는 쉼 */
+const BUSY_GAP_MS = 1000
 import { leakCheck, maskText, unmaskText } from './anonymize'
 import { loadLocalSettings } from './secrets'
 import type { AliasPair, LocalSettings, ModelChoice } from '../../shared/types'
@@ -628,11 +632,22 @@ export async function seteukWrite(req: SeteukWriteRequest, onProgress: (p: Seteu
   // Gemini(Vertex · Express) 는 호출 한도에 잘 걸려 2명씩 — 걸리면 geminiFetch 가 쉬었다 다시 한다 (3.7.11~)
   // 선생님이 '동시 요청'을 1~3명으로 정했으면 그 수대로 (3.7.11~)
   const width = parallelWidth(opts, seteukProvider(settings, req.model))
+  // 받는 중에 한도 · 붐빔(429 · 503)을 한 번이라도 만나면 남은 학생은 한 명씩, 1초 쉬어 가며 (3.7.11~)
+  // — 공유 용량이 빠듯한 모델(예: Hydrogen)에서 요청을 몰아 보내지 않게
+  const hits0 = geminiBusyHits()
+  const busy = (): boolean => geminiBusyHits() > hits0
   let next = 0
-  const worker = async (): Promise<void> => {
-    while (!state.stop && next < ids.length) await one(ids[next++])
+  const worker = async (n: number): Promise<void> => {
+    while (!state.stop && next < ids.length) {
+      if (busy()) {
+        if (n > 0) return
+        await new Promise((r) => setTimeout(r, BUSY_GAP_MS))
+        if (state.stop || next >= ids.length) return
+      }
+      await one(ids[next++])
+    }
   }
-  await Promise.all(Array.from({ length: Math.min(width, ids.length) }, () => worker()))
+  await Promise.all(Array.from({ length: Math.min(width, ids.length) }, (_, n) => worker(n)))
   } finally {
     jobs.delete(job)
   }
