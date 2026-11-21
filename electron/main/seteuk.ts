@@ -36,6 +36,7 @@ import {
   parseGround,
   readConfig,
   readOptions,
+  parallelWidth,
   setSeteukConfig,
   modeOfRec,
   readActs,
@@ -625,7 +626,8 @@ export async function seteukWrite(req: SeteukWriteRequest, onProgress: (p: Seteu
   }
   // 3명씩 함께 받는다(K-EXAONE 의 1초 1번 · 1분 60번 한도 안). 한 명씩 받던 것보다 훨씬 빠르다
   // Gemini(Vertex · Express) 는 호출 한도에 잘 걸려 2명씩 — 걸리면 geminiFetch 가 쉬었다 다시 한다 (3.7.11~)
-  const width = seteukProvider(settings, req.model) === 'gemini' ? 2 : 3
+  // 선생님이 '동시 요청'을 1~3명으로 정했으면 그 수대로 (3.7.11~)
+  const width = parallelWidth(opts, seteukProvider(settings, req.model))
   let next = 0
   const worker = async (): Promise<void> => {
     while (!state.stop && next < ids.length) await one(ids[next++])

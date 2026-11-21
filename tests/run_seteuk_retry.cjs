@@ -77,6 +77,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   r = await call('seteuk:write', { job: 'q4', actId: 'a1', ids: ['1-1', '1-2', '1-3', '1-4', '1-5'] })
   ok(r.ok && r.written === 5 && maxInflight === 3, `동시에 최대 ${maxInflight}명 (5명 받음)`)
 
+  console.log('\n5. 동시 요청을 1명씩으로 정하면 차례로 (3.7.11~)')
+  const saved = await call('seteuk:options', { autoRepair: true, ground: false, parallel: 1 })
+  ok(saved.parallel === 1, '설정이 저장됨')
+  log = []
+  maxInflight = 0
+  r = await call('seteuk:write', { job: 'q5', actId: 'a1', ids: ['1-1', '1-2', '1-3', '1-4', '1-5'] })
+  ok(r.ok && r.written === 5 && maxInflight === 1, `동시에 최대 ${maxInflight}명 (5명 받음)`)
+  await call('local:save', { ...(await call('local:load')), provider: 'gemini', gemini_key: 'TEST-GEMINI', exaone_key: '' })
+  maxInflight = 0
+  handler = async () => {
+    await sleep(60)
+    return gemOk()
+  }
+  r = await call('seteuk:write', { job: 'q6', actId: 'a1', ids: ['1-1', '1-2', '1-3'] })
+  ok(r.ok && r.written === 3 && maxInflight === 1, `Gemini 도 1명씩 (동시에 최대 ${maxInflight}명)`)
+  await call('seteuk:options', { autoRepair: true, ground: false, parallel: 3 })
+  maxInflight = 0
+  r = await call('seteuk:write', { job: 'q7', actId: 'a1', ids: ['1-1', '1-2', '1-3'] })
+  ok(r.ok && r.written === 3 && maxInflight === 3, `3명씩으로 정하면 Gemini 도 3명 (동시에 최대 ${maxInflight}명)`)
+  const back = await call('seteuk:options', { autoRepair: true, ground: false, parallel: 9 })
+  ok(back.parallel === 0, '이상한 값은 자동으로')
+
   console.log(fails ? `\n실패 ${fails}` : '\n모두 통과')
   process.exit(fails ? 1 : 0)
 })().catch((e) => { console.error(e); process.exit(1) })

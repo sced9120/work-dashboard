@@ -26,6 +26,7 @@ import {
   emptyRow,
   defaultConfig,
   defaultOptions,
+  SETEUK_PARALLEL,
   emptyStyle,
   groundLeft,
   limitOf,
@@ -351,6 +352,19 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                   <label className="stk-opt small" title="초안을 받은 뒤 관찰 기록에 없는 활동 · 수치 · 과장된 평가가 있는지 한 번 더 묻습니다. 학생마다 AI 를 한 번 더 부릅니다.">
                     <input type="checkbox" checked={options.ground && !noKey} onChange={(e) => saveOptions({ ground: e.target.checked })} disabled={!!job || noKey} />
                     근거 확인
+                  </label>
+                  <label
+                    className="stk-opt small"
+                    title="몇 명의 초안을 동시에 받을지 정합니다. '할당량 초과' 오류가 자주 나면 1명씩으로 바꾸세요(느려지지만 한도에 덜 걸립니다). 자동은 Gemini 2명 · 그 밖 3명입니다."
+                  >
+                    동시 요청
+                    <select value={options.parallel} onChange={(e) => saveOptions({ parallel: Number(e.target.value) })} disabled={!!job || noKey} aria-label="동시 요청 수">
+                      {SETEUK_PARALLEL.map((p) => (
+                        <option key={p.value} value={p.value}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <span className="spacer" />
                   <button className="btn btn-sm" onClick={() => setImportOpen((v) => !v)} disabled={!!job} aria-expanded={importOpen} title="스캔한 활동지 · 사진이나 엑셀 표에서 학생별 관찰 기록을 가져옵니다">

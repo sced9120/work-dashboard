@@ -37,6 +37,8 @@ ok(S.buildRepairUser('m', 'x'.repeat(700), S.validateSeteuk('x'.repeat(700), 600
 ok(S.parseGround('```json\n{"unsupported":[{"quote":" 세 번 ","why":"자료에 횟수 없음"},{"quote":""}]}\n```').length === 1 && S.parseGround('설명 {"unsupported":[{"text":"x"}]} 끝')[0].quote === 'x' && S.parseGround('엉망').length === 0, '근거 확인 답 읽기')
 ok(S.groundLeft([{ quote: '세 번 발표', why: '' }, { quote: '고친 구절', why: '' }], '수업에서 세 번  발표함.').map((g) => g.quote).join() === '세 번 발표', '고친 구절은 더 보이지 않음 (빈칸은 무시)')
 ok(S.readOptions('').autoRepair === true && S.readOptions('').ground === false && S.readOptions('{"autoRepair":false,"ground":"y"}').autoRepair === false && S.readRows('{"a":{"note":"n","ground":[{"quote":"q"}],"repaired":true}}').a.ground[0].quote === 'q', '기본값 · 저장된 값 읽기')
+ok(S.readOptions('').parallel === 0 && S.readOptions('{"parallel":1}').parallel === 1 && S.readOptions('{"parallel":"x"}').parallel === 0 && S.readOptions('{"parallel":7}').parallel === 0, '동시 요청 — 기본 자동(0), 1~3 만')
+ok(S.parallelWidth({ parallel: 0 }, 'gemini') === 2 && S.parallelWidth({ parallel: 0 }, 'exaone') === 3 && S.parallelWidth({ parallel: 1 }, 'exaone') === 1 && S.parallelWidth({ parallel: 3 }, 'gemini') === 3, '동시 요청 수 — 자동은 Gemini 2 · 그 밖 3, 정하면 그 수')
 
 ;(async () => {
   require(path.join(__dirname, '../out/main/index.js'))

@@ -1043,9 +1043,26 @@ export interface SeteukOptions {
   autoRepair: boolean
   /** 초안에 관찰 기록에 없는 내용이 있는지 한 번 더 묻는다 */
   ground: boolean
+  /** 동시에 몇 명씩 받을지 — 0 은 자동(Gemini 2명 · 그 밖 3명), 1~3 은 그 수만큼 (3.7.11~) */
+  parallel: number
 }
 export const SETEUK_OPTIONS_KEY = 'seteuk_options'
-export const defaultOptions = (): SeteukOptions => ({ autoRepair: true, ground: false })
+export const defaultOptions = (): SeteukOptions => ({ autoRepair: true, ground: false, parallel: 0 })
+
+/** 동시 요청 수 고르개 — 0 은 자동 */
+export const SETEUK_PARALLEL: { value: number; label: string }[] = [
+  { value: 0, label: '자동' },
+  { value: 1, label: '1명씩' },
+  { value: 2, label: '2명씩' },
+  { value: 3, label: '3명씩' }
+]
+
+/** 실제로 동시에 받을 학생 수 — 자동이면 Gemini 는 호출 한도에 잘 걸려 2명, 그 밖은 3명 */
+export function parallelWidth(o: Pick<SeteukOptions, 'parallel'>, provider: string): number {
+  const n = Math.floor(Number(o.parallel) || 0)
+  if (n >= 1 && n <= 3) return n
+  return provider === 'gemini' ? 2 : 3
+}
 
 export function readOptions(raw: string): SeteukOptions {
   let v: unknown
@@ -1056,7 +1073,12 @@ export function readOptions(raw: string): SeteukOptions {
   }
   const o = (v && typeof v === 'object' && !Array.isArray(v) ? v : {}) as Record<string, unknown>
   const d = defaultOptions()
-  return { autoRepair: typeof o.autoRepair === 'boolean' ? o.autoRepair : d.autoRepair, ground: typeof o.ground === 'boolean' ? o.ground : d.ground }
+  const par = Math.floor(Number(o.parallel))
+  return {
+    autoRepair: typeof o.autoRepair === 'boolean' ? o.autoRepair : d.autoRepair,
+    ground: typeof o.ground === 'boolean' ? o.ground : d.ground,
+    parallel: par >= 0 && par <= 3 ? par : d.parallel
+  }
 }
 
 /** 고쳐 쓸 만한지 — 분량 초과 · 기재 금지 · 어미 같은 '고침'이 하나라도 있으면 */
