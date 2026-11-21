@@ -37,7 +37,7 @@ const p = S.buildSeteukPrompt(act)
 ok(!p.includes('# 피할 표현') && !p.includes('# 서술 관점과 역량') && !p.includes('계기(수업 속 질문)'), '끈 칸은 빠짐')
 ok(p.includes('- 한 문장은 80자를 넘기지 않는다\n- 수업 차시를 밝히지 않는다') && p.indexOf('수업 차시') < p.indexOf('# 학생부 기재 금지사항'), '더한 규칙은 서술 규칙 끝에 한 줄씩')
 ok(p.includes('- 선생님이 정한 금지어: 열정적, 솔선수범'), '내 금지어는 기재 금지사항에')
-ok(['# 역할', '# 서술 규칙', '# 학생부 기재 금지사항', '# 분량', '# 출력'].every((h) => p.includes(h)), '기재요령의 틀(서술 규칙 · 금지사항 · 분량 · 출력)은 늘 있음')
+ok(['# 배경', '# 서술 규칙', '# 학생부 기재 금지사항', '# 분량', '# 출력'].every((h) => p.includes(h)), '기재요령의 틀(서술 규칙 · 금지사항 · 분량 · 출력)은 늘 있음')
 ok(S.buildSeteukPrompt(act, { config: S.defaultConfig() }).includes('# 피할 표현'), '설정을 넘겨 미리 보기')
 S.setSeteukConfig(S.defaultConfig())
 

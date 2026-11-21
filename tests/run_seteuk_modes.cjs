@@ -53,7 +53,7 @@ global.fetch = async (url, opts = {}) => {
 
   console.log('\n4. 키 없이 — 요청 글')
   let q = await call('seteuk:request', 'demo_club', '3-21')
-  ok(q.ok && q.text.startsWith('# 역할') && q.text.includes('[학생 자료]') && !q.text.includes('차은호') && !q.text.includes('강하늘') && q.text.includes('학생'), '규칙 + 이름을 가린 관찰 기록')
+  ok(q.ok && q.text.startsWith('# 배경') && q.text.includes('[학생 자료]') && !q.text.includes('차은호') && !q.text.includes('강하늘') && q.text.includes('학생'), '규칙 + 이름을 가린 관찰 기록')
   q = await call('seteuk:request', 'demo_club', '5-4')
   ok(!q.ok && /관찰 기록/.test(q.error), `관찰 기록이 없으면: ${q.error}`)
   ok(!(await call('seteuk:request', '없는활동', '3-21')).ok, '없는 활동')

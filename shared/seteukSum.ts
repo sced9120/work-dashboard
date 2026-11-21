@@ -4,7 +4,7 @@
  * 규칙은 세특 시트(Prompt-Master)의 80_Compile · 13_Equity · 38_Desk 와 같다. electron 도 DOM 도 쓰지 않는다.
  */
 import { SETEUK_COMMON } from './seteukRules'
-import { SETEUK_RECORDS, buildRole, byteLen, recordOf } from './seteuk'
+import { SETEUK_RECORDS, buildBackground, byteLen, recordOf } from './seteuk'
 import type { SeteukActivity, SeteukRecord, SeteukRows } from './seteuk'
 import type { ModelChoice } from './types'
 
@@ -113,7 +113,7 @@ export function compressPrompt(rec: SeteukRecord): string {
   const bytes = rec.chars * 3
   const P: string[] = []
   // 과목은 넣지 않는다 — 여러 활동을 모은 글이라 '여러 교과를 …' 로 읽힌다
-  P.push('# 역할\n' + buildRole(rec, ''))
+  P.push(buildBackground(rec, ''))
   P.push(
     `# 과제\n여러 활동에서 작성된 특기사항 문장들이 주어진다. 이를 중복 없이 하나의 ${rec.name}으로 통합한다.\n` +
       '- 내용을 새로 지어내지 않는다. 주어진 문장에 있는 사실만 쓴다.\n' +

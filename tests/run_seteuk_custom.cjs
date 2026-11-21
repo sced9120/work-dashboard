@@ -40,7 +40,7 @@ const BAD = '지역 통계 대회에서 장려상을 받음.'
   const sys = log[0].body.messages[0].content
   ok(r.ok && r.written === 1 && log.length === 1, '초안을 받음')
   ok(sys === '나의 지침: 함수 탐구은 600바이트(200자) 이내로 쓴다. 학생1 이름을 예로 들지 않는다.', `자리표시자는 값으로, 직접 쓴 글의 학생 이름은 가명으로: ${sys.slice(0, 80)}`)
-  ok(!sys.includes('# 역할') && !sys.includes('# 학생부 기재 금지사항'), '기본 구조(역할 · 금지사항 …)는 쓰지 않음')
+  ok(!sys.includes('# 배경') && !sys.includes('# 학생부 기재 금지사항'), '기본 구조(배경 · 금지사항 …)는 쓰지 않음')
   ok(!JSON.stringify(log.map((e) => e.body)).includes('가나다'), '어느 요청에도 실제 이름은 없음')
 
   console.log('\n3. 생성 뒤 검사 · 자동 고쳐쓰기는 그대로')
@@ -57,7 +57,7 @@ const BAD = '지역 통계 대회에서 장려상을 받음.'
   script = [answer(GOOD)]
   await call('seteuk:write', { job: 'c3', actId: 'a1', ids: ['1-1'] })
   const sys2 = log[0].body.messages[0].content
-  ok(sys2.includes('# 역할') && sys2.includes('# 학생부 기재 금지사항') && !sys2.includes('나의 지침'), '스위치를 끄면 기본 구조 (쓴 글은 남아 있음)')
+  ok(sys2.includes('# 배경') && sys2.includes('# 학생부 기재 금지사항') && !sys2.includes('나의 지침'), '스위치를 끄면 기본 구조 (쓴 글은 남아 있음)')
   a = (await call('seteuk:load')).acts.find((x) => x.id === 'a1')
   ok(a.customPrompt === CUSTOM && !a.customOn, '끈 뒤에도 글은 저장돼 있음')
 

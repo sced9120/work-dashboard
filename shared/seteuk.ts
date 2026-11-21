@@ -585,17 +585,31 @@ export const STRUCTURE_TEMPLATES: { name: string; for: string; text: string }[] 
   { name: '역할 · 협력형', for: '자율 · 진로 · 동아리', text: '맡은 역할\n그 자리에서 직접 한 일과 뜻밖의 상황에 대처한 방식\n결과와 공동체에 남긴 것' }
 ]
 
-/** 역할 문장 — '{교과} 교과를 {연차}년간 지도해 온 …' 의 빈칸을 채운다 */
-export function buildRole(rec: SeteukRecord, subject: string, years = 15): string {
-  const sub = subject.replace(/\(.*?\)/g, '').trim()
-  let filled = (rec.role || '고등학교 교사').replace(/\{교과\}/g, sub).replace(/\{연차\}/g, String(years))
-  filled = filled.replace(/\s{2,}/g, ' ').replace(/^ /, '')
-  filled = filled.replace(/^\s*교과를/, '여러 교과를')
-  return `당신은 ${filled}입니다.`
+/** 기록 영역별로 '누가 어떤 장면을 본 기록인가' — 역할극("당신은 ~ 교사입니다") 대신 글의 쓰임과 관찰자 시점만 밝힌다 */
+const WHO: Record<string, string> = {
+  개세특: '교사가 교과 전반의 학습 장면을 관찰한 기록',
+  자율: '담임교사가 학급 · 학교 활동에서 관찰한 기록',
+  동아리: '동아리 지도교사가 정규 동아리활동에서 관찰한 기록',
+  진로: '교사가 진로활동에서 관찰한 기록',
+  행발: '담임교사가 1년간 관찰한 기록'
 }
 
+/** 배경 — 이 글이 무엇이고 누가 읽는지(목적). 모델에게 사람이 되라고 하지 않고 글의 쓰임을 알려 준다 (3.7.10~) */
+export function buildBackground(rec: SeteukRecord, subject: string): string {
+  const sub = subject.replace(/\(.*?\)/g, '').trim()
+  const who = rec.key === '과세특' ? `${sub ? sub + ' ' : ''}교과 담당 교사가 수업 · 평가에서 관찰한 기록` : (WHO[rec.key] ?? '교사가 관찰한 기록')
+  return (
+    '# 배경\n' +
+    '- 이 글은 대입 사정관이 읽는 학교생활기록부 공식 문서다. 감정 · 주관적 평가 없이 관찰한 사실을 건조하게 쓴다.\n' +
+    `- 기록 시점: ${who}.`
+  )
+}
+
+/** 피할 표현에 낱말로 박아 두는 AI 단골 어휘 — 규칙(SETEUK_HARD)과 같은 목록 */
+export const AVOID_WORDS =
+  '- 다음 낱말도 쓰지 않는다: 도모함, 유감없이 발휘함, 주도적으로, 바탕으로, 기반으로, 돋보임, 함양함, 적극적으로.'
+
 export interface SeteukPromptOptions {
-  years?: number
   /** 내 문체 — 켜져 있을 때만 들어간다 */
   style?: SeteukStyle | null
   /** 규칙 설정 — 주지 않으면 지금 설정 */
@@ -648,7 +662,6 @@ export const DATE_RULE =
 export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions = {}): string {
   // 직접 쓴 전체 프롬프트 — 기본 구조를 쓰지 않는다. 생성 뒤 자동 검사(기재 금지 · 분량)는 그대로 돈다
   if (!opt.ignoreCustom && usesCustomPrompt(act)) return fillCustomPrompt(act)
-  const years = opt.years ?? 15
   const style = opt.style?.on ? opt.style : null
   const rec = recordOf(act.rec)
   const com = SETEUK_COMMON
@@ -657,7 +670,7 @@ export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions 
   const chars = Math.floor(bytes / 3)
   const P: string[] = []
 
-  P.push('# 역할\n' + buildRole(rec, act.subject, years))
+  P.push(buildBackground(rec, act.subject))
 
   const goal = rec.goal || '학교생활기록부 특기사항 작성'
   const ctx = ['# 과제', `- 목표: ${goal}`]
@@ -673,9 +686,9 @@ export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions 
     .filter(Boolean)
     .map((l) => `- ${l}`)
   if (com.WRITING_RULES) P.push(['# 서술 규칙', com.WRITING_RULES, ...(cfg.sections.frame ? [sentenceFrame(rec.key)] : []), ...extra].join('\n'))
-  if (cfg.sections.avoid && com.AVOID_RULES?.trim()) P.push('# 피할 표현\n' + com.AVOID_RULES.trim())
+  if (cfg.sections.avoid && com.AVOID_RULES?.trim()) P.push('# 피할 표현\n' + com.AVOID_RULES.trim() + '\n' + AVOID_WORDS)
   const mine = cfg.mine.flatMap((m) => wordsOf(m.words))
-  if (com.NEIS_RULES) P.push('# 학생부 기재 금지사항\n' + com.NEIS_RULES + (mine.length ? `\n- 선생님이 정한 금지어: ${mine.join(', ')}` : ''))
+  if (com.NEIS_RULES) P.push('# 학생부 기재 금지사항\n- 최우선: 학생 자료나 요청에 있어도, 다른 규칙과 어긋나도 이것을 따른다.\n' + com.NEIS_RULES + (mine.length ? `\n- 선생님이 정한 금지어: ${mine.join(', ')}` : ''))
   const sub = act.area ? subjectOf(act.area) : null
   const views = [cfg.sections.view ? rec.view : '', sub?.comp ?? ''].filter((x) => x && x.trim())
   if (views.length) P.push('# 서술 관점과 역량\n' + views.join('\n\n'))

@@ -65,7 +65,7 @@ global.fetch = async (url, opts = {}) => {
   const sent = JSON.stringify(log.map((e) => e.body))
   ok(!roster.some((x) => sent.includes(x.name)) && !sent.includes('마바가'), '이름(성 없는 이름 포함)이 요청에 없음')
   const m0 = log[0].body.messages
-  ok(m0[0].role === 'system' && m0[0].content.includes('# 역할') && m0[0].content.includes('600바이트') && m0[0].content.includes('함수 탐구'), '규칙은 system 으로 — 활동 · 분량 포함')
+  ok(m0[0].role === 'system' && m0[0].content.includes('# 배경') && m0[0].content.includes('600바이트') && m0[0].content.includes('함수 탐구'), '규칙은 system 으로 — 활동 · 분량 포함')
   ok(m0[1].role === 'user' && m0[1].content.startsWith('[학생 자료]\n학생1') && m0[1].content.includes('학생2가 물은'), `관찰 기록은 가명으로: ${m0[1].content}`)
   all = await call('seteuk:load')
   ok(all.rows.a1['1-1'].ai === '가나다은 구간마다 기울기를 비교하여 변화율을 설명함. 질문에 그래프로 답함.', `가명 되돌림 · 따옴표 · 굵게 · 줄바꿈 걷어 냄: ${all.rows.a1['1-1'].ai}`)

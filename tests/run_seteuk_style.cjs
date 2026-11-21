@@ -28,7 +28,7 @@ const withEx = S.newActivity('a1', { name: '함수 탐구', rec: '과세특', by
 const style = { on: true, samples: ['예전 글 하나.', '예전 글 둘.'], card: '- 세 문장 안팎\n- ~함 으로 끝맺음' }
 const full = S.buildSeteukPrompt(withEx, { style })
 const heads = (full.match(/^# .+$/gm) || []).map((h) => h.split(' — ')[0].replace(/ \(.*/, ''))
-ok(heads.join(' | ') === '# 역할 | # 과제 | # 서술 규칙 | # 피할 표현 | # 학생부 기재 금지사항 | # 서술 관점과 역량 | # 알맹이 | # 활동 이름 | # 분량 | # 입력 자료 형식 | # 성취수준 반영 | # 문체 예시 | # 예시 | # 내 문체 | # 출력', `차례: ${heads.join(' | ')}`)
+ok(heads.join(' | ') === '# 배경 | # 과제 | # 서술 규칙 | # 피할 표현 | # 학생부 기재 금지사항 | # 서술 관점과 역량 | # 알맹이 | # 활동 이름 | # 분량 | # 입력 자료 형식 | # 성취수준 반영 | # 문체 예시 | # 예시 | # 내 문체 | # 출력', `차례: ${heads.join(' | ')}`)
 ok(full.includes('## 예시1 입력\n관찰 메모: 그래프를 그림\n## 예시1 결과\n그래프를 그려 설명함.') && !full.includes('## 예시2'), '예시 — 입력(한 줄로) · 결과, 빈 예시는 뺌')
 ok(full.includes('학생 자료가 예시 입력보다 적으면 예시보다 짧아도 된다.') && full.includes('## 문체 예시2\n예전 글 둘.') && full.includes('내용·소재는 따르지 말고'), '분량 안내 · 문체 예시는 쓰는 방식만')
 ok(!S.buildSeteukPrompt(withEx, { style: { ...style, on: false } }).includes('문체'), '문체를 끄면 들어가지 않음(예시는 그대로)')

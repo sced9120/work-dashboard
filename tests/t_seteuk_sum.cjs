@@ -35,8 +35,8 @@ ok(M.trimToBytes('가나다라마. 바사아자', 20) === '가나다라마.' && 
 
 console.log('\n3. 압축 규칙')
 const cp = M.compressPrompt(S.recordOf('과세특'))
-ok((cp.match(/^# .+$/gm) || []).join(' | ') === '# 역할 | # 과제 | # 서술 규칙 | # 학생부 기재 금지사항 | # 분량 | # 출력', '조립 순서')
-ok(cp.includes('당신은 여러 교과를 15년간 지도해 온 고등학교 교사입니다.') && !/[{}]/.test(cp), '역할 — 과목 빈칸은 "여러 교과를"')
+ok((cp.match(/^# .+$/gm) || []).join(' | ') === '# 배경 | # 과제 | # 서술 규칙 | # 학생부 기재 금지사항 | # 분량 | # 출력', '조립 순서')
+ok(cp.includes('- 기록 시점: 교과 담당 교사가 수업 · 평가에서 관찰한 기록.') && !cp.includes('당신은') && !/[{}]/.test(cp), '배경 — 역할극 없음')
 ok(cp.includes('하나의 과목별 세부능력 및 특기사항으로 통합') && cp.includes('500자(1500바이트) 이내') && cp.includes('1350바이트 이상'), '과제 · 분량')
 ok(M.compressPrompt(S.recordOf('행발')).includes('300자(900바이트) 이내') && M.compressUser(' 글 ') === '[통합할 문장들]\n글', '행발 한도 · 보내는 글')
 
