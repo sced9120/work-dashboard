@@ -81,8 +81,8 @@ export default function SeteukPromptMaker({ act, style, config, onPatch, onClose
       <div className="stk-maker-cols">
         <div className="stk-maker-edit">
           <div className="stk-custom">
-            <label className="stk-check">
-              <input type="checkbox" checked={custom} onChange={(e) => toggleCustom(e.target.checked)} />
+            <label className="stk-check" style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+              <input type="checkbox" style={{ marginTop: 3, flex: 'none' }} checked={custom} onChange={(e) => toggleCustom(e.target.checked)} />
               <span>프롬프트 전체를 직접 쓰기 <span className="muted">기본 구조(역할 · 서술 규칙 · 금지사항 …) 대신 아래 글을 그대로 AI 에게 보냅니다</span></span>
             </label>
             {custom && (
