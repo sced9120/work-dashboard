@@ -694,6 +694,11 @@ export async function askJson(settings: LocalSettings, override: ModelChoice | u
   return callModel(settings, 'analyze', override, prompt, true)
 }
 
+/** 세특이 지금 쓰게 될 서비스 — 동시에 몇 명씩 받을지 정할 때 쓴다 (3.7.11~) */
+export function seteukProvider(settings: LocalSettings, override: ModelChoice | undefined | null): Provider {
+  return resolveChoice(settings, 'seteuk', override).provider
+}
+
 /** 세특 작성실(shared/seteuk.ts)이 쓰는 한 번 묻기 — 규칙은 system, 이름을 가린 관찰 기록만 user 로 넣어 부른다 */
 export async function askSeteuk(settings: LocalSettings, override: ModelChoice | undefined | null, system: string, user: string, json = false, signal?: AbortSignal): Promise<string> {
   return chatModel(settings, 'seteuk', override, system, [{ role: 'user', content: user }], json, signal)

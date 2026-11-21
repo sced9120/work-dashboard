@@ -231,7 +231,34 @@ export async function geminiTarget(
   return { url: geminiUrl(mode, {}, model, method), headers }
 }
 
-/** Gemini 로 POST — 연결 방식에 맞는 주소 · 머리글로. Vertex 가 401 이면 토큰을 새로 받아 한 번만 다시 */
+/** 잠깐 쉬었다 다시 해 볼 만한 상태 — 호출 한도(429) · 일시적 과부하(503). 3.7.11~ */
+const RETRY_STATUS = new Set([429, 503])
+const RETRY_TIMES = 2
+
+/** 서버가 알려 준 대기(retry-after) 를 따르고, 없으면 2초 → 5초. 0.3초 안쪽으로 흩어 같은 때 몰리지 않게 한다 */
+export function retryWaitMs(res: Pick<Response, 'headers'>, attempt: number): number {
+  const ms = Number(res.headers.get('retry-after-ms'))
+  const s = Number(res.headers.get('retry-after'))
+  const base = ms > 0 ? ms : s > 0 ? s * 1000 : attempt === 0 ? 2000 : 5000
+  return Math.min(base, 8000) + Math.floor(Math.random() * 300)
+}
+
+function sleepAbortable(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new Error('요청을 멈췄습니다.'))
+    const t = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = (): void => {
+      clearTimeout(t)
+      reject(new Error('요청을 멈췄습니다.'))
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+/** Gemini 로 POST — 연결 방식에 맞는 주소 · 머리글로. Vertex 가 401 이면 토큰을 새로 받아 한 번만 다시, 429 · 503 이면 쉬었다 두 번까지 다시 */
 export async function geminiFetch(
   settings: LocalSettings,
   model: string,
@@ -243,15 +270,32 @@ export async function geminiFetch(
     const t = await geminiTarget(settings, model, method, force)
     return httpFetch(t.url, { method: 'POST', headers: t.headers, body, ...(signal ? { signal } : {}) })
   }
-  const res = await go(false)
+  let res = await go(false)
   if (res.status === 401 && geminiModeOf(settings) === 'vertex') {
     await res.text().catch(() => '')
-    return go(true)
+    res = await go(true)
+  }
+  for (let k = 0; k < RETRY_TIMES && RETRY_STATUS.has(res.status); k++) {
+    const wait = retryWaitMs(res, k)
+    await res.text().catch(() => '')
+    await sleepAbortable(wait, signal)
+    res = await go(false)
   }
   return res
 }
 
 /* ---------- 오류 말 ---------- */
+
+/** 구글 오류 본문(JSON)의 message 를 한 줄 160자 안으로. 읽을 수 없으면 '' */
+export function googleReason(text: string): string {
+  try {
+    const j = JSON.parse(text) as { error?: { message?: unknown } } | { error?: { message?: unknown } }[]
+    const m = (Array.isArray(j) ? j[0] : j)?.error?.message
+    return typeof m === 'string' ? m.replace(/\s+/g, ' ').trim().slice(0, 160) : ''
+  } catch {
+    return ''
+  }
+}
 
 /** Vertex · Express 의 HTTP 오류를 한국어로. 이 연결 방식이 아니거나 따로 풀어 줄 말이 없으면 null */
 export function vertexErrorText(mode: GeminiModeName, status: number, text: string): string | null {
@@ -269,6 +313,10 @@ export function vertexErrorText(mode: GeminiModeName, status: number, text: stri
   }
   if (status === 403) return `${label} 오류: 이 서비스 계정에 Vertex AI 사용자 역할(roles/aiplatform.user)이 있는지 확인해 주세요.`
   if (status === 404) return `${label} 오류: 이 모델이 고른 위치(global/리전)에서 지원되는지 확인해 주세요. (${t.slice(0, 200)})`
-  if (status === 429 || /RESOURCE_EXHAUSTED/.test(t)) return `${label} 오류: 할당량 초과 — 잠시 후 다시 시도해 주세요.`
+  if (status === 429 || /RESOURCE_EXHAUSTED/.test(t)) {
+    // 구글이 알려 준 까닭을 짧게 붙인다 — '프로젝트 할당량'인지 '서버가 붐벼서(동적 공유)'인지 가리는 단서 (3.7.11~)
+    const why = googleReason(t)
+    return `${label} 오류: 할당량 초과 — 잠시 후 다시 시도해 주세요.${why ? ` (구글 응답: ${why})` : ''}`
+  }
   return null
 }

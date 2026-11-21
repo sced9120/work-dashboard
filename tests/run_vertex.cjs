@@ -148,10 +148,13 @@ function walk(dir, out = []) {
     [404, { error: { code: 404, message: 'Publisher Model was not found', status: 'NOT_FOUND' } }, '위치'],
     [429, { error: { code: 429, message: 'Quota exceeded', status: 'RESOURCE_EXHAUSTED' } }, '할당량 초과']
   ]
+  // 429 는 쉬었다 두 번까지 다시 받는다(3.7.11~) — 시험에서는 서버가 알려 주는 대기를 20ms 로 줄여 빨리 돈다
+  const slow429 = (body) => () => new Response(JSON.stringify(body), { status: 429, headers: { 'content-type': 'application/json', 'retry-after-ms': '20' } })
   for (const [st, body, want] of cases) {
-    script = [errJson(st, body)]
+    script = st === 429 ? [slow429(body), slow429(body), slow429(body)] : [errJson(st, body)]
     const r = await chat('오류')
     ok(!r.ok && r.error.includes(want) && !r.error.includes('API 키가 올바르지'), `${st}: ${r.error.slice(0, 80)}`)
+    if (st === 429) ok(r.error.includes('구글 응답: Quota exceeded'), '429 는 구글이 알려 준 까닭을 붙임')
   }
   script = [errJson(403, cases[0][1])]
   const rd = await chat('오류')
