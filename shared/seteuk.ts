@@ -511,7 +511,8 @@ const FRAME_ROLE = [
 const FRAME_BEHAVIOR = [
   '- 행동 특성은 여러 장면에서 되풀이해 본 행동으로 쓰고, 한 번 있었던 일로 단정하지 않는다. 부족했던 점은 그 뒤 달라진 행동과 함께 쓴다.'
 ]
-const FRAME_END = '- 문장은 학생이 한 일이나 낸 결론으로 끝맺는다.'
+const FRAME_END =
+  '- 문장은 학생이 한 일이나 낸 결론으로 끝맺는다.\n- 한 문장에 연결어미(-하고, -하며, -하여)를 두 번 넘게 잇지 않고 짧은 단문으로 끊는다.'
 
 /** 알맹이 — 매끄러운 문장보다 메모 속 구체적인 내용이 글에 남게 (3.7.6~) */
 export const SUBSTANCE_RULES =
@@ -659,7 +660,7 @@ export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions 
     )
   }
   const request = lines(act.request ?? '')
-  if (request.length) P.push('# 선생님 요청사항\n' + request.map((l) => `- ${l}`).join('\n') + '\n- 위의 기재 금지사항과 어긋나면 금지사항을 따른다.')
+  if (request.length) P.push('# 선생님 요청사항\n' + request.map((l) => `- ${l}`).join('\n') + '\n- 위의 기재 금지사항과 어긋나면 금지사항을 따른다.\n- 요청사항이 학생 자료에 뒷받침이 없으면 그 문장은 쓰지 않는다(지어내지 않는다). 우선순위: 기재 금지사항 > 학생 자료의 사실 > 요청사항.')
 
   const len = ['# 분량']
   if (bytes < recBytes) {
@@ -741,7 +742,28 @@ export function cleanSeteuk(raw: string): string {
 
 /* ---------- 검사 ---------- */
 
-const ALL_RULES: SeteukRule[] = [...SETEUK_BANNED, ...SETEUK_FORMAT, ...SETEUK_AI_TELL]
+/**
+ * 선생님 지침의 금지어 — 시트 규칙(seteukRules.ts)에 없거나 '확인'으로만 알리던 것.
+ * 'block' 이라 자동 고쳐쓰기(needsRepair)가 걸린다. 설정 화면에서 끌 수 있다.
+ * (seteukRules.ts 는 시트에서 뽑는 파일이라 여기에 따로 둔다)
+ */
+export const SETEUK_HARD: SeteukRule[] = [
+  {
+    level: 'block',
+    label: '금지어(지침)',
+    re: '도모(함|하였|했|하여|하는)|유감없이|시너지|(?<![가-힣])주도적|바탕으로|기반으로|돋보(임|이|였|인)|함양(함|하였|했)|탁월|기대(됨|되며|된다)|엿볼 수',
+    why: '선생님 지침 금지어 — 평가어 대신 학생이 한 행동을 동사로 쓴다'
+  },
+  {
+    level: 'block',
+    label: '연결어미 나열',
+    re: '(하고|하며|하여|하면서|해서)[^.]{0,60}(하고|하며|하여|하면서|해서)',
+    fix: '두 문장으로 나누기',
+    why: '선생님 지침 — 한 문장에 연결어미를 잇지 않고 단문으로 끊음'
+  }
+]
+
+const ALL_RULES: SeteukRule[] = [...SETEUK_BANNED, ...SETEUK_FORMAT, ...SETEUK_AI_TELL, ...SETEUK_HARD]
 
 /* ---------- 내 규칙 설정 — 금지어 · 검사 · 쓰는 규칙을 선생님이 고르기 ---------- */
 
@@ -826,7 +848,8 @@ export function activeRules(c: SeteukConfig = CONFIG): SeteukRule[] {
 export const RULE_GROUPS: { key: string; name: string; desc: string; rules: SeteukRule[] }[] = [
   { key: 'neis', name: '기재 금지', desc: '2026 기재요령에서 학생부에 쓰지 못하게 한 것', rules: SETEUK_BANNED },
   { key: 'format', name: '형식', desc: '어미 · 학생 주어 · 특수문자 · 줄바꿈 · 한자 · 영문 · 문단 번호', rules: SETEUK_FORMAT },
-  { key: 'ai', name: 'AI 말투', desc: 'AI 글에 흔한 번역투 · 상투어 — 확인으로만 알린다', rules: SETEUK_AI_TELL }
+  { key: 'ai', name: 'AI 말투', desc: 'AI 글에 흔한 번역투 · 상투어 — 확인으로만 알린다', rules: SETEUK_AI_TELL },
+  { key: 'hard', name: '지침 금지어', desc: '블랙리스트 단어 · 연결어미 나열 — 걸리면 자동으로 고쳐 쓴다', rules: SETEUK_HARD }
 ]
 
 /** 분량 · 기재 금지 · 형식 · AI 말투 · 맞춤법 — block 이 하나라도 있으면 ok 가 아니다 */
@@ -979,7 +1002,7 @@ export interface SeteukOptions {
   ground: boolean
 }
 export const SETEUK_OPTIONS_KEY = 'seteuk_options'
-export const defaultOptions = (): SeteukOptions => ({ autoRepair: true, ground: false })
+export const defaultOptions = (): SeteukOptions => ({ autoRepair: true, ground: true })
 
 export function readOptions(raw: string): SeteukOptions {
   let v: unknown
