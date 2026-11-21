@@ -517,8 +517,8 @@ const FRAME_ROLE = [
 const FRAME_BEHAVIOR = [
   '- 행동 특성은 여러 장면에서 되풀이해 본 행동으로 쓰고, 한 번 있었던 일로 단정하지 않는다. 부족했던 점은 그 뒤 달라진 행동과 함께 쓴다.'
 ]
-const FRAME_END =
-  '- 문장은 학생이 한 일이나 낸 결론으로 끝맺는다.\n- 한 문장에 연결어미(-하고, -하며, -하여)를 두 번 넘게 잇지 않고 짧은 단문으로 끊는다.'
+const FRAME_SHORT = '- 한 문장에 연결어미(-하고, -하며, -하여)를 두 번 넘게 잇지 않고 짧은 단문으로 끊는다.'
+const FRAME_END = '- 문장은 학생이 한 일이나 낸 결론으로 끝맺는다.'
 
 /** 알맹이 — 매끄러운 문장보다 메모 속 구체적인 내용이 글에 남게 (3.7.6~) */
 export const SUBSTANCE_RULES =
@@ -547,7 +547,7 @@ export function activityNameRule(act: Pick<SeteukActivity, 'name' | 'nameInText'
 export function sentenceFrame(recKey: string): string {
   const k = String(recKey || '')
   const lines = k === '행발' ? FRAME_BEHAVIOR : k === '자율' || k === '진로' ? FRAME_ROLE : FRAME_STUDY
-  return [...lines, FRAME_END].join('\n')
+  return [...lines, FRAME_SHORT, FRAME_END].join('\n')
 }
 
 function amountLines(amount: SeteukAmount, bytes: number, fill: number): string[] {
@@ -1032,7 +1032,7 @@ export interface SeteukOptions {
   ground: boolean
 }
 export const SETEUK_OPTIONS_KEY = 'seteuk_options'
-export const defaultOptions = (): SeteukOptions => ({ autoRepair: true, ground: true })
+export const defaultOptions = (): SeteukOptions => ({ autoRepair: true, ground: false })
 
 export function readOptions(raw: string): SeteukOptions {
   let v: unknown
