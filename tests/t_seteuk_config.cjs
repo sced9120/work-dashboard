@@ -11,7 +11,7 @@ ok(d.off.length === 0 && d.mine.length === 0 && d.sections.avoid && d.sections.f
 const bad = S.readConfig(JSON.stringify({ off: ['없는 규칙', S.RULE_GROUPS[0].rules[0].re], mine: [{ words: ' 열정적 ', level: 'x' }, { words: '' }], sections: { avoid: false }, extra: 5 }))
 ok(bad.off.length === 1 && bad.mine.length === 1 && bad.mine[0].level === 'check' && bad.mine[0].words === '열정적' && !bad.sections.avoid && bad.sections.frame && bad.extra === '5', '모르는 규칙 · 빈 금지어는 버리고 틀린 값은 기본값')
 ok(S.readConfig('망가짐').sections.view === true, '망가진 설정')
-ok(S.RULE_GROUPS.map((g) => g.key).join() === 'neis,format,ai' && S.RULE_GROUPS.every((g) => g.rules.length > 0), '기본 검사 세 묶음')
+ok(S.RULE_GROUPS.map((g) => g.key).join() === 'neis,format,ai,hard' && S.RULE_GROUPS.every((g) => g.rules.length > 0), '기본 검사 네 묶음')
 
 console.log('\n2. 검사')
 const text = '학급 회의에서 리더십을 발휘함. 토익 점수를 말함. 이를 통해 협력함.'

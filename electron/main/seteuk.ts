@@ -284,7 +284,7 @@ function rulesFor(act: SeteukActivity, names: SeteukStudent[]): { system: string
   }
   const raw = seteukStyle()
   const style: SeteukStyle = raw.on ? { on: true, samples: raw.samples.map((t, i) => hide(t, `문체 예시 ${i + 1}`)), card: hide(raw.card, '내 문체 카드') } : raw
-  const masked: SeteukActivity = { ...act, examples: act.examples.map((e, i) => ({ note: hide(e.note, `예시 ${i + 1}의 입력 칸`), result: hide(e.result, `예시 ${i + 1}의 결과 칸`) })) }
+  const masked: SeteukActivity = { ...act, ...(act.customPrompt ? { customPrompt: hide(act.customPrompt, '직접 쓴 프롬프트') } : {}), examples: act.examples.map((e, i) => ({ note: hide(e.note, `예시 ${i + 1}의 입력 칸`), result: hide(e.result, `예시 ${i + 1}의 결과 칸`) })) }
   return { system: buildSeteukPrompt(masked, { style }), style, leaks }
 }
 

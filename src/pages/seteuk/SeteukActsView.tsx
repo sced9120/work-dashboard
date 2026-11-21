@@ -19,6 +19,7 @@ import {
   SETEUK_MODES,
   SETEUK_RECORDS,
   buildSeteukPrompt,
+  usesCustomPrompt,
   byteLen,
   checkBadge,
   emptyRosters,
@@ -166,7 +167,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
               {act && rec && (
                 <div className="stk-actbar">
                   <span className="small">
-                    <b>{rec.key}</b> · 한도 {limit}바이트(한글 약 {Math.floor(limit / 3)}자) · 분량 {act.fill}%{act.amount === '메모만큼' ? ' · 짧은 메모는 짧게' : ''}{act.structure.trim() ? ' · 구성 있음' : ''}
+                    <b>{rec.key}</b> · 한도 {limit}바이트(한글 약 {Math.floor(limit / 3)}자) · 분량 {act.fill}%{act.amount === '메모만큼' ? ' · 짧은 메모는 짧게' : ''}{act.structure.trim() ? ' · 구성 있음' : ''}{usesCustomPrompt(act) ? ' · 직접 쓴 프롬프트' : ''}
                     {act.subject ? ` · ${act.subject}` : ''}
                   </span>
                   <span className="spacer" />

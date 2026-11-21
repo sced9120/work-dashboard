@@ -63,6 +63,10 @@ export interface SeteukActivity {
   area: string
   /** 글에 활동 이름을 넣을지 — 기본 켬(false 일 때만 끔). 예: '통계 포스터 발표에서 …' (3.7.6~) */
   nameInText?: boolean
+  /** 프롬프트 전체를 직접 쓰는지 — 켜고 customPrompt 가 있으면 기본 구조(역할 · 규칙 · 금지사항 …) 대신 그 글을 그대로 쓴다. 끄면 글은 남겨 둔다 */
+  customOn?: boolean
+  /** 직접 쓴 전체 프롬프트. {{한도바이트}} {{한도글자}} {{기록항목}} {{활동이름}} {{활동개요}} 자리표시자를 쓸 수 있다 */
+  customPrompt?: string
   /** 이 활동의 예시 — 관찰 기록과 그것으로 쓴 글. 초안이 이 표현 방식과 흐름을 따른다 (앞에서 SETEUK_EXAMPLE_MAX 개까지) */
   examples: SeteukExample[]
 }
@@ -216,6 +220,8 @@ export function readActs(raw: string): SeteukActivity[] {
       columns: readColumns(x.columns),
       area: SETEUK_SUBJECTS.some((sub) => sub.key === x.area) ? str(x.area) : '',
       ...(x.nameInText === false ? { nameInText: false } : {}),
+      ...(x.customOn === true ? { customOn: true } : {}),
+      ...(str(x.customPrompt).trim() ? { customPrompt: str(x.customPrompt).slice(0, 20000) } : {}),
       examples: (Array.isArray(x.examples) ? (x.examples as Record<string, unknown>[]) : [])
         .map((e) => ({ note: str(e?.note).trim(), result: str(e?.result).trim() }))
         .filter((e) => e.result)
@@ -594,6 +600,28 @@ export interface SeteukPromptOptions {
   style?: SeteukStyle | null
   /** 규칙 설정 — 주지 않으면 지금 설정 */
   config?: SeteukConfig
+  /** true 면 직접 쓴 프롬프트가 있어도 무시하고 기본 구조로 만든다('기본 프롬프트로 시작'에 쓴다) */
+  ignoreCustom?: boolean
+}
+
+export const CUSTOM_PLACEHOLDERS = ['{{한도바이트}}', '{{한도글자}}', '{{기록항목}}', '{{활동이름}}', '{{활동개요}}'] as const
+
+/** 이 활동이 직접 쓴 전체 프롬프트를 쓰는지 */
+export const usesCustomPrompt = (act: Pick<SeteukActivity, 'customOn' | 'customPrompt'>): boolean => !!(act.customOn && act.customPrompt?.trim())
+
+/** 직접 쓴 프롬프트의 자리표시자를 이 활동의 값으로 채운다 */
+export function fillCustomPrompt(act: SeteukActivity): string {
+  const bytes = limitOf(act)
+  const vals: Record<string, string> = {
+    '{{한도바이트}}': String(bytes),
+    '{{한도글자}}': String(Math.floor(bytes / 3)),
+    '{{기록항목}}': recordOf(act.rec).name,
+    '{{활동이름}}': act.name.trim(),
+    '{{활동개요}}': act.desc.trim().replace(/\n/g, ' ')
+  }
+  let t = (act.customPrompt ?? '').trim()
+  for (const k of CUSTOM_PLACEHOLDERS) t = t.split(k).join(vals[k])
+  return t
 }
 
 /** 이 활동의 예시 글 (앞에서 다섯 개) */
@@ -618,6 +646,8 @@ export const DATE_RULE =
 
 /** 규칙 묶음(시스템 프롬프트). 학생 자료는 seteukUser 로 따로 붙인다 */
 export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions = {}): string {
+  // 직접 쓴 전체 프롬프트 — 기본 구조를 쓰지 않는다. 생성 뒤 자동 검사(기재 금지 · 분량)는 그대로 돈다
+  if (!opt.ignoreCustom && usesCustomPrompt(act)) return fillCustomPrompt(act)
   const years = opt.years ?? 15
   const style = opt.style?.on ? opt.style : null
   const rec = recordOf(act.rec)
@@ -757,9 +787,9 @@ export const SETEUK_HARD: SeteukRule[] = [
   {
     level: 'block',
     label: '연결어미 나열',
-    re: '(하고|하며|하여|하면서|해서)[^.]{0,60}(하고|하며|하여|하면서|해서)',
+    re: '(하고|하며|하여|하면서|해서)[^.]{0,60}(하고|하며|하여|하면서|해서)[^.]{0,60}(하고|하며|하여|하면서|해서)',
     fix: '두 문장으로 나누기',
-    why: '선생님 지침 — 한 문장에 연결어미를 잇지 않고 단문으로 끊음'
+    why: '선생님 지침 — 한 문장에 연결어미(-하고 · -하며 · -하여)를 세 번 이상 잇지 않고 단문으로 끊음'
   }
 ]
 

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { STRUCTURE_TEMPLATES, buildSeteukPrompt, limitOf } from '../../shared/seteuk'
+import { CUSTOM_PLACEHOLDERS, STRUCTURE_TEMPLATES, buildSeteukPrompt, limitOf, usesCustomPrompt } from '../../shared/seteuk'
 import type { SeteukActivity, SeteukConfig, SeteukStyle } from '../../shared/seteuk'
 import SeteukFill from './SeteukFill'
 import { useToast } from '../lib/toast'
@@ -35,6 +35,14 @@ export default function SeteukPromptMaker({ act, style, config, onPatch, onClose
     [prompt]
   )
   const limit = limitOf(act)
+  const custom = usesCustomPrompt(act)
+
+  /** 스위치를 켠다 — 쓴 글이 없으면 지금의 기본 프롬프트를 채워 시작한다 */
+  const toggleCustom = (on: boolean): void => {
+    if (!on) return onPatch({ customOn: false })
+    const seed = act.customPrompt?.trim() ? act.customPrompt : buildSeteukPrompt(act, { style, config, ignoreCustom: true })
+    onPatch({ customOn: true, customPrompt: seed })
+  }
 
   const copyGem = async (): Promise<void> => {
     const r = await window.api.seteuk.gemText(act.id)
@@ -72,6 +80,40 @@ export default function SeteukPromptMaker({ act, style, config, onPatch, onClose
 
       <div className="stk-maker-cols">
         <div className="stk-maker-edit">
+          <div className="stk-custom">
+            <label className="stk-check">
+              <input type="checkbox" checked={custom} onChange={(e) => toggleCustom(e.target.checked)} />
+              <span>프롬프트 전체를 직접 쓰기 <span className="muted">기본 구조(역할 · 서술 규칙 · 금지사항 …) 대신 아래 글을 그대로 AI 에게 보냅니다</span></span>
+            </label>
+            {custom && (
+              <>
+                <div className="stk-templates">
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => {
+                      if (window.confirm('직접 쓴 글을 지우고 기본 프롬프트로 바꿉니다. 계속할까요?')) onPatch({ customPrompt: buildSeteukPrompt(act, { style, config, ignoreCustom: true }) })
+                    }}
+                  >
+                    기본 프롬프트로 다시 채우기
+                  </button>
+                </div>
+                <textarea
+                  className="stk-maker-custom"
+                  style={{ minHeight: 320 }}
+                  value={act.customPrompt ?? ''}
+                  onChange={(e) => onPatch({ customPrompt: e.target.value })}
+                  aria-label="직접 쓴 전체 프롬프트"
+                />
+                <p className="small muted">
+                  쓸 수 있는 자리표시자: {CUSTOM_PLACEHOLDERS.join(' ')} — 보낼 때 이 활동의 값으로 바뀝니다. 학생 자료는 프롬프트와 따로 붙으니 넣지 않습니다.
+                  글을 지워도 스위치를 끄면 기본 구조로 돌아가고, 쓴 글은 남아 있습니다. 생성 뒤의 기재 금지 · 분량 검사와 자동 고쳐쓰기는 그대로 돕니다.
+                </p>
+              </>
+            )}
+          </div>
+
+          <fieldset disabled={custom} style={{ border: 0, padding: 0, margin: 0, opacity: custom ? 0.45 : 1 }}>
           <label>
             <span>활동 개요 — 무엇을 한 수업 · 활동인지</span>
             <textarea value={act.desc} onChange={(e) => onPatch({ desc: e.target.value })} placeholder="예: 실생활 자료로 함수의 그래프를 그리고 변화율을 설명하는 모둠 탐구 3차시" />
@@ -114,6 +156,8 @@ export default function SeteukPromptMaker({ act, style, config, onPatch, onClose
           </label>
 
           <SeteukFill fill={act.fill} limit={limit} short={act.amount === '메모만큼'} onFill={(v) => onPatch({ fill: v })} onShort={(v) => onPatch({ amount: v ? '메모만큼' : '보통' })} />
+
+          </fieldset>
 
           <div className="stk-export">
             <span className="stk-style-label">
@@ -162,12 +206,19 @@ export default function SeteukPromptMaker({ act, style, config, onPatch, onClose
         </div>
 
         <div className="stk-maker-view" aria-label="AI 에게 가는 프롬프트">
-          {parts.map((p, i) => (
-            <section key={i} className={`stk-maker-part ${p.mine ? 'mine' : 'locked'}`}>
-              <span className="stk-maker-tag">{p.mine ? '선생님 칸' : '기재요령 틀 · 고정'}</span>
-              <pre>{p.body}</pre>
+          {custom ? (
+            <section className="stk-maker-part mine">
+              <span className="stk-maker-tag">직접 쓴 프롬프트 · 기본 구조 사용 안 함</span>
+              <pre>{prompt}</pre>
             </section>
-          ))}
+          ) : (
+            parts.map((p, i) => (
+              <section key={i} className={`stk-maker-part ${p.mine ? 'mine' : 'locked'}`}>
+                <span className="stk-maker-tag">{p.mine ? '선생님 칸' : '기재요령 틀 · 고정'}</span>
+                <pre>{p.body}</pre>
+              </section>
+            ))
+          )}
         </div>
       </div>
     </div>

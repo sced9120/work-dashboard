@@ -128,5 +128,19 @@ ok(order.map((g) => g.name + g.count).join() === '1반1,2반2,10반1,미적분A�
 const back = S.readStudents(JSON.stringify([...cur, { id: 'x', cls: '1', no: '1', name: '하나', group: 'g'.repeat(40), hakbun: '20-315a' }]))
 ok(back.length === cur.length + 1 && back.find((s) => s.id === '3-1@미적분A반').group === '미적분A반' && back[back.length - 1].group.length === 30 && back[back.length - 1].hakbun === '20315', '다시 읽기 — 수업반 · 학번을 살림 (길이 · 숫자만)')
 
+console.log('\n직접 쓴 전체 프롬프트')
+{
+  const base = S.newActivity('a1', { name: '통계 포스터 발표', desc: '모둠 통계 포스터', bytes: 1500 })
+  const def = S.buildSeteukPrompt(base)
+  const mine = { ...base, customOn: true, customPrompt: '한도 {{한도바이트}}바이트({{한도글자}}자). {{활동이름}}: {{활동개요}} / {{기록항목}}' }
+  ok(S.buildSeteukPrompt(mine) === '한도 1500바이트(500자). 통계 포스터 발표: 모둠 통계 포스터 / 과목별 세부능력 및 특기사항', '켜면 기본 구조 대신 직접 쓴 글만, 자리표시자는 값으로')
+  ok(S.buildSeteukPrompt({ ...mine, customOn: false }) === def, '끄면 글이 남아 있어도 기본 구조')
+  ok(S.buildSeteukPrompt({ ...mine, customPrompt: '  ' }) === def, '글이 비면 기본 구조')
+  ok(S.buildSeteukPrompt(mine, { ignoreCustom: true }) === def, 'ignoreCustom 은 기본 구조')
+  const back = S.readActs(JSON.stringify([mine, { ...base, id: 'a2' }]))
+  ok(back[0].customOn === true && back[0].customPrompt === mine.customPrompt && back[1].customOn === undefined && back[1].customPrompt === undefined, '저장했다 읽어도 남고, 안 쓴 활동엔 없음')
+  ok(S.usesCustomPrompt(mine) && !S.usesCustomPrompt(base), 'usesCustomPrompt')
+}
+
 console.log(fails ? `\n실패 ${fails}` : '\n모두 통과')
 process.exit(fails ? 1 : 0)
