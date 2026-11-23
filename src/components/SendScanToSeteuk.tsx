@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { MdTable } from '../../shared/mdtable'
-import { planSheetSend } from '../../shared/batchSend'
+import { planNewActFromSheets, planSheetSend } from '../../shared/batchSend'
 import type { SheetSendMode } from '../../shared/batchSend'
-import { modeInfo, modeOfRec } from '../../shared/seteuk'
+import { SETEUK_RECORDS, modeInfo, modeOfRec } from '../../shared/seteuk'
 import type { SeteukActivity, SeteukRosters, SeteukRows } from '../../shared/seteuk'
 import { queueSeteukAct } from '../lib/seteukBridge'
 import { useToast } from '../lib/toast'
@@ -19,6 +19,12 @@ export default function SendScanToSeteuk({ tables, onGo, onClose }: { tables: Md
   const [actId, setActId] = useState('')
   const [mode, setMode] = useState<SheetSendMode>('empty')
   const [busy, setBusy] = useState(false)
+  // 보낼 곳 — 만들어 둔 활동 · 새 활동으로 만들기 (표의 내용 칸이 활동의 입력 항목이 된다)
+  const [target, setTarget] = useState<'exist' | 'new'>('exist')
+  const [newName, setNewName] = useState(() => tables.find((t) => t.title?.trim())?.title.trim() || '스캔한 내용')
+  const [newRec, setNewRec] = useState('과세특')
+  const [newSubject, setNewSubject] = useState('')
+  const [newId] = useState(() => `act_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`)
   const [sent, setSent] = useState<{ actId: string; name: string; n: number } | null>(null)
 
   const load = async (): Promise<void> => {
@@ -33,10 +39,31 @@ export default function SendScanToSeteuk({ tables, onGo, onClose }: { tables: Md
   const act = data?.acts.find((a) => a.id === actId) ?? null
   const students = data && act ? data.rosters[modeOfRec(act.rec)] : []
   const sheets = useMemo(() => tables.map((t) => ({ header: t.header, rows: t.rows })), [tables])
-  const plan = useMemo(() => (data && act ? planSheetSend(sheets, students, act, data.rows[act.id] ?? {}, mode) : null), [data, act, sheets, mode, students])
-  const n = plan ? Object.keys(plan.patch).length : 0
+  const plan = useMemo(() => (target === 'exist' && data && act ? planSheetSend(sheets, students, act, data.rows[act.id] ?? {}, mode) : null), [target, data, act, sheets, mode, students])
+  const newStudents = data ? data.rosters[modeOfRec(newRec)] : []
+  const newPlan = useMemo(
+    () => (target === 'new' && data ? planNewActFromSheets(sheets, newStudents, { id: newId, name: newName, rec: newRec, subject: newSubject }) : null),
+    [target, data, sheets, newStudents, newId, newName, newRec, newSubject]
+  )
+  const n = target === 'new' ? (newPlan ? Object.keys(newPlan.patch).length : 0) : plan ? Object.keys(plan.patch).length : 0
 
   const send = async (): Promise<void> => {
+    if (target === 'new') {
+      if (!data || !newPlan || !n || busy) return
+      setBusy(true)
+      try {
+        // 활동을 먼저 만들어야 그 활동에 글을 넣을 수 있다
+        await window.api.seteuk.saveActs([...data.acts, newPlan.act])
+        await window.api.seteuk.saveRows(newPlan.act.id, newPlan.patch)
+        setSent({ actId: newPlan.act.id, name: newPlan.act.name, n })
+        toast(`새 활동 「${newPlan.act.name}」을 만들고 ${n}명을 넣었습니다`, 'ok')
+        await load()
+      } catch {
+        toast('새 활동을 만들지 못했습니다.', 'err')
+      }
+      setBusy(false)
+      return
+    }
     if (!act || !plan || !n || busy) return
     setBusy(true)
     try {
@@ -76,6 +103,61 @@ export default function SendScanToSeteuk({ tables, onGo, onClose }: { tables: Md
         </>
       ) : (
         <>
+          <div className="row" style={{ gap: 14, flexWrap: 'wrap', marginBottom: 6 }} role="radiogroup" aria-label="보낼 곳">
+            <label className="batch-radio">
+              <input type="radio" checked={target === 'exist'} onChange={() => (setTarget('exist'), setSent(null))} /> 만들어 둔 활동에 넣기
+            </label>
+            <label className="batch-radio">
+              <input type="radio" checked={target === 'new'} onChange={() => (setTarget('new'), setSent(null))} /> 새 활동으로 만들기
+              <span className="muted small"> — 표의 내용 칸이 활동의 입력 항목(칸별)이 됩니다</span>
+            </label>
+          </div>
+          {target === 'new' ? (
+            <>
+              <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+                <label className="small" htmlFor="scan-new-name">
+                  활동 이름
+                </label>
+                <input id="scan-new-name" type="text" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ minWidth: 180 }} />
+                <label className="small" htmlFor="scan-new-rec">
+                  기록 영역
+                </label>
+                <select id="scan-new-rec" value={newRec} onChange={(e) => setNewRec(e.target.value)}>
+                  {SETEUK_RECORDS.map((r) => (
+                    <option key={r.key} value={r.key}>
+                      {r.name} ({modeInfo(modeOfRec(r.key)).name})
+                    </option>
+                  ))}
+                </select>
+                <label className="small" htmlFor="scan-new-subject">
+                  과목
+                </label>
+                <input id="scan-new-subject" type="text" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="(선택)" style={{ width: 110 }} />
+              </div>
+              {newPlan && (
+                <div className="small" style={{ marginTop: 8 }} role="status">
+                  {newPlan.act.columns.length ? (
+                    <div>
+                      입력 항목 {newPlan.act.columns.length}칸: <b>{newPlan.act.columns.join(' · ')}</b>
+                    </div>
+                  ) : (
+                    <div className="muted">내용 칸이 하나뿐이라 관찰 기록 한 칸에 넣습니다.</div>
+                  )}
+                  {newStudents.length === 0 ? (
+                    <div className="note note-warn" style={{ marginTop: 6 }}>
+                      {modeInfo(modeOfRec(newRec)).name} 명단이 비어 있어 학생을 맞출 수 없습니다. 세특 작성실에서 명단을 먼저 넣거나 다른 기록 영역을 고르세요.
+                    </div>
+                  ) : (
+                    <>
+                      <b>{newPlan.matched}명 맞춤</b> · {newPlan.missed.length}명 못 찾음
+                      {newPlan.missed.length > 0 && <div className="muted">못 찾은 줄: {newPlan.missed.join(', ')}</div>}
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+          <>
           <div className="field">
             <label htmlFor="scan-send-act">보낼 활동</label>
             <select id="scan-send-act" value={actId} onChange={(e) => (setActId(e.target.value), setSent(null))}>
@@ -111,9 +193,11 @@ export default function SendScanToSeteuk({ tables, onGo, onClose }: { tables: Md
               </div>
             )
           )}
+          </>
+          )}
           <div className="row" style={{ marginTop: 8 }}>
             <button className="btn btn-primary btn-sm" onClick={() => void send()} disabled={!n || busy}>
-              {n ? `${n}명 보내기` : '보내기'}
+              {target === 'new' ? (n ? `새 활동 만들고 ${n}명 보내기` : '새 활동 만들기') : n ? `${n}명 보내기` : '보내기'}
             </button>
             {sent && (
               <>

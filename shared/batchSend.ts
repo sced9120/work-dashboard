@@ -4,7 +4,7 @@
  * 화면(FolderBatch)과 시험이 함께 쓰는 순수 함수만 둔다.
  */
 import type { BatchRow } from './batch'
-import { joinFields, matchNotes } from './seteuk'
+import { joinFields, matchNoteFields, matchNotes, newActivity } from './seteuk'
 import type { SeteukActivity, SeteukRow, SeteukRows, SeteukSheet, SeteukStudent } from './seteuk'
 
 export interface BatchSendOptions {
@@ -134,4 +134,49 @@ export function planSheetSend(sheets: SeteukSheet[], students: SeteukStudent[], 
     } else patch[h.id] = { note: next }
   }
   return { patch, matched, missed: m.misses.map((x) => x.label), kept }
+}
+
+export interface NewActFromSheetPlan {
+  /** 새로 만들 활동 — 입력 항목(columns)이 표의 내용 칸이다 */
+  act: SeteukActivity
+  patch: Record<string, Partial<SeteukRow>>
+  matched: number
+  missed: string[]
+}
+
+/**
+ * 스캔한 표로 새 활동을 만든다 (3.7.11~). 표의 내용 칸이 둘 이상이면 그 머리글이 활동의 '입력 항목'이 되어
+ * 학생마다 칸별로 나뉘어 들어가고(관찰 기록에는 '항목: 글'로 이어짐), 하나뿐이면 관찰 기록 한 칸에 들어간다.
+ * 기존 활동에 넣을 때 한 칸에 몰리는 것을 피하려는 길이다.
+ */
+export function planNewActFromSheets(
+  sheets: SeteukSheet[],
+  students: SeteukStudent[],
+  spec: { id: string; name: string; rec: string; subject?: string }
+): NewActFromSheetPlan {
+  const m = matchNoteFields(sheets, students)
+  const columns = m.columns.length >= 2 ? m.columns : []
+  const act = newActivity(spec.id, { name: spec.name.trim() || '스캔한 내용', rec: spec.rec, subject: spec.subject?.trim() ?? '', columns, desc: '스캔한 표에서 만든 활동' })
+  const patch: Record<string, Partial<SeteukRow>> = {}
+  for (const h of m.hits) {
+    if (columns.length) patch[h.id] = { fields: h.fields, note: joinFields(columns, h.fields) }
+    else patch[h.id] = { note: Object.values(h.fields).join('\n') }
+  }
+  return { act, patch, matched: m.hits.length, missed: m.misses.map((x) => x.label) }
+}
+
+/**
+ * 폴더째 정리 결과로 새 활동을 만든다. 정리한 항목이 둘 이상이면 활동의 입력 항목이 되고, 세특 초안은 AI 초안 칸으로 간다.
+ */
+export function planNewActFromBatch(
+  rows: BatchRow[],
+  students: SeteukStudent[],
+  items: string[],
+  spec: { id: string; name: string; rec: string; subject?: string },
+  opt: { note: boolean; ai: boolean }
+): NewActFromSheetPlan & { missedRows: string[] } {
+  const columns = items.length >= 2 ? items : []
+  const act = newActivity(spec.id, { name: spec.name.trim() || '스캔한 내용', rec: spec.rec, subject: spec.subject?.trim() ?? '', columns, desc: '문서 스캔 · 정리 결과에서 만든 활동' })
+  const plan = planBatchSend(rows, students, act, {}, items, { note: opt.note, ai: opt.ai, overwrite: false })
+  return { act, patch: plan.patch, matched: plan.matched, missed: plan.missed, missedRows: plan.missed }
 }

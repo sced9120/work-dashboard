@@ -1321,6 +1321,65 @@ export function matchNotes(sheets: SeteukSheet[], students: SeteukStudent[]): Se
   return { hits: [...hits.entries()].map(([id, t]) => ({ id, text: t.join('\n') })), misses }
 }
 
+/** 칸별로 나눈 짝짓기 결과 — columns 는 내용 칸의 머리글(표에 나온 차례), hits 는 학생별 칸 글 */
+export interface SeteukFieldImport {
+  columns: string[]
+  hits: { id: string; fields: Record<string, string> }[]
+  misses: SeteukImportMiss[]
+}
+
+/**
+ * matchNotes 와 같은 규칙으로 학생을 맞추되, 내용 칸을 하나로 잇지 않고 머리글 이름 그대로 나눠 돌려준다 (3.7.11~).
+ * 스캔한 표로 '입력 항목이 칸별로 나뉜 새 활동'을 만들 때 쓴다. 같은 학생의 줄이 여럿이면 칸마다 줄을 바꿔 잇는다.
+ */
+export function matchNoteFields(sheets: SeteukSheet[], students: SeteukStudent[]): SeteukFieldImport {
+  const norm = (c: string): string => c.replace(/\s+/g, '')
+  const byName = (name: string): SeteukStudent | null => {
+    const n = norm(name)
+    const found = n ? students.filter((s) => norm(s.name) === n) : []
+    return found.length === 1 ? found[0] : null
+  }
+  const byNo = (cls: string, no: string): SeteukStudent | null => {
+    if (!no) return null
+    const found = students.filter((s) => s.no === no && (!cls || s.cls === cls))
+    return found.length === 1 ? found[0] : null
+  }
+  const columns: string[] = []
+  const hits = new Map<string, Record<string, string>>()
+  const misses: SeteukImportMiss[] = []
+  for (const sheet of sheets) {
+    const head = sheet.header.map((h) => norm(cellText(h)))
+    const iName = head.findIndex((h) => COL_NAME.test(h))
+    const iNo = head.findIndex((h) => COL_NO.test(h))
+    const iCls = head.findIndex((h) => COL_CLS.test(h))
+    const iHak = head.findIndex((h) => COL_HAK.test(h))
+    const body = head.map((_h, i) => i).filter((i) => ![iName, iNo, iCls, iHak].includes(i) && !COL_SKIP.test(head[i]))
+    if (!body.length || (iName < 0 && iNo < 0 && iHak < 0)) continue
+    const names = body.map((i, k) => cellText(sheet.header[i]) || `항목${k + 1}`)
+    for (const h of names) if (!columns.includes(h)) columns.push(h)
+    for (const r of sheet.rows) {
+      const parts = body.map((i, k) => ({ h: names[k], v: cellText(r[i]) })).filter((p) => p.v)
+      if (!parts.length) continue
+      const name = iName >= 0 ? cellText(r[iName]) : ''
+      let cls = iCls >= 0 ? cleanCls(cellText(r[iCls])) : ''
+      let no = ''
+      const rawNo = cellText(iNo >= 0 ? r[iNo] : '') || cellText(iHak >= 0 ? r[iHak] : '')
+      const hk = /^\d{4,5}$/.test(rawNo.replace(/\D/g, '')) ? splitHakbun(rawNo) : null
+      if (hk) {
+        cls = cls || hk.cls
+        no = hk.no
+      } else if (rawNo) no = cleanNo(rawNo)
+      const st = byName(name) ?? byNo(cls, no)
+      if (st) {
+        const cur = hits.get(st.id) ?? {}
+        for (const p of parts) cur[p.h] = cur[p.h] ? `${cur[p.h]}\n${p.v}` : p.v
+        hits.set(st.id, cur)
+      } else misses.push({ label: [cls && `${cls}반`, no && `${no}번`, name].filter(Boolean).join(' ') || '(이름 · 번호 없음)', text: parts.map((p) => p.v).join(' ') })
+    }
+  }
+  return { columns, hits: [...hits.entries()].map(([id, fields]) => ({ id, fields })), misses }
+}
+
 /**
  * 구글 설문지 응답 시트 → 가져오기 표 (3.7.1~).
  * 설문지 문항은 "학번을 적어 주세요" 처럼 길어서, 머리글에 학번 · 이름 · 반 · 번호가 들어 있으면 그 이름으로 바꾼다.

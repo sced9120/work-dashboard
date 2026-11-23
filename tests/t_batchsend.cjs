@@ -66,5 +66,22 @@ ok(e4.patch['1-1'].note === '발표가 어려웠다', '덮어쓰기')
 const e5 = B.planSheetSend(sheet, sr, { columns: ['주제', '과정'] }, {}, 'empty')
 ok(e5.patch['1-1'].fields['주제'] === '발표가 어려웠다' && e5.patch['1-1'].note === '주제: 발표가 어려웠다', '입력 항목이 여럿이면 첫 칸으로')
 
+console.log('6. 스캔한 표로 새 활동 만들기 (3.7.11~)')
+const multi = [{ header: ['학번', '이름', '탐구 주제', '소감', '비고'], rows: [['10101', '가나다', '급식 잔반', '그래프가 어려웠다', 'x'], ['10102', '라마바', '교통량', '단위를 맞춤', ''], ['10199', '없는애', '무시', '무시', '']] }]
+const n1 = B.planNewActFromSheets(multi, sr, { id: 'act_scan1', name: ' 스캔 활동 ', rec: '과세특', subject: '통계' })
+ok(n1.act.id === 'act_scan1' && n1.act.name === '스캔 활동' && n1.act.rec === '과세특' && n1.act.subject === '통계', '새 활동의 이름 · 영역 · 과목')
+ok(JSON.stringify(n1.act.columns) === JSON.stringify(['탐구 주제', '소감']), `내용 칸이 입력 항목으로 (비고는 뺌): ${n1.act.columns}`)
+ok(n1.matched === 2 && n1.missed.length === 1, '맞춘 학생 · 못 찾은 줄')
+ok(n1.patch['1-1'].fields['탐구 주제'] === '급식 잔반' && n1.patch['1-1'].fields['소감'] === '그래프가 어려웠다' && n1.patch['1-1'].note === '탐구 주제: 급식 잔반\n소감: 그래프가 어려웠다', '학생마다 칸별로 나뉘어 들어감')
+const one = [{ header: ['학번', '이름', '소감'], rows: [['10101', '가나다', '발표가 어려웠다']] }]
+const n2 = B.planNewActFromSheets(one, sr, { id: 'act_scan2', name: '', rec: '자율' })
+ok(n2.act.columns.length === 0 && n2.act.name === '스캔한 내용' && n2.patch['1-1'].note === '발표가 어려웠다' && !n2.patch['1-1'].fields, '내용 칸이 하나면 관찰 기록 한 칸')
+const dup = [{ header: ['이름', '소감', '질문'], rows: [['가나다', 'a', 'q1'], ['가나다', 'b', '']] }]
+const n3 = B.planNewActFromSheets(dup, sr, { id: 'act_scan3', name: 'x', rec: '과세특' })
+ok(n3.patch['1-1'].fields['소감'] === 'a\nb' && n3.patch['1-1'].fields['질문'] === 'q1', '같은 학생의 줄이 여럿이면 칸마다 이어 붙임')
+const rows6 = [{ sid: '10101', name: '가나다', result: { items: { 주제: '가나다 주제', '느낀 점': '가나다 소감' }, seteuk: '가나다 세특' } }]
+const n4 = B.planNewActFromBatch(rows6, sr, ['주제', '느낀 점'], { id: 'act_scan4', name: '폴더 활동', rec: '과세특' }, { note: true, ai: true })
+ok(JSON.stringify(n4.act.columns) === JSON.stringify(['주제', '느낀 점']) && n4.patch['1-1'].fields['주제'] === '가나다 주제' && n4.patch['1-1'].ai === '가나다 세특', '폴더째 정리 결과 → 입력 항목 + 초안')
+
 console.log(fails ? `\n실패 ${fails}` : '\n모두 통과')
 process.exit(fails ? 1 : 0)

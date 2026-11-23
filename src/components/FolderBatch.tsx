@@ -4,8 +4,8 @@ import type { BatchStudent } from '../../shared/batch'
 import { geminiReady } from '../../shared/gemini'
 import { BATCH_DEFAULT_ITEMS, batchTable, lengthOk, seteukLength } from '../../shared/batch'
 import type { BatchOptions, BatchRow } from '../../shared/batch'
-import { planBatchSend } from '../../shared/batchSend'
-import { byteLen, limitOf, modeInfo, modeOfRec } from '../../shared/seteuk'
+import { planBatchSend, planNewActFromBatch } from '../../shared/batchSend'
+import { SETEUK_RECORDS, byteLen, limitOf, modeInfo, modeOfRec } from '../../shared/seteuk'
 import type { SeteukActivity, SeteukRosters, SeteukRows } from '../../shared/seteuk'
 import { queueSeteukAct } from '../lib/seteukBridge'
 import type { PageId } from '../App'
@@ -88,6 +88,12 @@ function SendToSeteuk({ rows, o, onGo, onClose }: { rows: BatchRow[]; o: BatchOp
   const [putAi, setPutAi] = useState(true)
   const [overwrite, setOverwrite] = useState(false)
   const [busy, setBusy] = useState(false)
+  // 보낼 곳 — 만들어 둔 활동 · 새 활동으로 만들기 (정리한 항목이 활동의 입력 항목이 된다)
+  const [target, setTarget] = useState<'exist' | 'new'>('exist')
+  const [newName, setNewName] = useState('스캔한 내용')
+  const [newRec, setNewRec] = useState('과세특')
+  const [newSubject, setNewSubject] = useState('')
+  const [newId] = useState(() => `act_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`)
   const [sent, setSent] = useState<{ actId: string; name: string; n: number } | null>(null)
 
   const load = async (): Promise<void> => {
@@ -108,7 +114,13 @@ function SendToSeteuk({ rows, o, onGo, onClose }: { rows: BatchRow[]; o: BatchOp
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, act, rows, putNote, putAi, overwrite, hasSeteuk, o.items]
   )
-  const n = plan ? Object.keys(plan.patch).length : 0
+  const newStudents = data ? data.rosters[modeOfRec(newRec)] : []
+  const newPlan = useMemo(
+    () => (target === 'new' && data ? planNewActFromBatch(rows, newStudents, items, { id: newId, name: newName, rec: newRec, subject: newSubject }, { note: putNote, ai: putAi && hasSeteuk }) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [target, data, rows, newStudents, newId, newName, newRec, newSubject, putNote, putAi, hasSeteuk, o.items]
+  )
+  const n = target === 'new' ? (newPlan ? Object.keys(newPlan.patch).length : 0) : plan ? Object.keys(plan.patch).length : 0
   // 세특 작성실은 바이트로 센다 — 받는 활동의 한도보다 긴 초안이 몇 명인지 (3.7.6~)
   const limit = act ? limitOf(act) : 0
   const tooLong = putAi && hasSeteuk && limit ? rows.filter((r) => r.result?.seteuk && byteLen(r.result.seteuk) > limit).length : 0
@@ -119,6 +131,22 @@ function SendToSeteuk({ rows, o, onGo, onClose }: { rows: BatchRow[]; o: BatchOp
   }
 
   const send = async (): Promise<void> => {
+    if (target === 'new') {
+      if (!data || !newPlan || !n || busy) return
+      setBusy(true)
+      try {
+        // 활동을 먼저 만들어야 그 활동에 글을 넣을 수 있다
+        await window.api.seteuk.saveActs([...data.acts, newPlan.act])
+        await window.api.seteuk.saveRows(newPlan.act.id, newPlan.patch)
+        setSent({ actId: newPlan.act.id, name: newPlan.act.name, n })
+        toast(`새 활동 「${newPlan.act.name}」을 만들고 ${n}명을 넣었습니다`, 'ok')
+        await load()
+      } catch {
+        toast('새 활동을 만들지 못했습니다.', 'err')
+      }
+      setBusy(false)
+      return
+    }
     if (!act || !plan || !n || busy) return
     setBusy(true)
     try {
@@ -143,7 +171,85 @@ function SendToSeteuk({ rows, o, onGo, onClose }: { rows: BatchRow[]; o: BatchOp
       </div>
       {!data ? (
         <p className="small muted">활동을 불러오는 중…</p>
-      ) : data.acts.length === 0 ? (
+      ) : (
+        <>
+          <div className="row" style={{ gap: 14, flexWrap: 'wrap', marginBottom: 6 }} role="radiogroup" aria-label="보낼 곳">
+            <label className="batch-radio">
+              <input type="radio" checked={target === 'exist'} onChange={() => (setTarget('exist'), setSent(null))} /> 만들어 둔 활동에 넣기
+            </label>
+            <label className="batch-radio">
+              <input type="radio" checked={target === 'new'} onChange={() => (setTarget('new'), setSent(null))} /> 새 활동으로 만들기
+              <span className="muted small"> — 정리한 항목이 활동의 입력 항목(칸별)이 됩니다</span>
+            </label>
+          </div>
+          {target === 'new' ? (
+            <>
+              <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+                <label className="small" htmlFor="fb-new-name">
+                  활동 이름
+                </label>
+                <input id="fb-new-name" type="text" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ minWidth: 180 }} />
+                <label className="small" htmlFor="fb-new-rec">
+                  기록 영역
+                </label>
+                <select id="fb-new-rec" value={newRec} onChange={(e) => setNewRec(e.target.value)}>
+                  {SETEUK_RECORDS.map((r) => (
+                    <option key={r.key} value={r.key}>
+                      {r.name} ({modeInfo(modeOfRec(r.key)).name})
+                    </option>
+                  ))}
+                </select>
+                <label className="small" htmlFor="fb-new-subject">
+                  과목
+                </label>
+                <input id="fb-new-subject" type="text" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="(선택)" style={{ width: 110 }} />
+              </div>
+              <div className="row" style={{ gap: 14, flexWrap: 'wrap', marginTop: 6 }}>
+                <label className="batch-check">
+                  <input type="checkbox" checked={putNote} onChange={(e) => setPutNote(e.target.checked)} /> 정리한 내용 → 관찰 기록
+                </label>
+                <label className="batch-check" title={hasSeteuk ? '' : '이번 분석에는 세특 초안이 없습니다'}>
+                  <input type="checkbox" checked={putAi && hasSeteuk} onChange={(e) => setPutAi(e.target.checked)} disabled={!hasSeteuk} /> 세특 초안 → AI 초안
+                </label>
+              </div>
+              {newPlan && (
+                <div className="small" style={{ marginTop: 8 }} role="status">
+                  {newPlan.act.columns.length ? (
+                    <div>
+                      입력 항목 {newPlan.act.columns.length}칸: <b>{newPlan.act.columns.join(' · ')}</b>
+                    </div>
+                  ) : (
+                    <div className="muted">정리한 항목이 하나뿐이라 관찰 기록 한 칸에 넣습니다.</div>
+                  )}
+                  {newStudents.length === 0 ? (
+                    <div className="note note-warn" style={{ marginTop: 6 }}>
+                      {modeInfo(modeOfRec(newRec)).name} 명단이 비어 있어 학생을 맞출 수 없습니다. 세특 작성실에서 명단을 먼저 넣거나 다른 기록 영역을 고르세요.
+                    </div>
+                  ) : (
+                    <>
+                      <b>{newPlan.matched}명 맞춤</b> · {newPlan.missed.length}명 못 찾음
+                      {newPlan.missed.length > 0 && <div className="muted">못 찾은 학생: {newPlan.missed.join(', ')}</div>}
+                    </>
+                  )}
+                </div>
+              )}
+              <div className="row" style={{ marginTop: 8 }}>
+                <button className="btn btn-primary btn-sm" onClick={() => void send()} disabled={!n || busy}>
+                  {n ? `새 활동 만들고 ${n}명 보내기` : '새 활동 만들기'}
+                </button>
+                {sent && (
+                  <>
+                    <span className="small">
+                      「{sent.name}」에 {sent.n}명을 넣었습니다.
+                    </span>
+                    <button className="btn btn-sm" onClick={() => go(sent.actId)}>
+                      그 활동 열기
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          ) : data.acts.length === 0 ? (
         <>
           <p className="small">세특 작성실에서 활동을 먼저 만들어 주세요.</p>
           <button className="btn btn-sm btn-primary" onClick={() => onGo?.('세특')} disabled={!onGo}>
@@ -210,6 +316,8 @@ function SendToSeteuk({ rows, o, onGo, onClose }: { rows: BatchRow[]; o: BatchOp
               </>
             )}
           </div>
+        </>
+          )}
         </>
       )}
     </div>
