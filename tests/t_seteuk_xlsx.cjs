@@ -108,7 +108,7 @@ const gd = {
   sums: {}
 }
 const gg = X.buildBook(gd)
-ok(gg[0].rows[1].join('|') === '반|번호|이름|수업반|학번' && gg[0].rows[2].join('|') === '3|1|가나다|미적분A반|20301' && gg[0].rows[5].join('|') === '3|5|사아자||', '명단 시트에 수업반 · 학번 칸 (정하지 않은 반 · 없는 학번은 빈칸)')
+ok(gg[0].rows[1].join('|') === '반|번호|이름|수업반|학번|학년' && gg[0].rows[2].join('|') === '3|1|가나다|미적분A반|20301|' && gg[0].rows[5].join('|') === '3|5|사아자|||', '명단 시트에 수업반 · 학번 칸 (정하지 않은 반 · 없는 학번은 빈칸)')
 const gb = X.readBook(gg)
 const gs = gb.rosters.subject
 ok(gs.length === 4 && gs[0].group === '미적분A반' && gs[0].hakbun === '20301' && gs[2].group === '3반' && gs[2].id === '3-1@3반' && !gs[3].group && !gs[3].hakbun, '다시 읽기 — 수업반 · 학번을 살리고, 같은 학생이 두 반이면 @수업반 으로 가름')
@@ -122,6 +122,18 @@ ok(gOver.data.rows.a1['3-1@미적분A반'].note === '미적분 반 새 메모' &
 const noHak = { ...cur, rosters: { ...cur.rosters, subject: [{ id: '3-1', cls: '3', no: '1', name: '가나다' }] } }
 const filled = X.mergeBook(noHak, X.readBook([{ name: '👤 학생명단 ▸교과', rows: [['반', '번호', '이름', '수업반', '학번'], ['3', '1', '가나다', '3반', '20301']] }]), {}, newId)
 ok(filled.data.rosters.subject[0].hakbun === '20301' && filled.data.rosters.subject[0].group === '3반' && !noHak.rosters.subject[0].hakbun, '같은 학생이면 비어 있던 학번 · 수업반만 채움 (원래 자료는 그대로)')
+
+console.log('\n5. 학년 (3.7.11~)')
+const gradeData = { ...cur, rosters: { subject: [{ id: '1-3-15', cls: '3', no: '15', name: '서민채', grade: '1' }, { id: '2-3-15', cls: '3', no: '15', name: '오서진', grade: '2' }], club: [], homeroom: [] }, acts: [], rows: {}, sums: {} }
+const gradeGrid = X.buildBook(gradeData)
+ok(gradeGrid[0].rows[1].join('|') === '반|번호|이름|수업반|학번|학년' && gradeGrid[0].rows[2].join('|') === '3|15|서민채|||1' && gradeGrid[0].rows[3].join('|') === '3|15|오서진|||2', '내보내기 — 학년 칸')
+const gradeBack = X.readBook(gradeGrid).rosters.subject
+ok(gradeBack.length === 2 && gradeBack[0].id === '1-3-15' && gradeBack[1].id === '2-3-15' && gradeBack[1].grade === '2', '다시 읽기 — 학년이 둘 이상이면 id 에 학년, 학생이 따로')
+const gradeSame = X.mergeBook(gradeData, X.readBook(gradeGrid), {}, newId)
+ok(gradeSame.report.newStudents === 0 && gradeSame.data.rosters.subject.length === 2, '내보낸 것을 다시 가져와도 학생이 늘지 않음')
+const noGrade = { ...cur, rosters: { subject: [{ id: '3-15', cls: '3', no: '15', name: '서민채' }], club: [], homeroom: [] }, acts: [], rows: {}, sums: {} }
+const gradeFill = X.mergeBook(noGrade, X.readBook([{ name: '👤 학생명단 ▸교과', rows: [['반', '번호', '이름', '수업반', '학번', '학년'], ['3', '15', '서민채', '', '', '1']] }]), {}, newId)
+ok(gradeFill.report.newStudents === 0 && gradeFill.data.rosters.subject.length === 1 && gradeFill.data.rosters.subject[0].grade === '1', '학년 없이 입력해 둔 같은 학생이면 학년만 채움')
 
 console.log(fails ? `\n실패 ${fails}` : '\n모두 통과')
 process.exit(fails ? 1 : 0)

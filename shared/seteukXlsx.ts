@@ -137,12 +137,17 @@ export function readBook(grids: Grid[]): SeteukBook {
     const rh = findHead(g.rows, ['번호', '이름'])
     if (!rh) continue
     const mode = tagged?.key ?? 'subject'
+    const gradeAt = rh.head.indexOf('학년')
+    const gradeOf = (r: string[]): string => (gradeAt >= 0 ? cell(r, gradeAt).replace(/\D/g, '').slice(0, 1) : '')
+    // 학년이 둘 이상이면 id 에 학년을 붙인다 — 작성실의 명단 붙여넣기(parseRoster)와 같은 규칙
+    const multiGrade = new Set(g.rows.slice(rh.at + 1).map(gradeOf).filter(Boolean)).size > 1
     for (const r of g.rows.slice(rh.at + 1)) {
       const w = whoOf(r, rh.head)
       if (!w) continue
+      const grade = gradeOf(r)
       const group = cleanGroup(cell(r, rh.head.indexOf('수업반')))
       const hakbun = cell(r, rh.head.indexOf('학번')).replace(/\D/g, '').slice(0, 6)
-      let id = idOf(w.cls, w.no)
+      let id = multiGrade && grade ? `${grade}-${idOf(w.cls, w.no)}` : idOf(w.cls, w.no)
       const list = rosters[mode]
       if (list.some((s) => s.id === id)) {
         // 같은 학생이 다른 수업반에도 — 작성실과 같은 규칙(mergeGroup)으로 '@수업반'
@@ -153,6 +158,7 @@ export function readBook(grids: Grid[]): SeteukBook {
       const st: SeteukStudent = { id, cls: w.cls, no: w.no, name: w.name }
       if (group) st.group = group
       if (hakbun) st.hakbun = hakbun
+      if (grade) st.grade = grade
       list.push(st)
     }
   }
@@ -264,13 +270,18 @@ export function mergeBook(cur: SeteukData, book: SeteukBook, opt: { overwrite?: 
   for (const m of SETEUK_MODES) {
     const students: SeteukStudent[] = cur.rosters[m.key].map((x) => ({ ...x }))
     for (const s of book.rosters[m.key]) {
-      const mine = (s.group ? students.find((x) => x.cls === s.cls && x.no === s.no && groupOf(x) === s.group) : undefined) ?? students.find((x) => x.id === s.id)
+      const mine =
+        (s.group ? students.find((x) => x.cls === s.cls && x.no === s.no && groupOf(x) === s.group && (!s.grade || !x.grade || x.grade === s.grade)) : undefined) ??
+        students.find((x) => x.id === s.id) ??
+        // 학년 없이 입력해 둔 명단 — 반 · 번호 · 이름이 같으면 같은 학생(학년을 채운다)
+        (s.grade ? students.find((x) => !x.grade && x.cls === s.cls && x.no === s.no && norm(x.name) === norm(s.name)) : undefined)
       if (mine && mine.id !== s.id) remap[m.key].set(s.id, mine.id)
       if (!mine) {
         students.push(s)
         report.newStudents++
       } else if (norm(mine.name) === norm(s.name)) {
         if (!mine.hakbun && s.hakbun) mine.hakbun = s.hakbun
+        if (!mine.grade && s.grade) mine.grade = s.grade
         if (!mine.group && s.group) mine.group = s.group
       } else {
         blocked[m.key].add(s.id)
@@ -357,7 +368,7 @@ export function buildBook(data: SeteukData): Grid[] {
     used.add(name)
     out.push({
       name,
-      rows: [[`${m.name} 명단(${m.who}) — 세특 작성실에서 내보냄`], ['반', '번호', '이름', '수업반', '학번'], ...data.rosters[m.key].map((s) => [s.cls, s.no, s.name, s.group ?? '', s.hakbun ?? ''])]
+      rows: [[`${m.name} 명단(${m.who}) — 세특 작성실에서 내보냄`], ['반', '번호', '이름', '수업반', '학번', '학년'], ...data.rosters[m.key].map((s) => [s.cls, s.no, s.name, s.group ?? '', s.hakbun ?? '', s.grade ?? ''])]
     })
   }
   const actSheets = data.acts.map((a) => sheetTitle(a.name, XLSX_IN, used))

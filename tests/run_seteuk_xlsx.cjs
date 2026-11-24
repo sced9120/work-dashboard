@@ -29,7 +29,7 @@ global.fetch = async (url) => { throw new Error('바깥으로 나가면 안 됨 
   await wb.xlsx.readFile(out)
   ok(wb.worksheets.map((w) => w.name).join(' | ') === '👤 학생명단 ▸교과 | 🗂 활동목록 | 함수 탐구 ▸입력 | 📦 취합 ▸과세특', `시트: ${wb.worksheets.map((w) => w.name).join(' | ')}`)
   const rs = wb.getWorksheet('👤 학생명단 ▸교과')
-  ok(rs.getRow(2).values.slice(1).join('|') === '반|번호|이름|수업반|학번' && rs.getRow(3).getCell(4).value === '미적분A반' && String(rs.getRow(3).getCell(5).value) === '10101' && !rs.getRow(4).getCell(4).value, '명단 시트 — 수업반 · 학번 칸')
+  ok(rs.getRow(2).values.slice(1).join('|') === '반|번호|이름|수업반|학번|학년' && rs.getRow(3).getCell(4).value === '미적분A반' && String(rs.getRow(3).getCell(5).value) === '10101' && !rs.getRow(4).getCell(4).value, '명단 시트 — 수업반 · 학번 칸')
   const ws = wb.getWorksheet('함수 탐구 ▸입력')
   ok(ws.getRow(3).getCell(4).value === '관찰 메모' && ws.getRow(4).getCell(3).value === '가나다' && ws.getRow(4).getCell(4).value === '기울기를 비교함\n발표함' && ws.getRow(4).getCell(6).value === '다듬은 글.', '3행 머리글 · 4행부터 학생 · 줄바꿈 그대로')
 
