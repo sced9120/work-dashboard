@@ -23,6 +23,8 @@ export interface SeteukStudent {
   group?: string
   /** 학번 — 명단에 있었으면 (예: 20315) */
   hakbun?: string
+  /** 학년 — 명단에 '학년' 칸이 있거나 학번에서 읽었으면 ('1' · '2' · '3'). 학번 · 이름 표와 맞출 때 같은 반 · 번호의 다른 학년을 가른다 */
+  grade?: string
 }
 
 export const SETEUK_AMOUNTS = ['메모만큼', '보통', '넉넉히'] as const
@@ -264,7 +266,9 @@ export function readStudents(raw: string): SeteukStudent[] {
     const group = str(x.group).trim().slice(0, 30)
     const hakbun = str(x.hakbun).replace(/\D/g, '').slice(0, 6)
     if (group) st.group = group
+    const grade = str(x.grade).replace(/\D/g, '').slice(0, 1)
     if (hakbun) st.hakbun = hakbun
+    if (grade) st.grade = grade
     out.push(st)
   }
   return out
@@ -338,6 +342,7 @@ const HEAD_CLS = /^(반|학급)$/
 const HEAD_NO = /^(번호|번|순번)$/
 const HEAD_NAME = /^(이름|성명|학생명|학생 ?이름)$/
 const HEAD_HAKBUN = /^학번$/
+const HEAD_GRADE = /^학년$/
 /** 숫자만 있는 칸('3' · '3반' · '25번' · '1학년') */
 const NUM_CELL = /^\d+\s*(학년|반|번)?$/
 
@@ -351,10 +356,10 @@ export function cleanNo(v: string): string {
   return m ? String(Number(m[0])) : v.trim()
 }
 /** 학번(10305 · 1305) → 반 3, 번호 5 */
-function splitHakbun(v: string): { cls: string; no: string } | null {
+function splitHakbun(v: string): { grade: string; cls: string; no: string } | null {
   const d = v.replace(/\D/g, '')
-  if (d.length === 5) return { cls: String(Number(d.slice(1, 3))), no: String(Number(d.slice(3))) }
-  if (d.length === 4) return { cls: String(Number(d.slice(1, 2))), no: String(Number(d.slice(2))) }
+  if (d.length === 5) return { grade: d.slice(0, 1), cls: String(Number(d.slice(1, 3))), no: String(Number(d.slice(3))) }
+  if (d.length === 4) return { grade: d.slice(0, 1), cls: String(Number(d.slice(1, 2))), no: String(Number(d.slice(2))) }
   return null
 }
 
@@ -377,6 +382,7 @@ export function parseRoster(text: string): { students: SeteukStudent[]; skipped:
   let iNo = -1
   let iName = -1
   let iHak = -1
+  let iGrade = -1
   let start = 0
   if (table.length) {
     const h = table[0]
@@ -386,19 +392,24 @@ export function parseRoster(text: string): { students: SeteukStudent[]; skipped:
       iCls = h.findIndex((c) => HEAD_CLS.test(c))
       iNo = h.findIndex((c) => HEAD_NO.test(c))
       iHak = h.findIndex((c) => HEAD_HAKBUN.test(c))
+      iGrade = h.findIndex((c) => HEAD_GRADE.test(c))
       start = 1
     }
   }
   const out: SeteukStudent[] = []
   let skipped = 0
   let auto = 0
+  // 학년을 칸으로 적은 줄이 있는지 — 있고 학년이 둘 이상이면 id 에 학년을 붙인다(같은 반 · 번호의 다른 학년을 가르려고)
+  let typed = iGrade >= 0
   for (const cells0 of table.slice(start)) {
     let cls = ''
     let no = ''
     let name = ''
     let hakbun = ''
+    let grade = ''
     if (iName >= 0) {
       name = cells0[iName] ?? ''
+      if (iGrade >= 0) grade = cleanNo(cells0[iGrade] ?? '').slice(0, 1)
       if (iCls >= 0) cls = cleanCls(cells0[iCls] ?? '')
       if (iNo >= 0) no = cleanNo(cells0[iNo] ?? '')
       if (iHak >= 0) {
@@ -406,6 +417,7 @@ export function parseRoster(text: string): { students: SeteukStudent[]; skipped:
         if (hk) {
           cls = cls || hk.cls
           no = no || hk.no
+          grade = grade || hk.grade
           hakbun = (cells0[iHak] ?? '').replace(/\D/g, '')
         }
       }
@@ -420,11 +432,16 @@ export function parseRoster(text: string): { students: SeteukStudent[]; skipped:
       if (nums.length >= 2) {
         cls = cleanCls(nums[nums.length - 2])
         no = cleanNo(nums[nums.length - 1])
+        if (nums.length >= 3) {
+          grade = cleanNo(nums[nums.length - 3]).slice(0, 1)
+          typed = true
+        }
       } else if (nums.length === 1) {
         const hk = /^\d{4,5}$/.test(nums[0]) ? splitHakbun(nums[0]) : null
         if (hk) {
           cls = hk.cls
           no = hk.no
+          grade = hk.grade
           hakbun = nums[0]
         } else no = cleanNo(nums[0])
       }
@@ -444,15 +461,26 @@ export function parseRoster(text: string): { students: SeteukStudent[]; skipped:
     }
     const st: SeteukStudent = { id, cls, no, name }
     if (hakbun) st.hakbun = hakbun
+    if (grade) st.grade = grade
     out.push(st)
+  }
+  if (typed && new Set(out.map((x) => x.grade ?? '')).size > 1) {
+    const ids = new Set<string>()
+    for (const st of out) {
+      const base = `${st.grade ? `${st.grade}-` : ''}${st.cls || '0'}-${st.no}`
+      let id = base
+      for (let k = 2; ids.has(id); k++) id = `${base}_${k}`
+      ids.add(id)
+      st.id = id
+    }
   }
   return { students: out, skipped }
 }
 
 /** 화면에 보이는 이름표 — 학번이 있으면 '20315', 없으면 '3반 5번' (반이 없으면 '5번') */
-export function studentLabel(s: Pick<SeteukStudent, 'cls' | 'no'> & { hakbun?: string }): string {
+export function studentLabel(s: Pick<SeteukStudent, 'cls' | 'no'> & { hakbun?: string; grade?: string }): string {
   if (s.hakbun) return s.hakbun
-  return (s.cls ? `${s.cls}반 ` : '') + `${s.no}번`
+  return (s.grade ? `${s.grade}학년 ` : '') + (s.cls ? `${s.cls}반 ` : '') + `${s.no}번`
 }
 
 /* ---------- 수업반 ---------- */
@@ -1219,6 +1247,7 @@ const COL_NAME = /^(이름|성명|학생명|학생이름|학생)$/
 const COL_NO = /^(번호|번|순번|출석번호)$/
 const COL_CLS = /^(반|학급)$/
 const COL_HAK = /^학번$/
+const COL_GRADE = /^학년$/
 const COL_SKIP = /^(페이지|쪽|쪽수|연번|no\.?|비고)$/i
 
 /** 따옴표로 싼 칸(엑셀에서 줄바꿈이 든 칸)을 지키며 탭 표를 나눈다 */
@@ -1291,9 +1320,9 @@ export function matchNotes(sheets: SeteukSheet[], students: SeteukStudent[]): Se
     const found = n ? students.filter((s) => norm(s.name) === n) : []
     return found.length === 1 ? found[0] : null
   }
-  const byNo = (cls: string, no: string): SeteukStudent | null => {
+  const byNo = (grade: string, cls: string, no: string): SeteukStudent | null => {
     if (!no) return null
-    const found = students.filter((s) => s.no === no && (!cls || s.cls === cls))
+    const found = students.filter((s) => s.no === no && (!cls || s.cls === cls) && (!grade || !s.grade || s.grade === grade))
     return found.length === 1 ? found[0] : null
   }
   const hits = new Map<string, string[]>()
@@ -1304,7 +1333,8 @@ export function matchNotes(sheets: SeteukSheet[], students: SeteukStudent[]): Se
     const iNo = head.findIndex((h) => COL_NO.test(h))
     const iCls = head.findIndex((h) => COL_CLS.test(h))
     const iHak = head.findIndex((h) => COL_HAK.test(h))
-    const body = head.map((h, i) => i).filter((i) => ![iName, iNo, iCls, iHak].includes(i) && !COL_SKIP.test(head[i]))
+    const iGrade = head.findIndex((h) => COL_GRADE.test(h))
+    const body = head.map((h, i) => i).filter((i) => ![iName, iNo, iCls, iHak, iGrade].includes(i) && !COL_SKIP.test(head[i]))
     if (!body.length || (iName < 0 && iNo < 0 && iHak < 0)) continue
     for (const r of sheet.rows) {
       const parts = body.map((i) => ({ h: cellText(sheet.header[i]), v: cellText(r[i]) })).filter((p) => p.v)
@@ -1312,14 +1342,16 @@ export function matchNotes(sheets: SeteukSheet[], students: SeteukStudent[]): Se
       const text = parts.length === 1 ? parts[0].v : parts.map((p) => `${p.h}: ${p.v}`).join('\n')
       const name = iName >= 0 ? cellText(r[iName]) : ''
       let cls = iCls >= 0 ? cleanCls(cellText(r[iCls])) : ''
+      let grade = iGrade >= 0 ? cleanNo(cellText(r[iGrade])).slice(0, 1) : ''
       let no = ''
       const rawNo = cellText(iNo >= 0 ? r[iNo] : '') || cellText(iHak >= 0 ? r[iHak] : '')
       const hk = /^\d{4,5}$/.test(rawNo.replace(/\D/g, '')) ? splitHakbun(rawNo) : null
       if (hk) {
         cls = cls || hk.cls
+        grade = grade || hk.grade
         no = hk.no
       } else if (rawNo) no = cleanNo(rawNo)
-      const st = byName(name) ?? byNo(cls, no)
+      const st = byName(name) ?? byNo(grade, cls, no)
       if (st) hits.set(st.id, [...(hits.get(st.id) ?? []), text])
       else misses.push({ label: [cls && `${cls}반`, no && `${no}번`, name].filter(Boolean).join(' ') || '(이름 · 번호 없음)', text })
     }
@@ -1345,9 +1377,9 @@ export function matchNoteFields(sheets: SeteukSheet[], students: SeteukStudent[]
     const found = n ? students.filter((s) => norm(s.name) === n) : []
     return found.length === 1 ? found[0] : null
   }
-  const byNo = (cls: string, no: string): SeteukStudent | null => {
+  const byNo = (grade: string, cls: string, no: string): SeteukStudent | null => {
     if (!no) return null
-    const found = students.filter((s) => s.no === no && (!cls || s.cls === cls))
+    const found = students.filter((s) => s.no === no && (!cls || s.cls === cls) && (!grade || !s.grade || s.grade === grade))
     return found.length === 1 ? found[0] : null
   }
   const columns: string[] = []
@@ -1359,7 +1391,8 @@ export function matchNoteFields(sheets: SeteukSheet[], students: SeteukStudent[]
     const iNo = head.findIndex((h) => COL_NO.test(h))
     const iCls = head.findIndex((h) => COL_CLS.test(h))
     const iHak = head.findIndex((h) => COL_HAK.test(h))
-    const body = head.map((_h, i) => i).filter((i) => ![iName, iNo, iCls, iHak].includes(i) && !COL_SKIP.test(head[i]))
+    const iGrade = head.findIndex((h) => COL_GRADE.test(h))
+    const body = head.map((_h, i) => i).filter((i) => ![iName, iNo, iCls, iHak, iGrade].includes(i) && !COL_SKIP.test(head[i]))
     if (!body.length || (iName < 0 && iNo < 0 && iHak < 0)) continue
     const names = body.map((i, k) => cellText(sheet.header[i]) || `항목${k + 1}`)
     for (const h of names) if (!columns.includes(h)) columns.push(h)
@@ -1368,14 +1401,16 @@ export function matchNoteFields(sheets: SeteukSheet[], students: SeteukStudent[]
       if (!parts.length) continue
       const name = iName >= 0 ? cellText(r[iName]) : ''
       let cls = iCls >= 0 ? cleanCls(cellText(r[iCls])) : ''
+      let grade = iGrade >= 0 ? cleanNo(cellText(r[iGrade])).slice(0, 1) : ''
       let no = ''
       const rawNo = cellText(iNo >= 0 ? r[iNo] : '') || cellText(iHak >= 0 ? r[iHak] : '')
       const hk = /^\d{4,5}$/.test(rawNo.replace(/\D/g, '')) ? splitHakbun(rawNo) : null
       if (hk) {
         cls = cls || hk.cls
+        grade = grade || hk.grade
         no = hk.no
       } else if (rawNo) no = cleanNo(rawNo)
-      const st = byName(name) ?? byNo(cls, no)
+      const st = byName(name) ?? byNo(grade, cls, no)
       if (st) {
         const cur = hits.get(st.id) ?? {}
         for (const p of parts) cur[p.h] = cur[p.h] ? `${cur[p.h]}\n${p.v}` : p.v
