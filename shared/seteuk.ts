@@ -338,6 +338,8 @@ const HEAD_CLS = /^(반|학급)$/
 const HEAD_NO = /^(번호|번|순번)$/
 const HEAD_NAME = /^(이름|성명|학생명|학생 ?이름)$/
 const HEAD_HAKBUN = /^학번$/
+/** 숫자만 있는 칸('3' · '3반' · '25번' · '1학년') */
+const NUM_CELL = /^\d+\s*(학년|반|번)?$/
 
 /** '1학년 3반' · '3반' · '03' → '3' */
 export function cleanCls(v: string): string {
@@ -359,7 +361,7 @@ function splitHakbun(v: string): { cls: string; no: string } | null {
 /**
  * 엑셀 · 한글 표에서 복사한 명단을 읽는다.
  * 머리줄(반 · 번호 · 이름 · 학번)이 있으면 그 자리를 따르고, 없으면 칸 수로 짐작한다:
- *   3칸 이상 = 반 · 번호 · 이름 / 2칸 = 번호(또는 학번) · 이름 / 1칸 = 이름(번호는 차례대로).
+ *   이름 앞의 숫자 칸을 뒤에서부터 번호 · 반으로 읽는다: 학년 · 반 · 번호 · 이름 / 반 · 번호 · 이름 / 번호(또는 학번) · 이름 / 이름만(번호는 차례대로).
  */
 export function parseRoster(text: string): { students: SeteukStudent[]; skipped: number } {
   const lines = String(text || '')
@@ -409,19 +411,23 @@ export function parseRoster(text: string): { students: SeteukStudent[]; skipped:
       }
     } else {
       const cells = cells0.filter((c) => c !== '')
-      if (cells.length >= 3) {
-        cls = cleanCls(cells[0])
-        no = cleanNo(cells[1])
-        name = cells[2]
-      } else if (cells.length === 2) {
-        const hk = /^\d{4,5}$/.test(cells[0]) ? splitHakbun(cells[0]) : null
+      // 이름 = 숫자(반 · 번호 · 학번 · 학년)가 아닌 첫 칸. 그 앞의 숫자 칸을 뒤에서부터 번호 · 반으로 읽는다.
+      //   '1 1 25 홍길동'(학년 반 번호 이름) · '1 25 홍길동'(반 번호 이름) · '25 홍길동' · '10125 홍길동'(학번)
+      let at = cells.findIndex((c) => !NUM_CELL.test(c))
+      if (at < 0) at = cells.length
+      const nums = cells.slice(0, at)
+      name = cells[at] ?? ''
+      if (nums.length >= 2) {
+        cls = cleanCls(nums[nums.length - 2])
+        no = cleanNo(nums[nums.length - 1])
+      } else if (nums.length === 1) {
+        const hk = /^\d{4,5}$/.test(nums[0]) ? splitHakbun(nums[0]) : null
         if (hk) {
           cls = hk.cls
           no = hk.no
-          hakbun = cells[0]
-        } else no = cleanNo(cells[0])
-        name = cells[1]
-      } else if (cells.length === 1) name = cells[0]
+          hakbun = nums[0]
+        } else no = cleanNo(nums[0])
+      }
     }
     name = name.trim()
     if (!name || /^\d+$/.test(name)) {
