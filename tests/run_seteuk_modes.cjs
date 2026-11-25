@@ -98,8 +98,9 @@ global.fetch = async (url, opts = {}) => {
   ok(!bad.length, `최종본에 고칠 곳 · 살펴볼 곳이 없음 ${bad.join(' / ')}`)
   const flawed = S.validateSeteuk(D.DEMO_FLAWED, 600)
   ok(!flawed.ok && flawed.issues.some((x) => x.label === '맞춤법') && flawed.issues.some((x) => x.label.startsWith('AI 투')) && flawed.issues.some((x) => x.level === 'block'), '일부러 넣은 초안은 어미 · AI 말투 · 띄어쓰기가 걸림')
+  ok(['대회 언급', '모의고사·석차', "'학생' 주어", 'AI 투 · 마무리 문장', 'AI 투 · 평가자 말투', 'AI 투 · 과장 어휘'].every((l) => flawed.issues.some((x) => x.label === l)), `연수용 초안 — 정답표의 항목을 검사가 짚음: ${flawed.issues.map((x) => x.label).join(', ')}`)
   const names = Object.values(D.DEMO_ROSTERS).flat().map((x) => x.name)
-  ok(new Set(names).size === 16 && Object.values(D.DEMO_ROWS).every((rows) => Object.values(rows).every((row) => !names.some((n) => (row.ai + row.final).includes(n)))), '지어낸 학생 16명 · 글에 이름이 없음')
+  ok(new Set(names).size === 16 && Object.values(D.DEMO_ROWS).every((rows) => Object.values(rows).every((row) => !names.some((n) => ((row.ai === D.DEMO_FLAWED ? '' : row.ai) + row.final).includes(n)))), '지어낸 학생 16명 · 글에 이름이 없음 (일부러 고칠 곳을 넣은 초안은 뺌)')
 
   console.log(fails ? `\n실패 ${fails}` : '\n모두 통과')
   process.exit(fails ? 1 : 0)
