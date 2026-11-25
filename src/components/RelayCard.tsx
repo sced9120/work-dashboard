@@ -41,6 +41,13 @@ export default function RelayCard({ tab, needs, title, desc, howTo, startOpen = 
   useEffect(() => {
     void (async () => setInfo(await window.api.relay.info()))()
   }, [])
+  // 폰 명단을 올리는 동안은 몇 초마다 상태를 다시 본다 (끝나면 안내가 사라진다)
+  const pushing = info?.board === 'pushing'
+  useEffect(() => {
+    if (!pushing) return
+    const t = setInterval(() => void (async () => setInfo(await window.api.relay.info()))(), 3000)
+    return () => clearInterval(t)
+  }, [pushing])
   useEffect(() => {
     if (!phone) return setQr('')
     void QRCode.toDataURL(phone, { margin: 1, width: 220, color: { dark: '#353532', light: '#ffffff' } }).then(setQr)
@@ -63,7 +70,7 @@ export default function RelayCard({ tab, needs, title, desc, howTo, startOpen = 
     setBusy(false)
     if (!r.ok || !r.info) return setError(r.error ?? '잇지 못했습니다.')
     setInfo(r.info)
-    toast('폰과 이었습니다.', 'ok')
+    toast('폰과 이었습니다. 폰에 명단을 올리는 중입니다…', 'ok')
   }
   const pull = async (): Promise<void> => {
     setBusy(true)
@@ -87,6 +94,7 @@ export default function RelayCard({ tab, needs, title, desc, howTo, startOpen = 
         {info.connected ? (
           <>
             <span className={`badge ${outdated ? '' : 'badge-accent'}`}>{outdated ? '새 판 필요' : '이어짐'}</span>
+            {pushing && <span className="badge">명단 올리는 중…</span>}
             <button className="btn btn-sm" onClick={() => void pull()} disabled={busy}>
               {busy ? '가져오는 중…' : '지금 가져오기'}
             </button>
@@ -130,6 +138,16 @@ export default function RelayCard({ tab, needs, title, desc, howTo, startOpen = 
               <button className="btn btn-sm" onClick={() => void (async () => setInfo(await window.api.relay.seenQr()))()}>
                 다시 찍었습니다
               </button>
+            </div>
+          )}
+          {info.connected && info.board === 'pushing' && (
+            <div className="note small" role="status">
+              <b>폰에 명단을 불러오는 중입니다…</b> 처음 연결이시면 몇 분 뒤에 연결이 완료됩니다. 폰 화면에 아직 학생이 안 보이면 잠시 뒤 폰 화면을 새로고침해 주세요.
+            </div>
+          )}
+          {info.connected && info.board === 'fail' && (
+            <div className="note note-warn small" role="status">
+              <b>폰에 명단을 올리지 못했습니다.</b> 인터넷 연결을 확인하고 <b>[지금 가져오기]</b> 를 눌러 다시 올려 주세요. 구글이 느릴 때는 몇 분 뒤에 저절로 다시 올립니다.
             </div>
           )}
           {info.connected ? (

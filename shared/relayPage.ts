@@ -115,7 +115,7 @@ var CH=['발표','질문','모둠 역할','실험','토론','고친 점','도움
 var oa=ls('a')||'',oc=ls('c')||'';
 function drawObs(){
   var acts=BD.a||[],A=acts.filter(function(x){return x.i===oa})[0]||acts[0];
-  if(!A){$('main').innerHTML='<div class="empty">아직 활동이 없습니다.<br>PC 의 오르빗 [세특 작성실] 에 명단과 활동이 있으면,<br>오르빗이 켜져 있을 때 몇 분 안에 여기에 나옵니다.</div>';return}
+  if(!A){$('main').innerHTML='<div class="empty">명단을 불러오는 중입니다…<br>처음 연결이시면 몇 분 뒤에 연결이 완료됩니다.<br>PC 의 오르빗 [세특 작성실] 에 명단과 활동이 있고 오르빗이 켜져 있으면 여기에 나옵니다. 잠시 뒤 화면을 새로고침해 주세요.</div>';return}
   var cl=(BD.m||{})[A.m]||[],C=cl.filter(function(x){return x[0]===oc})[0]||cl[0];
   oa=A.i;ls('a',oa);
   var h='<div class="pick"><select id="sa" aria-label="활동">'+acts.map(function(x){return'<option value="'+esc(x.i)+'"'+(x.i===A.i?' selected':'')+'>'+esc(x.n)+'</option>'}).join('')+'</select>';

@@ -63,7 +63,7 @@ import type { TtRow } from '../../shared/timetable'
 import { STD_EXAMPLE, aiReadTimetable, importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
 import { schoolContext } from './context'
 import { schoolPlace, searchPlaces, weatherAt } from './weather'
-import { extractMessages, inboxList, inboxRemove, maskMessages, relayConnect, relayDisconnect, relayForm, relayInfo, relayNewKey, relayPull, relaySeenQr, startRelayWatch, stopRelayWatch } from './messenger'
+import { extractMessages, inboxList, inboxRemove, maskMessages, relayConnect, relayDisconnect, relayForm, relayInfo, relayNewKey, relayPull, relayPushSoon, relaySeenQr, startRelayWatch, stopRelayWatch } from './messenger'
 import { ymd } from '../../shared/neis'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
 import type {
@@ -356,7 +356,11 @@ function registerIpc(): void {
 
   /* ---------- 세특 작성실 (명단 · 활동 · 관찰 기록 → 초안 → 최종본) ---------- */
   ipcMain.handle('seteuk:load', () => seteukLoad())
-  ipcMain.handle('seteuk:roster', (_e, mode: SeteukMode, list: SeteukStudent[]) => seteukSaveRoster(mode, list))
+  ipcMain.handle('seteuk:roster', (_e, mode: SeteukMode, list: SeteukStudent[]) => {
+    const r = seteukSaveRoster(mode, list)
+    relayPushSoon()
+    return r
+  })
   ipcMain.handle('seteuk:request', (_e, actId: string, sid: string) => seteukRequest(String(actId), String(sid)))
   ipcMain.handle('seteuk:style', (_e, style: SeteukStyle) => seteukSaveStyle(style))
   ipcMain.handle('seteuk:options', (_e, o: SeteukOptions) => seteukSaveOptions(o))
@@ -371,7 +375,11 @@ function registerIpc(): void {
   ipcMain.handle('seteuk:styleCard', (_e, model: ModelChoice | null, dry: boolean) => seteukStyleCard(model, dry === true))
   ipcMain.handle('seteuk:demoFill', () => seteukDemoFill())
   ipcMain.handle('seteuk:demoClear', () => seteukDemoClear())
-  ipcMain.handle('seteuk:acts', (_e, list: SeteukActivity[]) => seteukSaveActs(list))
+  ipcMain.handle('seteuk:acts', (_e, list: SeteukActivity[]) => {
+    const r = seteukSaveActs(list)
+    relayPushSoon()
+    return r
+  })
   ipcMain.handle('seteuk:rows', (_e, actId: string, patch: Record<string, Partial<SeteukRow>>) => seteukSaveRows(String(actId), patch))
   ipcMain.handle('seteuk:write', (_e, req: SeteukWriteRequest) => seteukWrite(req, (p) => send('seteuk:progress', p)))
   ipcMain.handle('seteuk:cancel', (_e, job: string) => seteukCancel(String(job)))

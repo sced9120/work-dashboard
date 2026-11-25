@@ -54,6 +54,8 @@ export interface RelayInfoShape {
   /** 우편함 스크립트 판 (모르면 0) · 이 앱이 아는 최신 판 */
   ver: number
   latest: number
+  /** 폰 명단 올리기 — pushing(올리는 중) · done · fail · none */
+  board: 'none' | 'pushing' | 'done' | 'fail'
 }
 /** 폰에서 온 수업 관찰 · 출결을 넣었을 때 */
 export interface PhoneRouted {

@@ -65,6 +65,33 @@ import type { SeteukState } from './core'
 import Markdown from '../../components/Markdown'
 import { SAVE_DELAY, MODE_KEY, INTRO_KEY, newId, stored, remember } from './core'
 
+/**
+ * 입력 항목 칸 — 치는 동안은 글자를 그대로 두고(쉼표 · 띄어쓰기가 바로 지워지지 않게),
+ * 항목 목록은 그때그때 따로 갱신한다. 칸을 벗어나면 정리된 모양으로 다시 보여준다.
+ * 견본 단추 · 활동 바꾸기처럼 바깥에서 목록이 바뀌면 칸 글자도 맞춘다.
+ */
+function ColumnsInput({ columns, onChange }: { columns: string[]; onChange: (cols: string[]) => void }) {
+  const [text, setText] = useState(columns.join(', '))
+  const joined = columns.join('\u0000')
+  useEffect(() => {
+    setText((cur) => (readColumns(cur).join('\u0000') === joined ? cur : columns.join(', ')))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [joined])
+  return (
+    <input
+      type="text"
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value)
+        onChange(readColumns(e.target.value))
+      }}
+      onBlur={() => setText(readColumns(text).join(', '))}
+      placeholder="예: 탐구 주제, 탐구 과정, 알게 된 점 (쉼표로)"
+      aria-label="입력 항목"
+    />
+  )
+}
+
 export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; rosterPanel: ReactNode }): JSX.Element {
   const { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, job, prog, errors, pending, timer, actsTimer, actsRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents } = c
 
@@ -249,7 +276,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                         </button>
                       )}
                     </div>
-                    <input type="text" value={act.columns.join(', ')} onChange={(e) => patchAct({ columns: readColumns(e.target.value) })} placeholder="예: 탐구 주제, 탐구 과정, 알게 된 점 (쉼표로)" aria-label="입력 항목" />
+                    <ColumnsInput columns={act.columns} onChange={(cols) => patchAct({ columns: cols })} />
                   </div>
                   <label>
                     <span>이 활동의 분량(바이트)</span>

@@ -123,6 +123,8 @@ export interface RelayInfo {
   /** 우편함 스크립트의 판 (모르면 0). latest 보다 낮으면 수업 관찰 · 출결을 못 쓴다 */
   ver: number
   latest: number
+  /** 폰 명단(판 · 이름표) 올리기 — pushing: 올리는 중(처음 연결하면 몇 분 걸릴 수 있음) · done: 올림 · fail: 못 올림(다음에 다시) · none: 해당 없음 */
+  board: 'none' | 'pushing' | 'done' | 'fail'
 }
 
 /** 마지막으로 본 우편함 스크립트 판 */
@@ -133,6 +135,8 @@ function setVer(v: number): void {
 }
 /** 이번에 켠 뒤 마지막으로 올린 판 — 같으면 다시 올리지 않는다 */
 let lastBoard = ''
+/** 폰 명단을 올리는 상태 — 화면이 '명단을 올리는 중…' 안내를 띄우는 데 쓴다 */
+let boardState: RelayInfo['board'] = 'none'
 
 /** 이름표 열쇠를 새로 만들어 폰 주소가 바뀌었다는 표시 (QR 을 다시 찍으면 지운다) */
 const RELAY_RESCAN_KEY = 'relay_rescan'
@@ -165,7 +169,8 @@ export function relayInfo(): RelayInfo {
     rescan: connected && db.getSetting(RELAY_RESCAN_KEY, '') === '1',
     script: key ? relayScript(key) : '',
     ver: connected ? seenVer() : 0,
-    latest: RELAY_VERSION
+    latest: RELAY_VERSION,
+    board: connected ? boardState : 'none'
   }
 }
 
@@ -182,6 +187,7 @@ export function relayNewKey(): RelayInfo {
   db.setSetting(RELAY_VER_KEY, '0')
   db.setSetting(RELAY_RESCAN_KEY, '')
   lastBoard = ''
+  boardState = 'none'
   return relayInfo()
 }
 
@@ -191,6 +197,7 @@ export function relayDisconnect(): RelayInfo {
   db.setSetting(RELAY_VER_KEY, '0')
   db.setSetting(RELAY_RESCAN_KEY, '')
   lastBoard = ''
+  boardState = 'none'
   return relayInfo()
 }
 
@@ -228,6 +235,9 @@ export async function relayConnect(rawUrl: string): Promise<{ ok: boolean; error
     return { ok: false, error: (e as Error).message === 'This operation was aborted' ? '웹 앱이 답하지 않습니다(시간 넘김).' : (e as Error).message }
   }
   saveLocalSettings({ ...s, relay_url: url })
+  // 이은 바로 뒤에 폰 명단을 올린다 — 다음 가져오기(최대 3분)를 기다리면 폰에 명단이 비어 보인다.
+  // 구글이 느릴 수 있어 기다리지 않고 뒤에서 올린다. 화면은 info.board 로 진행을 안다.
+  void pushBoard(url, s.relay_key).catch(() => undefined)
   return { ok: true, info: relayInfo() }
 }
 
@@ -268,7 +278,15 @@ async function putParts(url: string, key: string, name: 'board' | 'names', text:
  * 폰 판 · 이름표를 올린다 — 스크립트가 2판 이상이고, 지난번과 달라졌을 때만.
  * 판에는 이름이 없고, 이름표는 이 PC 에서 잠근 글만 간다(열쇠는 폰 주소의 # 뒤).
  */
+let pushChain: Promise<void> = Promise.resolve()
 async function pushBoard(url: string, key: string): Promise<void> {
+  // 연결 직후 · 가져오기 · 명단 저장이 겹쳐도 조각이 섞이지 않게 한 줄로 세운다
+  const run = pushChain.then(() => pushBoardNow(url, key))
+  pushChain = run.catch(() => undefined)
+  return run
+}
+
+async function pushBoardNow(url: string, key: string): Promise<void> {
   if (seenVer() < 2) return
   const nkey = ensureNameKey()
   if (!nkey) return
@@ -276,10 +294,36 @@ async function pushBoard(url: string, key: string): Promise<void> {
   const b = JSON.stringify(board)
   const n = JSON.stringify(names)
   const sig = JSON.stringify([b, n, nkey])
-  if (sig === lastBoard) return
-  if (!(await putParts(url, key, 'board', b))) return
-  if (!(await putParts(url, key, 'names', sealNames(n, nkey)))) return
-  lastBoard = sig
+  if (sig === lastBoard) {
+    boardState = 'done'
+    return
+  }
+  boardState = 'pushing'
+  try {
+    if (!(await putParts(url, key, 'board', b)) || !(await putParts(url, key, 'names', sealNames(n, nkey)))) {
+      boardState = 'fail'
+      return
+    }
+    lastBoard = sig
+    boardState = 'done'
+  } catch (e) {
+    boardState = 'fail'
+    throw e
+  }
+}
+
+/** 세특 작성실에서 명단 · 활동을 바꿨을 때 — 잠깐 모았다가 폰 명단을 다시 올린다 (3분 기다리지 않게) */
+let pushTimer: NodeJS.Timeout | null = null
+export function relayPushSoon(): void {
+  const s = loadLocalSettings()
+  const url = normalizeRelayUrl(s.relay_url ?? '')
+  const key = s.relay_key ?? ''
+  if (!url || !key) return
+  if (pushTimer) clearTimeout(pushTimer)
+  pushTimer = setTimeout(() => {
+    pushTimer = null
+    void pushBoard(url, key).catch(() => undefined)
+  }, 4000)
 }
 
 /**
