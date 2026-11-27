@@ -315,7 +315,7 @@ export const TOURS: Record<PageId, Tour> = {
       { sel: '.main .stk-acts button', text: '설문지로 만들기', click: true, title: '설문지로 만들기를 눌러 보세요', body: '학생에게 구글 설문지로 받은 글이 있을 때 씁니다.', optional: true },
       { sel: '.main .stk-formact', title: '설문지 → 활동', body: '설문지에 학번 · 이름 문항을 넣고, [응답] 탭의 스프레드시트 아이콘으로 만든 응답 시트 주소를 붙여 넣습니다. [응답 읽기] → 가져올 문항 고르기 → [활동 만들고 N명 넣기]. 문항마다 입력 칸이 됩니다. 폰 연결이 있어야 읽을 수 있습니다.', optional: true },
       { sel: '.main .stk-formact button', text: '닫기', exact: true, click: true, title: '닫기', body: '[닫기] 를 눌러 닫으세요.', optional: true },
-      { sel: '.main .stk-actbar', title: '활동 설정', body: '활동 탭 오른쪽의 [활동 설정] 을 누르면 창이 열립니다. [프롬프트 만들기] 탭에서 세특 구성 · 요청사항을 적고, [활동 규정] 탭에서 활동 이름, 과목, 분량(나이스 바이트), 활동 개요를 적어 둡니다. AI 가 이것을 맥락으로 읽습니다.', optional: true },
+      { sel: '.main .stk-actbar', title: '활동 설정', body: '활동 탭 오른쪽의 [활동 설정] 을 누르면 창이 열립니다. [프롬프트 만들기] 탭에서 세특 구성 · 요청사항을 적고, [활동 규정] 탭에서 활동 이름, 과목, 분량(나이스 바이트), 활동 개요를 적어 둡니다. AI 가 이것을 맥락으로 읽습니다. 옆의 [활동 지우기] 는 지금 고른 활동을 지웁니다(확인 창이 한 번 뜹니다).', optional: true },
       { sel: '.main .stk-tools', title: '초안 받기', body: '모델을 고르고(K-EXAONE 도 됩니다) [초안 받기] 를 누르면 관찰 기록이 있는 학생을 한 명씩 받습니다. 학생을 체크하면 그 학생만 받습니다. 키가 없으면 [초안 받기] 는 잠기고, 학생 줄을 누른 뒤 [키 없이 — 요청 글 복사] 로 AI 앱에서 받아 [AI 초안] 칸에 붙여 넣습니다. [자동 고쳐쓰기] 는 검사에서 고칠 곳이 나온 학생만 한 번 더 받고, [근거 확인] 은 관찰 기록에 없는 내용이 들어갔는지 묻습니다.', optional: true },
       { sel: '.main .stk-tools button', text: '관찰 기록 가져오기', click: true, title: '관찰 기록 가져오기를 눌러 보세요', body: '이미 가진 자료에서 학생별 글을 한꺼번에 넣는 곳입니다.', optional: true },
       { sel: '.main .stk-import .memo-filter', title: '가져오는 길 세 가지', body: '[스캔 · 사진에서] 는 활동지를 내 Gemini · OpenAI 키로 읽습니다. [구글 설문지] 는 응답 시트에서 새 응답만 이어 받습니다. [엑셀 표 붙여넣기] 는 AI 없이 넣습니다. 맞춘 학생을 먼저 보여 주고, 눌러야 들어갑니다.', optional: true },

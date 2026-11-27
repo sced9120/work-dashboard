@@ -196,6 +196,11 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                     <Icon name="sliders" size={14} /> 활동 설정
                   </button>
                 )}
+                {act && rec && (
+                  <button className="btn btn-sm stk-delbtn" onClick={() => void removeAct()} disabled={!!job} title={`「${act.name}」 활동을 지웁니다. 확인 창이 한 번 뜹니다`}>
+                    <Icon name="trash" size={14} /> 활동 지우기
+                  </button>
+                )}
               </div>
 
               {act && rec && (
@@ -324,11 +329,6 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                         </button>
                       </div>
                     ))}
-                  </div>
-                  <div className="stk-wide row row-end">
-                    <button className="btn btn-sm btn-danger" onClick={() => void removeAct()} disabled={!!job}>
-                      <Icon name="trash" size={14} /> 이 활동 지우기
-                    </button>
                   </div>
                 </div>
                       )}

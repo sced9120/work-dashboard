@@ -8000,3 +8000,17 @@ body {
   font-size: 13px;
   word-break: keep-all;
 }
+
+/* ================= 31. 확인 창은 맨 위 · 세특 [활동 지우기] (v3.7.14) ================= */
+/* 확인 창이 [활동 설정] 창(300) · 따라 배우기(200) 뒤에 숨으면 아무 반응이 없는 것처럼 보인다 */
+:root .ask-back {
+  z-index: 400;
+}
+:root .stk-acts .btn.stk-delbtn {
+  color: var(--danger);
+}
+:root .stk-acts .btn.stk-delbtn:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
