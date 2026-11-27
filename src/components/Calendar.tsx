@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react'
 import type { CalEvent, CalEventInput, Deadline, Task } from '../../shared/types'
 import type { IcsEvent } from '../../shared/ics'
@@ -853,8 +854,9 @@ export default function Calendar({
       )}
 
       {/* ── 넣기·수정 시트 (갤럭시 달력식) ── */}
-      {form && (
-        <div className="sheet-back" onClick={() => setForm(null)}>
+      {/* 홈 위젯은 transform 으로 놓여 있어, 그 안에 두면 창이 위젯 칸에 갇힌다 — 문서 바닥에 그린다 */}
+      {form && createPortal(
+        <div className="sheet-back" onClick={() => setForm(null)} onPointerDown={(ev) => ev.stopPropagation()}>
           <div
             className="sheet"
             onClick={(ev) => ev.stopPropagation()}
@@ -978,7 +980,8 @@ export default function Calendar({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

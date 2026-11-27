@@ -434,9 +434,10 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                     </button>
                   </p>
                 )}
-                {!shown.some((s) => s.id === focus) && (
-                  <p className="small muted stk-copyhint">학생 줄을 누르면 요청 글을 복사할 수 있습니다</p>
-                )}
+                {/* 줄을 누를 때 이 줄을 없애면 표가 올라가 첫 누름이 빗나간다 — 자리는 두고 감추기만 한다 */}
+                <p className="small muted stk-copyhint" style={shown.some((s) => s.id === focus) ? { visibility: 'hidden' } : undefined}>
+                  학생 줄을 누르면 요청 글을 복사할 수 있습니다
+                </p>
                 {equity && (
                   <div className="stk-panel">
                     <div className="stk-import-head">
@@ -521,7 +522,12 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                         const left = groundLeft(r.ground, shownText)
                         const same = pairsOf(equity, `${studentLabel(s)} ${s.name}`)
                         return (
-                          <tr key={s.id} className={on ? 'on' : ''} onFocus={() => setFocus(s.id)}>
+                          <tr
+                            key={s.id}
+                            className={on ? 'on' : ''}
+                            // 글 칸에 들어갈 때만 줄을 펼친다 — 체크 · 단추를 누를 때 펼치면 표가 밀려 그 누름이 먹히지 않는다
+                            onFocus={(e) => (e.target as HTMLElement).tagName === 'TEXTAREA' && setFocus(s.id)}
+                          >
                             <td className="c-chk">
                               <input type="checkbox" checked={sel.has(s.id)} onChange={() => toggle(s.id)} aria-label={`${studentLabel(s)} 고르기`} />
                             </td>

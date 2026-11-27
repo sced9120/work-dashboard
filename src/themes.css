@@ -8006,6 +8006,18 @@ body {
 :root .ask-back {
   z-index: 400;
 }
+/* 알림(오른쪽 아래)도 설정 창 뒤에 흐리게 깔리지 않게 */
+:root .toast-wrap {
+  z-index: 410;
+}
+/* 좁은 달력 위젯에서 [월 · 주] 칸이 눌려 '주' 가 잘리지 않게 */
+:root .cal-viewtoggle {
+  flex-shrink: 0;
+}
+:root .cal-compact .cal-bar {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
 :root .stk-acts .btn.stk-delbtn {
   color: var(--danger);
 }

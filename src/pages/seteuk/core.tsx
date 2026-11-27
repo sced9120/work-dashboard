@@ -510,7 +510,9 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
       true
     )
     setActIds((prev) => ({ ...prev, [mode]: '' }))
-    setCfgOpen(false)
+    // 다음 활동에 체크해 둔 학생 · 열어 둔 줄 · 가져오기 창이 넘어가지 않게
+    resetView()
+    setMakerOpen(false)
     toast('활동을 지웠습니다.', 'ok')
   }
 

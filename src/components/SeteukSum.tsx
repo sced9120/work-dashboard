@@ -422,7 +422,8 @@ export default function SeteukSumView({ students, acts, rows }: Props): JSX.Elem
               const fb = byteLen(l.final)
               const ai = l.sum?.ai ?? ''
               return (
-                <tr key={id} className={on ? 'on' : ''} onFocus={() => setFocus(id)}>
+                // 글 칸에 들어갈 때만 줄을 펼친다 — 체크 · 단추를 누를 때 펼치면 단추가 밀려 눌리지 않는다
+                <tr key={id} className={on ? 'on' : ''} onFocus={(e) => (e.target as HTMLElement).matches('textarea, .stk-ai') && setFocus(id)}>
                   <td className="c-chk">
                     <input type="checkbox" checked={sel.has(id)} onChange={() => toggle(id)} aria-label={`${studentLabel(l.s)} 고르기`} />
                   </td>
