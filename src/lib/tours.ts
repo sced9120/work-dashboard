@@ -37,6 +37,33 @@ export interface Tour {
 const H1 = '.main .page-head h1'
 const card = (title: string): Pick<TourStep, 'sel' | 'text' | 'up'> => ({ sel: '.main .card-title', text: title, up: '.card' })
 
+/**
+ * 폰 연결 — 처음 한 번 하는 설정과 폰에서 쓰는 법. 설정 순서 칸(.relay-steps)은 아직 잇지 않았을 때만,
+ * QR(.relay-phone)은 이은 뒤에만 보이므로 그 단계들은 optional, 흐름 설명은 늘 보이게 대상 없이 둔다.
+ */
+const phoneSteps = (use: TourStep[]): TourStep[] => [
+  { title: '폰 연결은 처음 한 번만', body: '선생님 구글 계정에 작은 우편함(Apps Script)을 만들어 폰과 이 PC 를 잇습니다. 순서는 ① 코드 만들기 → ② 구글에 붙여 넣기 → ③ 배포 → ④ 주소 붙여 넣고 잇기 → ⑤ 폰으로 QR 찍기. 10분쯤 걸리고, 한 번 이으면 [세특 작성실] · [출결] · [메신저 정리] 가 함께 씁니다.' },
+  { sel: '.main .relay-steps li', text: '코드 만들기', title: '① 코드 만들기', body: '[코드 만들기] 를 누른 뒤 [코드 복사] 를 누릅니다. 이 PC 만 아는 열쇠가 든 코드입니다. 지금은 배우는 중이니 누르지 않아도 됩니다.', optional: true },
+  { sel: '.main .relay-steps li', text: 'script.google.com', title: '② 구글에 붙여 넣기', body: 'script.google.com 에서 새 프로젝트를 만들고, 들어 있는 글을 모두 지운 뒤 붙여 넣고 저장(Ctrl+S)합니다. 학교 계정은 배포가 막혀 있을 수 있어 개인 구글 계정을 권합니다.', optional: true },
+  { sel: '.main .relay-steps li', text: '새 배포', title: '③ 배포하기', body: '[배포 → 새 배포] → 유형 [웹 앱] → 실행: 나, 액세스 권한: 모든 사용자 → [배포]. 처음에는 구글이 권한을 묻습니다. 방금 만든 내 프로젝트인지 확인하고 허용합니다.', optional: true },
+  { sel: '.main .relay-steps li', text: '웹 앱 URL', title: '④ 주소 붙여 넣고 잇기', body: '배포가 끝나면 나오는 웹 앱 URL(끝이 /exec)을 복사해 이 칸에 붙여 넣고 [잇기]. 이은 뒤 폰에 명단이 올라가기까지 몇 분 걸릴 수 있습니다.', optional: true },
+  { sel: '.main .relay-phone img', title: '⑤ 폰으로 QR 찍기', body: '폰 카메라로 찍어 열고, 브라우저 메뉴의 [홈 화면에 추가] 로 두면 앱처럼 씁니다. 이 주소에는 열쇠가 들어 있으니 남에게 보내지 마세요.', optional: true },
+  { sel: '.main .relay-trouble summary', title: '폰에서 안 열릴 때', body: '“현재 파일을 열 수 없습니다” 가 뜨면 여기를 펼쳐 보세요. 폰 브라우저의 구글 로그인 때문일 가능성이 큽니다. 개인정보 보호(시크릿) 탭에 주소를 붙여 넣어 열고 홈 화면에 추가합니다.', optional: true },
+  ...use,
+  { title: 'PC 에서 받기', body: 'PC 의 오르빗이 켜져 있으면 3분마다 가져옵니다. 바로 받으려면 연결 칸의 [지금 가져오기]. 가져간 것은 구글에서 지우고, 안 가져간 것은 14일 뒤 지워집니다. 폰 화면이 예전 판이라고 뜨면 안내대로 새 코드를 붙여 넣고 [배포 관리 → 새 버전] 으로 바꿉니다.' }
+]
+
+const PHONE_OBS: TourStep[] = [
+  { title: '폰에서 수업 관찰 적기', body: '폰 화면의 [수업 관찰] 탭에서 활동과 수업반을 고르고 학생을 누릅니다. [발표] · [질문] 같은 낱말을 누르고 이어 적거나 키보드의 마이크로 말한 뒤 [보내기]. 오늘 적은 학생은 색이 칠해져 아직 못 본 학생이 보입니다.' },
+  { title: '여기에 이렇게 붙습니다', body: '그 활동의 학생 관찰 기록 뒤에 [11/13] 발표: … 처럼 날짜와 함께 붙습니다. 입력 항목이 여럿인 활동은 첫 칸에 들어갑니다. 폰에 학생이 안 보이면 이 화면에 명단과 활동이 있는지 보고, 몇 분 뒤 폰 화면을 새로고침하세요.' }
+]
+const PHONE_ATT: TourStep[] = [
+  { title: '폰에서 출결 보내기', body: '우리 반 명단을 넣어 두면 폰에 [출결] 탭이 생깁니다. 날짜를 확인하고 결석 · 지각 · 조퇴 · 결과인 학생만 눌러 구분 · 사유 · 메모를 고른 뒤 [보내기]. 잘못 보냈으면 다시 눌러 고치거나 [지우기]. 모두 출석이면 보낼 것이 없습니다.' }
+]
+const PHONE_TEXT: TourStep[] = [
+  { title: '폰에서 글 보내기', body: '카톡 · 메신저에서 글을 길게 눌러 복사하고, 폰 화면의 [글 보내기] 탭에 붙여 넣어 [보내기]. 몇 분 안에 [메신저 정리] 의 ‘폰에서 온 글’ 로 옵니다. 다른 앱의 대화를 저절로 읽지는 않습니다.' }
+]
+
 export const TOURS: Record<PageId, Tour> = {
   홈: {
     page: '홈',
@@ -65,7 +92,7 @@ export const TOURS: Record<PageId, Tour> = {
       { sel: '.main button', text: '주', exact: true, click: true, title: '한 주 보기', body: '‘주’를 눌러 보세요. 한 주를 시간 순서로 크게 봅니다.' },
       { sel: '.main button', text: '월', exact: true, click: true, title: '다시 한 달 보기', body: '‘월’을 눌러 돌아오세요.' },
       { sel: '.main button', text: '나이스 학사일정 가져오기', title: '학사일정 가져오기', body: '나이스에 학교를 연결해 두면 한 해 학사일정을 한 번에 달력에 넣습니다. 같은 날 같은 이름은 건너뜁니다.', optional: true },
-      { sel: '.main button', text: '구글 캘린더', title: '구글 캘린더 겹쳐 보기', body: '구글 캘린더의 비공개 주소를 넣으면 개인 일정을 점선 막대로 함께 봅니다. 원할 때만 켜는 기능입니다.', optional: true }
+      { sel: '.main button', text: '구글 캘린더', title: '구글 캘린더 겹쳐 보기', body: '[구글 캘린더 설정 ↗] 에서 볼 캘린더를 고르고, ‘iCal 형식의 비공개 주소’(끝이 basic.ics)를 복사해 붙여 넣은 뒤 [저장] → [연결 확인]. 구글 일정이 점선 막대로 함께 보입니다. 원할 때만 켜는 기능이고, 이 주소는 남에게 알려 주지 마세요.', optional: true }
     ]
   },
   시간표: {
@@ -99,7 +126,9 @@ export const TOURS: Record<PageId, Tour> = {
       { sel: H1, title: '메신저 정리', body: '쿨메신저 · 업무 메신저 · 카톡 글을 붙여 넣으면 AI 가 할 일과 출결 연락을 뽑아 줍니다. 넣기 전에 고치거나 뺄 수 있습니다.' },
       { sel: '.main .msg-text', title: '붙여 넣기', body: '여러 메시지를 한꺼번에 넣어도 됩니다. 학생 이름은 학생7 처럼 번호로, 다른 이름은 사람A 로 가려서 보냅니다.' },
       { sel: '.main .msg-privacy', title: 'AI 에 갈 글 보기', body: '무엇이 어떻게 가려져 나가는지 보내기 전에 확인할 수 있습니다.', optional: true },
-      { sel: '.main .relay-card', title: '폰에서 보내기', body: '선생님 구글 계정에 작은 우편함을 만들어 두면 폰에서 보낸 글이 몇 분 안에 여기로 옵니다.', optional: true }
+      { sel: '.main .relay-card', title: '폰에서 보내기', body: '선생님 구글 계정에 작은 우편함을 만들어 두면 폰에서 보낸 글이 몇 분 안에 여기로 옵니다.', optional: true },
+      { sel: '.main .relay-card button', text: '설정', click: true, title: '설정을 펼쳐 보세요', body: '눌러서 연결 칸을 엽니다. 이어 놓지 않았으면 설정 순서가, 이었으면 QR 이 보입니다.', optional: true },
+      ...phoneSteps(PHONE_TEXT)
     ]
   },
   이번주: {
@@ -116,7 +145,13 @@ export const TOURS: Record<PageId, Tour> = {
     intro: '우리 반 학생 명단 · 상담 · 출결 · 학생부를 한곳에서',
     steps: [
       { sel: H1, title: '담임', body: '우리 반 학생 명단, 상담 기록, 출결, 학생부 분석을 한곳에 모았습니다. 위 탭의 [담임] 이나 오른쪽 위 [만들기] 에서 열고, 설정의 메뉴에서 탭을 숨길 수도 있습니다.' },
-      { sel: '.main .memo-filter', title: '네 칸', body: '학생 명단 · 상담 기록 · 출결 · 학생부 분석을 작은 단추로 고릅니다. 마지막에 본 칸을 기억합니다. 학생부 살펴보기는 세특 작성실에서 이쪽으로 옮겼습니다.' }
+      { sel: '.main .memo-filter', title: '네 칸', body: '학생 명단 · 상담 기록 · 출결 · 학생부 분석을 작은 단추로 고릅니다. 마지막에 본 칸을 기억합니다. 학생부 살펴보기는 세특 작성실에서 이쪽으로 옮겼습니다.' },
+      { sel: '.main .memo-filter button', text: '학생 명단', click: true, title: '학생 명단부터', body: '눌러 보세요. 번호 · 이름을 붙여 넣거나(엑셀의 두 칸도 됩니다) 한 명씩 더합니다. 학부모 연락과 메모도 적어 둡니다. 출결과 같은 명단이라 한 번만 넣으면 됩니다.' },
+      { sel: '.main .memo-filter button', text: '상담 기록', click: true, title: '상담 기록', body: '눌러 보세요. 학생 × 달 표의 칸을 눌러 날짜 · 대상 · 방법 · 내용을 적습니다. 상담 예정을 넣으면 달력에도 이름 없이 번호만 적힙니다. [학부모 글] 은 AI 없이 보낼 글을 만들어 줍니다.' },
+      { sel: '.main .memo-filter button', text: '출결', click: true, title: '출결', body: '눌러 보세요. 한 달 표의 칸을 눌러 결석 · 지각 · 조퇴 · 결과를 적습니다. 서류를 아직 안 받았거나 나이스에 넣지 않은 것은 [챙길 것] 에 모이고, 아래에서 결석계 한글 파일도 만듭니다.' },
+      { sel: '.main .relay-card button', text: '설정', click: true, title: '폰으로 출결 체크', body: '조회 시간에 폰으로 번호만 눌러 보낼 수 있습니다. 눌러서 연결 칸을 열어 보세요. 이 칸은 우리 반 명단을 넣어야 보입니다.', optional: true },
+      ...phoneSteps(PHONE_ATT),
+      { sel: '.main .memo-filter button', text: '학생부 분석', click: true, title: '학생부 분석', body: '눌러 보세요. 상담 때 학생부를 읽고 이어 갈 탐구와 확인할 질문을 살펴보는 곳입니다. 이름은 가려서 보냅니다.' }
     ]
   },
   출결: {
@@ -125,7 +160,10 @@ export const TOURS: Record<PageId, Tour> = {
     steps: [
       { sel: H1, title: '출결 기록', body: '우리 반 명단을 넣고 결석 · 지각 · 조퇴 · 결과를 모아 둡니다. 나이스에는 선생님이 직접 넣고, 여기서는 서류와 나이스 입력을 챙깁니다.' },
       { sel: '.main .att-table', title: '한 달 표', body: '칸을 누르면 그 날 그 학생의 기록을 넣거나 고칩니다. 미인정은 주황으로 보입니다.', optional: true },
-      { sel: '.main .att-todo', title: '챙길 것', body: '서류를 아직 안 받았거나 나이스에 넣지 않은 기록이 모입니다.', optional: true }
+      { sel: '.main .att-todo', title: '챙길 것', body: '서류를 아직 안 받았거나 나이스에 넣지 않은 기록이 모입니다. 서류가 필요한 출결은 평일 5일 뒤를 기한으로 잡고, 날수는 바꿀 수 있습니다.', optional: true },
+      { sel: '.main button', text: '메신저 글에서 뽑기', title: '학부모 연락에서 뽑기', body: '메신저 · 카톡 글을 붙여 넣으면 AI 가 출결 연락을 뽑아 줍니다. 이름은 번호로 가려서 보내고, 확인한 것만 들어갑니다.', optional: true },
+      { sel: '.main .relay-card button', text: '설정', click: true, title: '폰으로 출결 체크', body: '눌러서 연결 칸을 열어 보세요. 우리 반 명단을 넣어야 보입니다.', optional: true },
+      ...phoneSteps(PHONE_ATT)
     ]
   },
   일지: {
@@ -265,17 +303,27 @@ export const TOURS: Record<PageId, Tour> = {
   },
   세특: {
     page: '세특',
-    intro: '교과 · 동아리 · 담임 — 관찰 기록 → AI 초안 → 최종본 → 나이스 파일 (이름은 보내지 않음)',
+    intro: '명단 · 활동 · 설문지 · 폰으로 관찰 → AI 초안 → 최종본 → 나이스 파일',
     steps: [
       { sel: H1, title: '세특 작성실', body: '학생마다 관찰한 것을 적으면 AI 가 초안을 쓰고, 선생님이 다듬어 최종본으로 둡니다. 적는 대로 저절로 저장되고, 명단과 글은 이 PC 에만 있습니다(인수인계 파일에도 들어가지 않습니다).' },
       { sel: '.main .stk-modes', title: '교과 · 동아리 · 담임', body: '수업 반 학생, 동아리 부원, 우리 반 학생은 서로 달라서 명단을 따로 둡니다. 쓸 것을 고르면 그 명단과 활동만 보입니다.' },
       { sel: '.main .stk-bar', title: '명단 · 쓰는 규칙 · 엑셀', body: '처음이면 [체험 자료로 먼저 보기] 로 지어낸 학생 16명이 든 활동을 먼저 봅니다(명단이 비어 있을 때만 넣을 수 있습니다). [명단 넣기] 에 엑셀 명렬표의 반 · 번호 · 이름 칸을 붙여 넣습니다. [내 규칙] 에서 금지어를 쉼표로 더하고, 기본 검사와 쓰는 규칙의 칸을 켜고 끕니다(기재요령의 틀은 그대로). [엑셀로 주고받기] 는 세특 시트를 내려받은 파일을 읽거나 엑셀로 내보냅니다.' },
-      { sel: '.main .stk-acts', title: '활동', body: '모드마다 활동을 하나씩 만들어 두었습니다. [＋ 활동] 으로 수행평가 · 탐구처럼 더 만들 수 있습니다.' },
+      { sel: '.main .stk-bar button', text: '명단', click: true, title: '명단 넣기를 눌러 보세요', body: '활동보다 명단이 먼저입니다. 눌러서 명단 칸을 엽니다.', optional: true },
+      { sel: '.main .stk-side, .main .stk-first', title: '명단 붙여 넣기', body: '엑셀 명렬표에서 학번(또는 반 · 번호)과 이름 칸을 끌어 복사해 붙여 넣습니다. 반 이름을 적으면 그 반만 바꾸고 다른 반은 그대로 둡니다. 지금은 넣지 않아도 됩니다.', optional: true },
+      { sel: '.main .stk-bar button', text: '명단', click: true, title: '다시 눌러 닫기', body: '같은 단추를 한 번 더 누르면 닫힙니다.', optional: true },
+      { sel: '.main .stk-acts', title: '활동', body: '수행평가 · 탐구처럼 기록할 거리를 활동 하나로 만듭니다. [＋ 활동] 은 빈 활동, [＋ 설문지로 만들기] 는 구글 설문지 응답으로 활동과 학생별 답을 한 번에 만듭니다.' },
+      { sel: '.main .stk-acts button', text: '설문지로 만들기', click: true, title: '설문지로 만들기를 눌러 보세요', body: '학생에게 구글 설문지로 받은 글이 있을 때 씁니다.', optional: true },
+      { sel: '.main .stk-formact', title: '설문지 → 활동', body: '설문지에 학번 · 이름 문항을 넣고, [응답] 탭의 스프레드시트 아이콘으로 만든 응답 시트 주소를 붙여 넣습니다. [응답 읽기] → 가져올 문항 고르기 → [활동 만들고 N명 넣기]. 문항마다 입력 칸이 됩니다. 폰 연결이 있어야 읽을 수 있습니다.', optional: true },
+      { sel: '.main .stk-formact button', text: '닫기', exact: true, click: true, title: '닫기', body: '[닫기] 를 눌러 닫으세요.', optional: true },
       { sel: '.main .stk-actbar', title: '활동 설정', body: '활동 탭 오른쪽의 [활동 설정] 을 누르면 창이 열립니다. [프롬프트 만들기] 탭에서 세특 구성 · 요청사항을 적고, [활동 규정] 탭에서 활동 이름, 과목, 분량(나이스 바이트), 활동 개요를 적어 둡니다. AI 가 이것을 맥락으로 읽습니다.', optional: true },
       { sel: '.main .stk-tools', title: '초안 받기', body: '모델을 고르고(K-EXAONE 도 됩니다) [초안 받기] 를 누르면 관찰 기록이 있는 학생을 한 명씩 받습니다. 학생을 체크하면 그 학생만 받습니다. 키가 없으면 [초안 받기] 는 잠기고, 학생 줄을 누른 뒤 [키 없이 — 요청 글 복사] 로 AI 앱에서 받아 [AI 초안] 칸에 붙여 넣습니다. [자동 고쳐쓰기] 는 검사에서 고칠 곳이 나온 학생만 한 번 더 받고, [근거 확인] 은 관찰 기록에 없는 내용이 들어갔는지 묻습니다.', optional: true },
-      { sel: '.main .stk-tools button', text: '관찰 기록 가져오기', title: '관찰 기록 가져오기', body: '스캔한 활동지 · 사진(내 Gemini · OpenAI 키로 읽음)이나 엑셀에서 복사한 표에서 학생별 글을 읽어 명단과 맞춥니다. 맞춘 것을 먼저 보여 주고, 눌러야 들어갑니다.', optional: true },
+      { sel: '.main .stk-tools button', text: '관찰 기록 가져오기', click: true, title: '관찰 기록 가져오기를 눌러 보세요', body: '이미 가진 자료에서 학생별 글을 한꺼번에 넣는 곳입니다.', optional: true },
+      { sel: '.main .stk-import .memo-filter', title: '가져오는 길 세 가지', body: '[스캔 · 사진에서] 는 활동지를 내 Gemini · OpenAI 키로 읽습니다. [구글 설문지] 는 응답 시트에서 새 응답만 이어 받습니다. [엑셀 표 붙여넣기] 는 AI 없이 넣습니다. 맞춘 학생을 먼저 보여 주고, 눌러야 들어갑니다.', optional: true },
+      { sel: '.main .stk-import button', text: '닫기', exact: true, click: true, title: '닫기', body: '[닫기] 를 눌러 닫으세요.', optional: true },
       { sel: '.main .stk-table', title: '관찰 기록 · AI 초안 · 최종본', body: '초안은 [최종본으로 →] 로 옮겨 다듬습니다. 칸을 누르면 분량 · 기재 금지 · 형식 · AI 말투 · 맞춤법 검사가 펼쳐지고, 결과는 “고칠 곳 / 살펴볼 곳”으로 나뉩니다. [최종본 열 복사] 로 엑셀 · 나이스에 한 번에 붙여 넣습니다.', optional: true },
-      { sel: '.main .stk-view', title: '취합 · 나이스', body: '활동별 글을 기록 영역마다 하나로 모읍니다. 합본이 한도 안이면 그대로 최종본이 되고, 넘는 학생만 [압축] 으로 줄입니다. [학생 간 점검] 은 같은 문장 · 분량 차이 · 빈 학생을 견주고, [나이스 입력 파일] 은 나이스에서 내려받은 양식에 최종본을 채웁니다.' }
+      { sel: '.main .stk-view', title: '취합 · 나이스', body: '활동별 글을 기록 영역마다 하나로 모읍니다. 합본이 한도 안이면 그대로 최종본이 되고, 넘는 학생만 [압축] 으로 줄입니다. [학생 간 점검] 은 같은 문장 · 분량 차이 · 빈 학생을 견주고, [나이스 입력 파일] 은 나이스에서 내려받은 양식에 최종본을 채웁니다.' },
+      { sel: '.main .stk-bar button', text: '폰으로 관찰', click: true, title: '폰으로 관찰을 눌러 보세요', body: '수업 중에 폰으로 본 것을 적으면 이 표의 관찰 기록에 붙습니다. 눌러서 연결 칸을 엽니다.', optional: true },
+      ...phoneSteps(PHONE_OBS)
     ]
   },
   OCR: {
@@ -287,7 +335,32 @@ export const TOURS: Record<PageId, Tour> = {
       { sel: '.main button', text: '파일 고르기', title: '파일 고르기', body: 'PDF · 사진을 여러 개 고를 수 있고, 끌어 놓아도 됩니다. 이름 차례로 한 표에 모아 읽습니다.' },
       { sel: '.main textarea', title: '추가 요청', body: '“학번 순으로”, “영어 본문만”처럼 더 바라는 것을 적습니다. 비워 두면 문서 전체를 원문 그대로 표로 옮깁니다.' },
       { sel: '.main .ocr-send .note', title: '보내는 것 확인', body: '파일 원본(학생 이름 · 학번 포함)이 그대로 Google 로 갑니다. 학생 자료는 결제를 켠 키를 쓰고, 학교 지침을 먼저 확인하세요. 확인란을 켜야 시작할 수 있습니다.' },
-      { sel: '.main button', text: '읽어서 표로 만들기', title: '읽기', body: '쪽수가 많으면 몇 분 걸립니다. 받은 표는 화면에서 보고 [엑셀로 저장] 하거나 [표 복사] 로 붙여 넣습니다. 답이 길어 끊기면 [이어서 받기] 가 뜹니다.' }
+      { sel: '.main button', text: '읽어서 표로 만들기', title: '읽기', body: '쪽수가 많으면 몇 분 걸립니다. 받은 표는 화면에서 보고 [엑셀로 저장] 하거나 [표 복사] 로 붙여 넣습니다. 답이 길어 끊기면 [이어서 받기] 가 뜹니다. 표는 [세특 활동으로 보내기] 로 활동에 넣을 수도 있습니다.' },
+      { sel: '.main .ocr-mode', text: '폴더째 학생별 정리', click: true, title: '폴더째 정리도 눌러 보세요', body: '학생 결과물이 든 폴더를 고르는 화면으로 바뀝니다.', optional: true },
+      { title: '학생마다 한 줄로', body: '파일 이름의 학번 · 이름으로 학생을 나눠 항목 정리 · 세특 초안 · 채점을 받습니다. 학생 결과물 내용이 내 키의 AI 서비스로 가므로 학교 지침을 먼저 확인하고, 결과는 꼭 원본과 맞춰 보세요. 끝나면 [세특 활동으로 보내기] 를 쓸 수 있습니다.' }
+    ]
+  },
+  변환: {
+    page: '변환',
+    intro: '한글 · 오피스 · 사진을 한꺼번에 PDF 로 (이 PC 안에서만)',
+    steps: [
+      { sel: H1, title: 'PDF 변환', body: '한글 · 워드 · 엑셀 · 파워포인트 · 사진을 PDF 로 한꺼번에 바꿉니다. 이 PC 에 깔린 한글 · 오피스로 바꾸며 인터넷 · AI 를 쓰지 않고, 원본은 그대로 둡니다.' },
+      { sel: '.main button', text: '폴더 고르기', title: '바꿀 파일', body: '폴더나 파일을 고르거나 화면에 끌어 놓습니다. 폴더는 하위 폴더 3단계, 파일 500개까지 담습니다.' },
+      { sel: '.main .conv-merge', title: '만드는 방식', body: '파일마다 하나씩, 파일 이름의 학번 · 이름이 같은 것끼리, 또는 모두 하나로 만들 수 있습니다.' },
+      { sel: '.main button', text: '만들기', title: '만들기', body: '고른 폴더 옆에 새 폴더를 만들어 저장합니다. 한글에서 [접근 허용]을 묻는 창이 뜨면 [모두 허용]을 누르세요.' },
+      { sel: '.main button', text: '나눌 PDF 고르기', title: 'PDF 나누기', body: '쪽 범위를 “1-3, 5” 처럼 적으면 묶음마다 PDF 하나로 나눕니다. 비워 두면 한 쪽씩 나눕니다.' }
+    ]
+  },
+  PDF편집: {
+    page: 'PDF편집',
+    intro: 'PDF 합치기 · 쪽 정리 · 글 · 서명 · 가리기 (이 PC 안에서만)',
+    steps: [
+      { sel: H1, title: 'PDF 편집', body: '여러 PDF 를 합치고, 쪽을 정리하고, 글 · 서명 · 도장을 더합니다. 인터넷 · AI 를 쓰지 않고, 원본은 그대로 둔 채 늘 새 파일로 저장합니다.' },
+      { sel: '.main button', text: 'PDF 열기', exact: true, title: 'PDF 열기', body: 'PDF 를 여러 개 고르거나 화면에 끌어 놓습니다. 연 차례대로 쪽이 이어 붙어 합치기가 됩니다.', optional: true },
+      { sel: '.main .pe-pages', title: '쪽 정리', body: '끌어서 차례를 바꾸고, 돌리기 · 복제 · 빈 쪽 넣기 · 지우기를 합니다. 앞의 네모에 표시하면 여러 쪽을 한꺼번에 다룹니다.' },
+      { sel: '.main .pe-tools', title: '그리는 도구', body: '글자 · 형광펜 · 네모 · 선 · 펜 · 그림을 더합니다. [덮고 새로 쓰기]는 안 보이게 덮기만 하므로, 개인정보는 반드시 [완전 가리기]를 쓰세요.' },
+      { sel: '.main .pe-doc', title: '문서 전체', body: '모든 쪽에 쪽 번호와 워터마크를 넣습니다.', optional: true },
+      { sel: '.main .pe-save', title: '저장', body: '전체 또는 고른 쪽만 새 PDF 로 저장합니다. 완전 가리기를 쓰면 모든 쪽이 그림으로 바뀌어 글자를 고를 수 없습니다.' }
     ]
   },
   도구: {
@@ -309,8 +382,10 @@ export const TOURS: Record<PageId, Tour> = {
       { sel: '.main .theme-seg', title: '밝기', body: '윈도우 설정 따르기 · 밝게 · 어둡게 가운데 고릅니다. 이 PC에만 저장됩니다. 만든이가 올려 둔 받은 테마가 있으면 테마 아래에 함께 뜹니다.' },
       { sel: '.main #menu-settings', title: '왼쪽 메뉴 고르기', body: '안 쓰는 메뉴는 끄고 ↑ ↓ 로 차례를 바꿉니다. 자주 가는 누리집은 바로가기로 더하면 왼쪽 메뉴에서 바로 열립니다.', optional: true },
       { ...card('담당 업무'), title: '담당 업무', body: '담당 업무명과 학교 정보는 인수인계 파일에 함께 들어갑니다. 업무분장표를 붙여 두면 도우미가 참고합니다.', optional: true },
-      { ...card('나이스 연결'), title: '나이스 연결', body: '학교를 연결하면 급식 · 학사일정 · 학급 시간표를 받아 옵니다. 인증키는 무료로 바로 발급됩니다.', optional: true },
-      { ...card('AI 연결'), title: 'AI 연결', body: '쓸 AI 서비스를 고르고 키를 넣습니다. 키는 이 PC에만 암호화해 둡니다.', optional: true },
+      { ...card('나이스 연결'), title: '나이스 연결', body: '학교를 연결하면 급식 · 학사일정 · 학급 시간표를 받아 옵니다. 학교 이름을 적고 [찾기] → [이 학교로 연결] 만 하면 됩니다.', optional: true },
+      { ...card('나이스 연결'), title: '나이스 인증키 받는 법 (선택)', body: '카드의 [인증키 받는 법] 을 펼치세요. 신청 화면에 구글 · 네이버 · 카카오로 로그인 → 활용 용도에 “학교 업무용” 처럼 적고 신청 → 마이페이지의 인증키를 복사 → 칸에 붙여 넣고 [저장] → [연결 확인]. 무료입니다.', optional: true },
+      { ...card('AI 연결'), title: 'AI 연결', body: '쓸 AI 서비스를 고르고 키를 넣습니다. 어느 서비스든 하나만 있으면 되고, 키는 이 PC에만 암호화해 둡니다. 키가 없어도 검색 · 기한 · 서식 채우기는 됩니다.', optional: true },
+      { ...card('AI 연결'), title: 'Gemini 키 받는 법', body: '[키 발급 페이지 열기] → 구글 로그인 → Create API Key → 나온 글자를 복사 → 칸에 붙여 넣고 [저장] → [연결 테스트]. 학생 자료를 보낼 때는 학교 · 교육청의 생성형 AI 지침을 먼저 확인하세요.', optional: true },
       { ...card('기한 알림'), title: '알림 · 자동 실행', body: '기한이 다가오면 윈도우 알림을 띄우고, 컴퓨터를 켤 때 자동으로 실행할 수 있습니다.', optional: true }
     ]
   }
@@ -320,7 +395,7 @@ export const TOURS: Record<PageId, Tour> = {
 /** 새 화면의 '오늘' 판 */
 const NEW_HOME: TourStep[] = [
   { sel: '.ns-tabs', title: '위 탭 셋', body: '오늘 · 이번 주(시간표 · 달력) · 내 업무(연간 업무 · 기한 · 가이드 · 인수인계)로 나눴습니다. 탭 안의 화면은 탭 아래 작은 단추로 고릅니다.' },
-  { sel: '.ns-make', title: '＋ 만들기', body: '문서로 업무 만들기 · 학교 문서 · 발표자료 · 문서 스캔 · 도구 모음, 그리고 메모장 · 업무 일지가 여기 모여 있습니다.' },
+  { sel: '.ns-make', title: '＋ 만들기', body: '문서로 업무 만들기 · 학교 문서 · 발표자료 · 문서 스캔 · PDF 변환 · PDF 편집 · 도구 모음, 그리고 메모장 · 업무 일지가 여기 모여 있습니다.' },
   { sel: '.tb-board .tw', title: '위젯', body: '위젯을 길게 누르면 편집이 열립니다. 누른 채로 끌면 옮겨지고, 다른 위젯은 비켜 갑니다. 오른쪽 단추를 눌러도 됩니다.', optional: true },
   { sel: '.main button', text: '편집', exact: true, click: true, title: '편집을 눌러 보세요', body: '위젯을 누르면 테두리 손잡이가 생깁니다. 손잡이를 끌면 칸 단위로 크기가 바뀝니다.' },
   { sel: '.tb-editbar', title: '편집 막대', body: '[＋ 위젯]으로 위젯을 고르고 크기를 정해 넣습니다. 위젯을 고른 뒤 [위젯 설정]에서 배경 · 투명도 · 제목 줄을 바꿉니다.', optional: true },
@@ -328,7 +403,7 @@ const NEW_HOME: TourStep[] = [
   { sel: '.ns-ask', title: '물어보기 바', body: '적고 Enter를 누르면 업무 도우미, 돋보기를 누르면 통합 검색입니다. 어디서든 Ctrl+K로 커서가 옵니다.' }
 ]
 
-export const TOUR_ORDER: PageId[] = ['홈', '달력', '시간표', '기한', '일지', '메모장', '로드맵', '워크플로우', '검색', '도우미', '가이드', '도움자료', '학습', '위원회', '발표', '담임', '세특', 'OCR', '도구', '데이터', '설정']
+export const TOUR_ORDER: PageId[] = ['홈', '달력', '시간표', '기한', '메신저', '일지', '메모장', '로드맵', '워크플로우', '검색', '도우미', '가이드', '도움자료', '학습', '위원회', '발표', '담임', '세특', 'OCR', '변환', 'PDF편집', '도구', '데이터', '설정']
 
 /** 왼쪽 메뉴에서 그 화면 단추 (도우미는 맨 위 ✦, 설정은 맨 아래 내 이름 칸) */
 function navSel(page: PageId): string {

@@ -4,8 +4,8 @@
  * 화면(FolderBatch)과 시험이 함께 쓰는 순수 함수만 둔다.
  */
 import type { BatchRow } from './batch'
-import { joinFields, matchNoteFields, matchNotes, newActivity } from './seteuk'
-import type { SeteukActivity, SeteukRow, SeteukRows, SeteukSheet, SeteukStudent } from './seteuk'
+import { isKeyColumn, joinFields, matchNoteFields, matchNotes, mergeNote, newActivity } from './seteuk'
+import type { SeteukActivity, SeteukImportHit, SeteukRow, SeteukRows, SeteukSheet, SeteukStudent } from './seteuk'
 
 export interface BatchSendOptions {
   /** 정리한 내용 → 관찰 기록 */
@@ -163,6 +163,104 @@ export function planNewActFromSheets(
     else patch[h.id] = { note: Object.values(h.fields).join('\n') }
   }
   return { act, patch, matched: m.hits.length, missed: m.misses.map((x) => x.label) }
+}
+
+/* ---------- 구글 설문지 → 활동 ---------- */
+
+/** 활동의 입력 항목은 열두 개까지 (readColumns) */
+export const FORM_MAX_COLUMNS = 12
+
+/** 활동마다 응답 시트 주소 · 어디까지 가져왔는지 · 가져오기로 한 문항 (seteuk_ 로 시작해 인수인계 파일에는 넣지 않는다) */
+export const seteukFormKey = (actId: string): string => `seteuk_form_${actId}`
+export interface SeteukFormMeta {
+  sheet: string
+  last: number
+  title: string
+  /** 설문지로 만든 활동에서 고른 문항 — 비면 모든 문항 */
+  cols?: string[]
+}
+
+/** 설문지 문항 → 입력 항목 이름. 쉼표 · 세로줄은 입력 항목을 나누는 글자라 바꾸고, 겹치면 (2) 를 붙인다 */
+export function cleanFormSheet(sheet: SeteukSheet): SeteukSheet {
+  const used = new Set<string>()
+  const header = sheet.header.map((h, i) => {
+    if (isKeyColumn(h)) return h
+    const base = h.replace(/\s*[,，|\r\n]+\s*/g, ' · ').replace(/\s+/g, ' ').trim().slice(0, 60).trim() || `문항 ${i + 1}`
+    let name = base
+    for (let n = 2; used.has(norm(name)); n++) name = `${base} (${n})`
+    used.add(norm(name))
+    return name
+  })
+  return { header, rows: sheet.rows }
+}
+
+/** 학생을 맞추는 칸을 뺀 문항들 */
+export function formQuestions(sheet: SeteukSheet): { index: number; name: string }[] {
+  return sheet.header.map((name, index) => ({ index, name })).filter((q) => !isKeyColumn(q.name))
+}
+
+/** 학생을 맞추는 칸 + 고른 문항만 남긴 표 */
+function cutSheet(sheet: SeteukSheet, keepQuestion: (index: number) => boolean): SeteukSheet {
+  const keep = sheet.header.map((_h, i) => i).filter((i) => isKeyColumn(sheet.header[i]) || keepQuestion(i))
+  return { header: keep.map((i) => sheet.header[i]), rows: sheet.rows.map((r) => keep.map((i) => r[i] ?? '')) }
+}
+
+/** 기억해 둔 문항만 남긴다. 설문지가 바뀌어 하나도 맞지 않으면 그대로 둔다 */
+export function pickQuestions(sheet: SeteukSheet, names: string[] | undefined): SeteukSheet {
+  if (!names?.length) return sheet
+  const want = new Set(names.map(norm))
+  if (!formQuestions(sheet).some((q) => want.has(norm(q.name)))) return sheet
+  return cutSheet(sheet, (i) => want.has(norm(sheet.header[i])))
+}
+
+/**
+ * 설문지 응답으로 새 활동을 만든다. 고른 문항이 둘 이상이면 활동의 입력 항목이 되고, 하나면 관찰 기록 한 칸이다.
+ * 학생이 쓴 글이라 칸마다 머리표(tag, '[설문 11/27]')를 붙여 교사 관찰과 가른다.
+ */
+export function planNewActFromForm(
+  sheet: SeteukSheet,
+  students: SeteukStudent[],
+  picked: number[],
+  spec: { id: string; name: string; rec: string; subject?: string; desc?: string },
+  tag: string
+): NewActFromSheetPlan {
+  const chosen = new Set(picked.slice(0, FORM_MAX_COLUMNS))
+  if (!chosen.size) return { act: newActivity(spec.id, { name: spec.name, rec: spec.rec }), patch: {}, matched: 0, missed: [] }
+  const plan = planNewActFromSheets([cutSheet(sheet, (i) => chosen.has(i))], students, { ...spec, name: spec.name.trim() || '설문지 응답' })
+  const patch: Record<string, Partial<SeteukRow>> = {}
+  for (const [id, row] of Object.entries(plan.patch)) {
+    if (row.fields) {
+      const fields = Object.fromEntries(Object.entries(row.fields).map(([k, v]) => [k, `${tag} ${v}`]))
+      patch[id] = { fields, note: joinFields(plan.act.columns, fields) }
+    } else patch[id] = { note: `${tag} ${row.note ?? ''}` }
+  }
+  return { ...plan, act: { ...plan.act, desc: spec.desc?.trim() ?? '' }, patch }
+}
+
+const flat = (s: string): string => s.replace(/\s*\n\s*/g, ' ').trim()
+
+/**
+ * 가져온 글을 학생 한 줄에 더한다 (지우지 않고 뒤에 붙임, 같은 글이 있으면 그대로).
+ * 입력 항목이 나뉜 활동은 이름이 같은 칸에, 맞는 칸이 없으면 첫 칸에 넣고 관찰 기록을 다시 잇는다.
+ */
+export function mergeImportRow(columns: string[], old: Pick<SeteukRow, 'note' | 'fields'>, hit: SeteukImportHit): Partial<SeteukRow> {
+  if (columns.length < 2) return { note: mergeNote(old.note, hit.text) }
+  const fields: Record<string, string> = { ...(old.fields ?? {}) }
+  // 칸을 나누기 전에 적은 관찰 기록은 첫 칸으로 옮겨 지킨다
+  if (!columns.some((c) => fields[c]?.trim()) && old.note.trim()) fields[columns[0]] = flat(old.note)
+  const add = (col: string, v: string): void => {
+    const next = flat(v)
+    const prev = (fields[col] ?? '').trim()
+    if (next && !prev.includes(next)) fields[col] = prev ? `${prev} ${next}` : next
+  }
+  const parts = Object.entries(hit.fields ?? {})
+  if (!parts.length) add(columns[0], hit.text)
+  for (const [k, v] of parts) {
+    const col = columns.find((c) => norm(c) === norm(k))
+    if (col) add(col, v)
+    else add(columns[0], `${k}: ${v}`)
+  }
+  return { fields, note: joinFields(columns, fields) }
 }
 
 /**

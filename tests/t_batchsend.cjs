@@ -83,5 +83,48 @@ const rows6 = [{ sid: '10101', name: '가나다', result: { items: { 주제: '�
 const n4 = B.planNewActFromBatch(rows6, sr, ['주제', '느낀 점'], { id: 'act_scan4', name: '폴더 활동', rec: '과세특' }, { note: true, ai: true })
 ok(JSON.stringify(n4.act.columns) === JSON.stringify(['주제', '느낀 점']) && n4.patch['1-1'].fields['주제'] === '가나다 주제' && n4.patch['1-1'].ai === '가나다 세특', '폴더째 정리 결과 → 입력 항목 + 초안')
 
+console.log('설문지로 새 활동 만들기')
+{
+  const head = ['타임스탬프', '이메일 주소', '학번을 적어 주세요', '이름', '탐구 주제, 한 줄', '느낀 점', '연락처', '느낀 점']
+  const body = [
+    ['t', 'a@b.c', '10101', '가나다', '함수', '재미', '010', '또'],
+    ['t', 'a@b.c', '10102', '라마바', '도형', '', '010', ''],
+    ['t', 'a@b.c', '10399', '없는이', '집합', '음', '010', '']
+  ]
+  const sheet = B.cleanFormSheet(S.formToSheet(head, body))
+  const qs = B.formQuestions(sheet)
+  ok(qs.map((q) => q.name).join('|') === '탐구 주제 · 한 줄|느낀 점|느낀 점 (2)', `문항 이름: ${qs.map((q) => q.name).join('|')}`)
+  const spec = { id: 'act_f', name: ' ', rec: '과세특', desc: '  개요 ' }
+  const two = B.planNewActFromForm(sheet, roster, [qs[0].index, qs[1].index], spec, '[설문 1/2]')
+  ok(two.act.columns.join('|') === '탐구 주제 · 한 줄|느낀 점', '고른 문항만 입력 항목')
+  ok(two.act.name === '설문지 응답' && two.act.desc === '개요', '빈 이름은 기본 이름 · 개요')
+  ok(two.matched === 2 && two.missed.length === 1, '맞춤 2 · 못 찾음 1')
+  ok(two.patch['1-1'].fields['느낀 점'] === '[설문 1/2] 재미' && two.patch['1-1'].note === '탐구 주제 · 한 줄: [설문 1/2] 함수\n느낀 점: [설문 1/2] 재미', '칸마다 머리표 · 관찰 기록 잇기')
+  ok(!('느낀 점' in two.patch['1-2'].fields), '빈 답은 넣지 않음')
+  ok(!JSON.stringify(two.patch).includes('010') && !JSON.stringify(two.patch).includes('a@b.c'), '연락처 · 이메일은 빠짐')
+  const saved = S.readActs(JSON.stringify([two.act]))[0]
+  ok(saved.columns.join('|') === two.act.columns.join('|') && S.readColumns(saved.columns.join(', ')).length === 2, '저장 · 쉼표 입력칸을 거쳐도 칸이 그대로')
+  const one = B.planNewActFromForm(sheet, roster, [qs[1].index], spec, '[설문 1/2]')
+  ok(one.act.columns.length === 0 && one.patch['1-1'].note === '[설문 1/2] 재미', '문항 하나면 관찰 기록 한 칸')
+  const none = B.planNewActFromForm(sheet, roster, [], spec, '[설문 1/2]')
+  ok(none.matched === 0 && Object.keys(none.patch).length === 0, '문항을 안 고르면 아무것도 없음')
+  const cut = B.pickQuestions(sheet, ['느낀 점'])
+  ok(B.formQuestions(cut).length === 1 && cut.rows[0].includes('10101'), '다음 가져오기는 고른 문항만 (학번 · 이름은 남김)')
+  ok(B.formQuestions(B.pickQuestions(sheet, ['없는 문항'])).length === 3, '설문지가 바뀌어 하나도 안 맞으면 모두')
+}
+
+console.log('가져온 글 더하기')
+{
+  const cols = ['주제', '느낀 점']
+  ok(B.mergeImportRow([], { note: '앞' }, { id: '1', text: '뒤' }).note === '앞\n뒤', '한 칸 활동은 줄 바꿔 뒤에')
+  const m = B.mergeImportRow(cols, { note: '주제: 옛', fields: { 주제: '옛' } }, { id: '1', text: 'x', fields: { '느낀 점': '새', 다른: '글' } })
+  ok(m.fields.주제 === '옛 다른: 글' && m.fields['느낀 점'] === '새', '같은 이름은 그 칸, 나머지는 첫 칸')
+  ok(m.note === '주제: 옛 다른: 글\n느낀 점: 새', '관찰 기록 다시 잇기')
+  const again = B.mergeImportRow(cols, m, { id: '1', text: 'x', fields: { '느낀 점': '새' } })
+  ok(again.fields['느낀 점'] === '새', '같은 글은 두 번 넣지 않음')
+  const legacy = B.mergeImportRow(cols, { note: '칸 나누기 전 글' }, { id: '1', text: '표에서\n온 글' })
+  ok(legacy.fields.주제 === '칸 나누기 전 글 표에서 온 글', '예전 관찰 기록을 지키며 첫 칸에')
+}
+
 console.log(fails ? `\n실패 ${fails}` : '\n모두 통과')
 process.exit(fails ? 1 : 0)

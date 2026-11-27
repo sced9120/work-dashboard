@@ -7850,3 +7850,153 @@ body {
 .att-doc-table select, .att-doc-table input[type='text'] { width: 100%; }
 .att-doc-pick tr.on { background: color-mix(in srgb, var(--hand, var(--accent)) 10%, transparent); }
 .att-doc-map { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+
+/* ================= 28. 문서 → PDF 변환 (v3.8) ================= */
+.conv-drop { position: relative; }
+.conv-drop.over { outline: 2px dashed var(--accent); outline-offset: -4px; }
+.conv-list { margin-top: 10px; max-height: 380px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.conv-list table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.conv-list th, .conv-list td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; white-space: nowrap; }
+.conv-list th { position: sticky; top: 0; background: var(--surface-2); color: var(--text-2); font-weight: 600; }
+.conv-list tr:last-child td { border-bottom: 0; }
+.conv-list td.conv-name { white-space: normal; width: 100%; word-break: break-all; }
+.conv-list td.conv-state { min-width: 92px; font-variant-numeric: tabular-nums; }
+.conv-list tr.err td.conv-state { color: var(--danger); font-weight: 700; }
+.conv-why { color: var(--danger); font-size: 12px; margin-top: 2px; word-break: keep-all; }
+.conv-name { word-break: break-all; }
+.conv-merge { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.conv-merge label, .conv-check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.conv-merge label > span { display: flex; flex-direction: column; }
+.conv-merge small { color: var(--muted); word-break: keep-all; }
+.conv-check { margin-top: 10px; align-items: center; }
+.conv-progress { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+.conv-progress .progress { flex: 1; }
+.conv-result { margin-top: 12px; }
+.conv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ================= 29. PDF 편집 (v3.8) ================= */
+/* 쪽 그림 · 캔버스는 종이라 흰 바탕 그대로 (어둡게에서도 종이는 희게) */
+.pe { position: relative; }
+.pe.over::after { content: ''; position: absolute; inset: -6px; border: 2px dashed var(--accent); border-radius: var(--radius-lg); pointer-events: none; }
+.pe .page-head p, .pe-note, .pe-foot, .pe-tool-hint { word-break: keep-all; }
+.pe-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 12px; }
+.pe-bar .btn { display: inline-flex; align-items: center; gap: 4px; }
+.pe-grow { flex: 1; }
+.pe-bar .badge { font-variant-numeric: tabular-nums; }
+:root .pe .card + .card { margin-top: 12px; }
+.pe-main { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 12px; align-items: start; margin-top: 12px; }
+:root .pe-main > .card { margin: 0; }
+.pe-pages { padding: 10px; position: sticky; top: 8px; max-height: calc(100vh - 120px); display: flex; flex-direction: column; min-height: 0; }
+.pe-pages-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 6px; word-break: keep-all; }
+.pe-pages-head .small { font-variant-numeric: tabular-nums; }
+.pe-page-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.pe-page-tools .btn { padding: 3px 7px; font-size: 12px; }
+:root .pe-danger { color: var(--danger); border-color: var(--danger-line); }
+:root .pe-danger:hover:not(:disabled) { background: var(--danger-hover); border-color: var(--danger-hover-line); }
+.pe-thumbs { list-style: none; margin: 0; padding: 2px; overflow: auto; flex: 1; min-height: 120px; display: flex; flex-direction: column; gap: 8px; }
+.pe-thumb { position: relative; border-radius: 8px; }
+.pe-thumb.drop-before::before, .pe-thumb.drop-after::after { content: ''; position: absolute; left: 0; right: 0; height: 3px; border-radius: 2px; background: var(--accent); }
+.pe-thumb.drop-before::before { top: -6px; }
+.pe-thumb.drop-after::after { bottom: -6px; }
+.pe-thumb-btn { display: block; width: 100%; padding: 6px; border: 2px solid var(--border); border-radius: 8px; background: var(--surface-2); cursor: pointer; position: relative; color: var(--text); font: inherit; }
+.pe-thumb-btn:hover { border-color: var(--border-strong); }
+.pe-thumb.cur .pe-thumb-btn { border-color: var(--accent); background: var(--accent-soft); }
+.pe-thumb.picked .pe-thumb-btn { box-shadow: 0 0 0 3px var(--focus-ring); }
+.pe-thumb-img { display: block; width: 100%; background: #ffffff; border: 1px solid var(--border); overflow: hidden; }
+.pe-thumb-img img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.pe-thumb-wait { display: block; width: 100%; height: 100%; background: var(--surface-3); }
+.pe-thumb-no { position: absolute; left: 10px; bottom: 10px; min-width: 22px; padding: 1px 6px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
+.pe-thumb-tag { position: absolute; right: 10px; bottom: 10px; padding: 1px 6px; border-radius: 10px; font-size: 11px; background: var(--accent-soft); color: var(--accent-strong); border: 1px solid var(--border); }
+.pe-thumb-tag.dark { background: var(--text); color: var(--surface); }
+.pe-thumb-pick { position: absolute; top: 9px; right: 9px; display: flex; padding: 3px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); }
+.pe-thumb-pick input { margin: 0; width: 16px; height: 16px; cursor: pointer; }
+.pe-editor { padding: 12px; min-width: 0; }
+.pe-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.pe-tool { display: inline-flex; align-items: center; gap: 4px; }
+:root .pe-tool.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+:root .pe-tool-redact:not(.on) { border-color: var(--border-strong); font-weight: 700; }
+.pe-tool-hint { margin: 6px 0 4px; min-height: 1.4em; }
+.pe-note { margin: 6px 0; }
+.pe-view-bar { display: flex; align-items: center; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
+.pe-view-no { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 64px; text-align: center; }
+.pe-view-src { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40%; }
+.pe-view-wrap { width: 100%; max-height: calc(100vh - 230px); min-height: 240px; overflow: auto; background: var(--surface-3); border: 1px solid var(--border); border-radius: 10px; padding: 1px; }
+.pe-view { position: relative; margin: 0 auto; background: #ffffff; touch-action: none; box-shadow: 0 1px 4px var(--card-shadow); outline-offset: 2px; }
+.pe-view.tool-select { cursor: default; }
+.pe-view:not(.tool-select) { cursor: crosshair; }
+.pe-view.tool-text { cursor: text; }
+.pe-canvas { position: absolute; left: 0; top: 0; display: block; }
+.pe-top { pointer-events: none; }
+.pe-sel { position: absolute; border: 2px dashed var(--accent); border-radius: 3px; pointer-events: none; }
+.pe-sel.dark { border-color: var(--danger); }
+.pe-handle { position: absolute; right: -7px; bottom: -7px; width: 14px; height: 14px; border-radius: 3px; background: var(--accent); border: 2px solid var(--surface); pointer-events: auto; cursor: nwse-resize; }
+.pe-ghost { position: absolute; border: 1.5px dashed var(--accent); background: var(--focus-ring); pointer-events: none; }
+.pe-ghost.dark { border-color: var(--text); background: rgba(0, 0, 0, 0.35); }
+.pe-ghost-line { position: absolute; left: 0; top: 0; pointer-events: none; }
+.pe-ghost-line line { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 4; }
+.pe-fail { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center; color: var(--danger); background: var(--danger-soft); word-break: keep-all; }
+.pe-panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.pe-panel-row, .pe-doc-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.pe-doc-row { margin-bottom: 10px; }
+.pe-doc-row .conv-check { margin-top: 0; min-width: 120px; align-self: center; }
+.pe-field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-2); }
+.pe-field select, .pe-field input[type='number'], .pe-field input[type='text'], .pe-field textarea { font: inherit; font-size: 13px; color: var(--text); background: var(--field-bg); border: 1px solid var(--border-strong); border-radius: 6px; padding: 4px 6px; }
+.pe-field select { max-width: 220px; min-width: 96px; }
+.pe-num input { width: 72px; font-variant-numeric: tabular-nums; }
+.pe-color input { width: 44px; height: 30px; padding: 2px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--field-bg); cursor: pointer; }
+.pe-text textarea { width: 100%; resize: vertical; min-height: 52px; }
+.pe-wm-text input { width: 180px; }
+.pe-foot { margin-top: 8px; }
+@media (max-width: 900px) {
+  .pe-main { grid-template-columns: 150px minmax(0, 1fr); gap: 8px; }
+  .pe-pages { padding: 8px; }
+  .pe-page-tools .btn { padding: 2px 5px; font-size: 11px; }
+  .pe-view-src, .pe-pages-head .small { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pe-thumb-btn { transition: none; }
+}
+
+/* ================= 30. 설문지로 활동 만들기 ================= */
+.stk-formact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 8px 0;
+}
+.stk-formact-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.stk-formact-grid label > span {
+  font-weight: 600;
+}
+.stk-formact-grid .stk-formact-wide {
+  grid-column: 1 / -1;
+}
+.stk-formact-q {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  margin: 0 0 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+.stk-formact-q legend {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 4px;
+}
+.stk-formact-q legend .muted {
+  font-weight: 400;
+}
+.stk-formact-q label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+  word-break: keep-all;
+}

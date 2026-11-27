@@ -1232,6 +1232,8 @@ export interface SeteukSheet {
 export interface SeteukImportHit {
   id: string
   text: string
+  /** 문항(내용 칸)별 글 — 입력 항목이 나뉜 활동에 같은 이름의 칸으로 넣는다 */
+  fields?: Record<string, string>
 }
 export interface SeteukImportMiss {
   /** 표에 적혀 있던 반 · 번호 · 이름 */
@@ -1249,6 +1251,12 @@ const COL_CLS = /^(반|학급)$/
 const COL_HAK = /^학번$/
 const COL_GRADE = /^학년$/
 const COL_SKIP = /^(페이지|쪽|쪽수|연번|no\.?|비고)$/i
+
+/** 학생을 맞추는 데 쓰거나 내용이 아닌 칸 (학번 · 학년 · 반 · 번호 · 이름 · 연번 …) */
+export function isKeyColumn(head: string): boolean {
+  const n = head.replace(/\s+/g, '')
+  return [COL_NAME, COL_NO, COL_CLS, COL_HAK, COL_GRADE, COL_SKIP].some((r) => r.test(n))
+}
 
 /** 따옴표로 싼 칸(엑셀에서 줄바꿈이 든 칸)을 지키며 탭 표를 나눈다 */
 function splitTsv(text: string): string[][] {

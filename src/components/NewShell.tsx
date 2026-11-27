@@ -40,6 +40,8 @@ const MAKE: { title: string; items: MakeItem[]; always?: boolean }[] = [
       { page: '위원회', icon: 'doc', label: '학교 문서 만들기', desc: '한글 양식으로 계획서 · 회의록' },
       { page: '발표', icon: 'screen', label: '발표자료 만들기', desc: '연수 · 협의회 슬라이드' },
       { page: 'OCR', icon: 'scan', label: '문서 스캔 · 정리', desc: '스캔 · 사진 속 표를 엑셀로' },
+      { page: '변환', icon: 'file', label: 'PDF 변환', desc: '한글 · 오피스 · 사진을 한꺼번에 PDF 로' },
+      { page: 'PDF편집', icon: 'edit', label: 'PDF 편집', desc: '합치기 · 쪽 정리 · 글 · 서명 · 가리기' },
       { page: '도구', icon: 'grid', label: '도구 모음', desc: '학교에서 자주 쓰는 사이트 · 도구' }
     ]
   },
@@ -71,6 +73,7 @@ interface Props {
   schoolName: string
   navp: NavPrefs
   ocrBusy: boolean
+  convertBusy: boolean
   chatBusy: boolean
   newTools: boolean
   feedback: string
@@ -206,8 +209,8 @@ export default function NewShell(props: Props): JSX.Element {
           >
             <Icon name="plus" size={16} />
             만들기
-            {props.ocrBusy && <i className="nav-busy" aria-label="읽는 중" />}
-            {!props.ocrBusy && props.newTools && <i className="nav-new" aria-label="새 도구" />}
+            {(props.ocrBusy || props.convertBusy) && <i className="nav-busy" aria-label={props.ocrBusy ? '읽는 중' : '바꾸는 중'} />}
+            {!props.ocrBusy && !props.convertBusy && props.newTools && <i className="nav-new" aria-label="새 도구" />}
           </button>
           <button className="ns-icon" onClick={props.onLearn} aria-label="따라 배우기 (F1)" title="따라 배우기 (F1)">
             <Icon name="cap" size={18} />
@@ -242,6 +245,7 @@ export default function NewShell(props: Props): JSX.Element {
                         <span className="ns-pop-ico">
                           <Icon name={m.icon} size={20} />
                           {m.page === 'OCR' && props.ocrBusy && <i className="nav-busy" aria-label="읽는 중" />}
+                          {m.page === '변환' && props.convertBusy && <i className="nav-busy" aria-label="바꾸는 중" />}
                           {m.page === '도구' && props.newTools && <i className="nav-new" aria-label="새 도구" />}
                         </span>
                         <span className="ns-pop-text">

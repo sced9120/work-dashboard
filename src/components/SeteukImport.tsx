@@ -3,11 +3,13 @@ import { answersToTables } from '../../shared/mdtable'
 import { geminiReady } from '../../shared/gemini'
 import { fmtBytes } from '../../shared/ocr'
 import type { OcrAnswer, OcrFile } from '../../shared/ocr'
-import { SETEUK_OCR_NOTE, formToSheet, matchNotes, sheetFromPaste, studentLabel } from '../../shared/seteuk'
+import { SETEUK_OCR_NOTE, formToSheet, matchNoteFields, matchNotes, sheetFromPaste, studentLabel } from '../../shared/seteuk'
 import type { SeteukImport as Found, SeteukImportHit, SeteukSheet, SeteukStudent } from '../../shared/seteuk'
 import { POINTS_MIN_CHARS } from '../../shared/seteukExport'
 import { useToast } from '../lib/toast'
 import RelayCard from './RelayCard'
+import { cleanFormSheet, pickQuestions, seteukFormKey } from '../../shared/batchSend'
+import type { SeteukFormMeta } from '../../shared/batchSend'
 
 /**
  * 세특 작성실 — 관찰 기록 가져오기.
@@ -25,23 +27,19 @@ interface Props {
   students: SeteukStudent[]
   /** 구글 설문지 — 활동마다 응답 시트 주소와 '어디까지 가져왔는지'를 기억한다 */
   actId?: string
+  /** 지금 활동의 입력 항목 — 둘 이상이면 설문지 문항을 같은 이름의 칸에 넣는다 */
+  columns?: string[]
   onApply: (hits: SeteukImportHit[]) => void
   onClose: () => void
 }
 
 type Mode = 'scan' | 'paste' | 'form'
 
-/** 구글 설문지 — 활동마다 (seteuk_ 로 시작해 인수인계 파일에는 넣지 않는다) */
-const formKey = (actId: string): string => `seteuk_form_${actId}`
-interface FormMeta {
-  sheet: string
-  last: number
-  title: string
-}
-const readMeta = (raw: string): FormMeta => {
+const readMeta = (raw: string): SeteukFormMeta => {
   try {
-    const v = JSON.parse(raw || '{}') as Partial<FormMeta>
-    return { sheet: typeof v.sheet === 'string' ? v.sheet : '', last: Number(v.last) || 0, title: typeof v.title === 'string' ? v.title : '' }
+    const v = JSON.parse(raw || '{}') as Partial<SeteukFormMeta>
+    const cols = Array.isArray(v.cols) ? v.cols.filter((c): c is string => typeof c === 'string') : []
+    return { sheet: typeof v.sheet === 'string' ? v.sheet : '', last: Number(v.last) || 0, title: typeof v.title === 'string' ? v.title : '', ...(cols.length ? { cols } : {}) }
   } catch {
     return { sheet: '', last: 0, title: '' }
   }
@@ -51,7 +49,8 @@ const whenMs = (ms: number): string => {
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-export default function SeteukImport({ students, actId = '', onApply, onClose }: Props): JSX.Element {
+export default function SeteukImport({ students, actId = '', columns = [], onApply, onClose }: Props): JSX.Element {
+  const split = columns.length >= 2
   const toast = useToast()
   const [mode, setMode] = useState<Mode>('scan')
   const [files, setFiles] = useState<OcrFile[]>([])
@@ -83,14 +82,14 @@ export default function SeteukImport({ students, actId = '', onApply, onClose }:
   }, [])
 
   // 구글 설문지 (3.7.1~)
-  const [meta, setMeta] = useState<FormMeta>({ sheet: '', last: 0, title: '' })
+  const [meta, setMeta] = useState<SeteukFormMeta>({ sheet: '', last: 0, title: '' })
   const [formUrl, setFormUrl] = useState('')
   const [form, setForm] = useState<{ sheet: SeteukSheet; last: number; title: string; count: number } | null>(null)
   const [needVer, setNeedVer] = useState(0)
   useEffect(() => {
     if (!actId) return
     void (async () => {
-      const m = readMeta(await window.api.setting.get(formKey(actId), ''))
+      const m = readMeta(await window.api.setting.get(seteukFormKey(actId), ''))
       setMeta(m)
       setFormUrl(m.sheet)
     })()
@@ -122,13 +121,22 @@ export default function SeteukImport({ students, actId = '', onApply, onClose }:
       if (!form) return null
       const today = new Date()
       const tag = `[설문 ${today.getMonth() + 1}/${today.getDate()}]`
-      const f = matchNotes([form.sheet], students)
+      const same = meta.sheet === formUrl.trim()
+      const sheet = split || (same && meta.cols) ? pickQuestions(cleanFormSheet(form.sheet), same ? meta.cols : undefined) : form.sheet
+      const f = matchNotes([sheet], students)
+      const byId = new Map(split ? matchNoteFields([sheet], students).hits.map((h) => [h.id, h.fields]) : [])
       // 학생이 쓴 글이라 교사 관찰과 가르는 머리표를 붙인다
-      return { ...f, hits: f.hits.map((h) => ({ ...h, text: `${tag} ${h.text}` })) }
+      return {
+        ...f,
+        hits: f.hits.map((h) => {
+          const fields = byId.get(h.id)
+          return { id: h.id, text: `${tag} ${h.text}`, ...(fields ? { fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, `${tag} ${v}`])) } : {}) }
+        })
+      }
     }
     const src = mode === 'paste' ? (pasted ? [pasted] : null) : sheets
     return src ? matchNotes(src, students) : null
-  }, [mode, pasted, sheets, students, form])
+  }, [mode, pasted, sheets, students, form, split, meta, formUrl])
 
   const pick = async (): Promise<void> => {
     const got = await window.api.ocr.pick()
@@ -166,7 +174,8 @@ export default function SeteukImport({ students, actId = '', onApply, onClose }:
     else if (answers[answers.length - 1].truncated) setError('답이 길어 끝까지 받지 못했습니다. 받은 데까지만 보여 드립니다 — 파일을 나눠 다시 읽어 주세요.')
   }
 
-  const longs = found ? found.hits.filter((h) => h.text.trim().length >= POINTS_MIN_CHARS).length : 0
+  // 칸이 나뉜 활동은 문항별로 넣으므로 '요점만' 은 쓰지 않는다
+  const longs = found && !split ? found.hits.filter((h) => h.text.trim().length >= POINTS_MIN_CHARS).length : 0
 
   const apply = async (): Promise<void> => {
     if (!found?.hits.length || shrinking) return
@@ -192,9 +201,9 @@ export default function SeteukImport({ students, actId = '', onApply, onClose }:
     }
     onApply(hits)
     if (mode === 'form' && form && actId) {
-      const next = { sheet: formUrl.trim(), last: form.last, title: form.title }
+      const next = { sheet: formUrl.trim(), last: form.last, title: form.title, ...(meta.sheet === formUrl.trim() && meta.cols ? { cols: meta.cols } : {}) }
       setMeta(next)
-      void window.api.setting.set(formKey(actId), JSON.stringify(next))
+      void window.api.setting.set(seteukFormKey(actId), JSON.stringify(next))
     }
     toast(
       `${hits.length}명의 관찰 기록에 넣었습니다.` +
@@ -398,7 +407,7 @@ export default function SeteukImport({ students, actId = '', onApply, onClose }:
             <button className="btn btn-primary btn-sm" onClick={() => void apply()} disabled={!found.hits.length || shrinking}>
               {shrinking ? '요점 뽑는 중…' : `${found.hits.length}명의 관찰 기록에 넣기`}
             </button>
-            <span className="small muted">이미 적힌 관찰 기록은 지우지 않고 뒤에 줄을 바꿔 붙입니다.</span>
+            <span className="small muted">{split ? '이미 적힌 글은 지우지 않고 뒤에 이어 붙입니다. 칸 이름이 같은 문항은 그 칸에, 나머지는 첫 칸에 넣습니다.' : '이미 적힌 관찰 기록은 지우지 않고 뒤에 줄을 바꿔 붙입니다.'}</span>
           </div>
         </div>
       )}

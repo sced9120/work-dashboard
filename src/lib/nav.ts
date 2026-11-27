@@ -51,6 +51,8 @@ export const NAV: { section: string; items: NavItem[] }[] = [
       { id: '발표', icon: 'screen', label: '발표자료 만들기' },
       { id: '세특', icon: 'pen', label: '세특 작성실' },
       { id: 'OCR', icon: 'scan', label: '문서 스캔 · 정리' },
+      { id: '변환', icon: 'file', label: 'PDF 변환' },
+      { id: 'PDF편집', icon: 'edit', label: 'PDF 편집' },
       { id: '도구', icon: 'grid', label: '도구 모음' }
     ]
   }

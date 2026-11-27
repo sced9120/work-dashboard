@@ -125,6 +125,8 @@ function Coach({ tour, onGo, onExit }: { tour: Tour; onGo: (p: PageId) => void; 
     elRef.current = null
     setHole(null)
     setMissing(false)
+    // 가리킬 대상이 없는 설명 단계는 가운데에 바로 띄운다 ('보이지 않습니다' 안내 없이)
+    if (!steps[i].sel) return
     const find = (): void => {
       if (!alive) return
       const el = locate(steps[i])
@@ -134,7 +136,8 @@ function Coach({ tour, onGo, onExit }: { tour: Tour; onGo: (p: PageId) => void; 
         measure()
         return
       }
-      if (++tries < 16) {
+      // 없어도 되는 단계는 짧게만 기다린다
+      if (++tries < (steps[i].optional ? 8 : 16)) {
         timer = window.setTimeout(find, 150)
         return
       }
@@ -222,6 +225,8 @@ function Coach({ tour, onGo, onExit }: { tour: Tour; onGo: (p: PageId) => void; 
   left = clamp(left, 12, vw - POP_W - 12)
   top = clamp(top, 12, vh - popH - 12)
   const h = hole && !missing ? hole : null
+  // 없으면 건너뛸 단계는 대상을 찾기 전까지 상자를 보이지 않는다
+  const searching = !!step.sel && !!step.optional && !hole && !missing
 
   return createPortal(
     <div className="tour-root" role="dialog" aria-modal="true" aria-labelledby="tour-title">
@@ -238,7 +243,7 @@ function Coach({ tour, onGo, onExit }: { tour: Tour; onGo: (p: PageId) => void; 
         <div className="tour-dim" />
       )}
 
-      <div className="tour-pop" ref={popRef} style={{ left, top, width: POP_W }}>
+      <div className="tour-pop" ref={popRef} style={{ left, top, width: POP_W, ...(searching ? { opacity: 0, pointerEvents: 'none' } : {}) }}>
         <div className="tour-pop-top">
           <span className="tour-where">{navLabel(tour.page)} 배우기</span>
           <span className="tour-count">
@@ -390,7 +395,7 @@ function Invite({ onOpen, onLater }: { onOpen: () => void; onLater: () => void }
       </span>
       <div className="tour-invite-body">
         <b id="tour-invite-title">처음 쓰시나요?</b>
-        <p>메뉴마다 실제 화면 위에서 따라 하며 배울 수 있습니다. 홈부터 차례로 하면 10분쯤 걸립니다.</p>
+        <p>메뉴마다 실제 화면 위에서 따라 하며 배울 수 있습니다. 홈부터 차례로 하거나, 필요한 메뉴만 골라 배워도 됩니다.</p>
         <div className="row">
           <button className="btn btn-primary btn-sm" onClick={onOpen}>
             따라 배우기 열기

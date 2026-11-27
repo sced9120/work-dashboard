@@ -31,7 +31,6 @@ import {
   groundLeft,
   limitOf,
   minRatioOf,
-  mergeNote,
   modeInfo,
   modeOfRec,
   newActivity,
@@ -59,6 +58,8 @@ import type { PageId } from '../../App'
 import Ocr from '../Ocr'
 import { useToast } from '../../lib/toast'
 import { SETEUK_ACT_EVENT, takeSeteukAct } from '../../lib/seteukBridge'
+import { mergeImportRow, seteukFormKey } from '../../../shared/batchSend'
+import type { NewActFromSheetPlan, SeteukFormMeta } from '../../../shared/batchSend'
 
 /**
  * 세특 작성실 — 명단을 붙여 넣고, 활동마다 학생별 관찰 기록을 적으면 AI 가 초안을 쓰고,
@@ -470,6 +471,28 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
     setMakerOpen(false)
   }
 
+  /** 설문지 응답으로 만든 활동을 저장하고 연다. 다음 [새 응답 가져오기] 를 위해 어디까지 가져왔는지도 적는다 */
+  const addFormAct = async (plan: NewActFromSheetPlan, meta: SeteukFormMeta): Promise<boolean> => {
+    await flush()
+    try {
+      const saved = await window.api.seteuk.saveActs([...acts, plan.act])
+      await window.api.seteuk.saveRows(plan.act.id, plan.patch)
+      await window.api.setting.set(seteukFormKey(plan.act.id), JSON.stringify(meta))
+      setActs(saved)
+    } catch {
+      toast('새 활동을 만들지 못했습니다.', 'err')
+      return false
+    }
+    const filled: SeteukRows = {}
+    for (const [sid, p] of Object.entries(plan.patch)) filled[sid] = { ...emptyRow(), ...p }
+    setRows((prev) => ({ ...prev, [plan.act.id]: filled }))
+    setActIds((prev) => ({ ...prev, [mode]: plan.act.id }))
+    setCls('')
+    resetView()
+    toast(`새 활동 「${plan.act.name}」을 만들고 ${plan.matched}명을 넣었습니다.`, 'ok')
+    return true
+  }
+
   const removeAct = async (): Promise<void> => {
     if (!act) return
     const filled = Object.values(cur).filter((r) => r.note.trim() || r.ai.trim() || r.final.trim()).length
@@ -511,7 +534,8 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
   /* ---------- 관찰 기록 가져오기 ---------- */
 
   const importNotes = (hits: SeteukImportHit[]): void => {
-    for (const h of hits) setCell(h.id, { note: mergeNote(cur[h.id]?.note ?? '', h.text) })
+    if (!act) return
+    for (const h of hits) setCell(h.id, mergeImportRow(act.columns, cur[h.id] ?? emptyRow(), h))
   }
 
   /* ---------- 초안 받기 ---------- */
@@ -661,7 +685,7 @@ export function useSeteuk({ onGo }: { onGo: (p: PageId) => void }) {
 
   // 체험 안내를 감출지 — 체험 자료를 지웠거나, 체험이 아닌 실제 학생이 명단에 있으면 체험 안내는 필요 없다
   const demoOffNow = demoOff || (loaded && !demo.filled && Object.values(rosters).some((l) => l.length > 0))
-  return { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, demoOff: demoOffNow, job, prog, errors, pending, timer, actsTimer, actsRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents }
+  return { onGo, toast, ask, loaded, setLoaded, rosters, setRosters, acts, setActs, rows, setRows, demo, setDemo, style, setStyle, options, setOptions, config, setConfig, grounding, setGrounding, advising, advice, setAdvice, adviseOne, mode, setMode, actIds, setActIds, cls, setCls, sel, setSel, focus, setFocus, save, setSave, model, setModel, panel, setPanel, rosterText, setRosterText, rosterGroup, setRosterGroup, cfgOpen, setCfgOpen, makerOpen, setMakerOpen, importOpen, setImportOpen, view, setView, finalOnly, setFinalOnly, rev, setRev, intro, setIntro, demoOff: demoOffNow, job, prog, errors, pending, timer, actsTimer, actsRef, info, students, modeActs, act, limit, cur, reload, flush, setCell, changeActs, patchAct, resetView, switchMode, switchView, togglePanel, parsed, applyRoster, removeGroup, removeStudent, clearRoster, classes, shown, prevRosterText, closeIntro, fillDemo, clearDemo, switchAct, addAct, addFormAct, removeAct, addExample, importNotes, targets, ready, write, saveOptions, checkGround, copyRequest, adoptEmpty, copyFinals, actKey, checks, allOn, toggleAll, toggle, filled, rec, rules, equity, setEquity, compareStudents }
 }
 
 export type SeteukState = ReturnType<typeof useSeteuk>

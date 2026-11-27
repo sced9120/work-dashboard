@@ -69,6 +69,8 @@ import type { ChatAttachment, ChatDelta, ChatMeta, ChatPreset, ChatRecord, ChatS
 import type { OcrAnswer, OcrFile, OcrProgress, OcrRequest } from '../../shared/ocr'
 import type { MdTable } from '../../shared/mdtable'
 import type { BatchFolder, BatchOptions, BatchProgress, BatchRequest, BatchRow } from '../../shared/batch'
+import type { ConvList, ConvProgress, ConvRequest, ConvResult, SplitFile } from '../../shared/convert'
+import type { PeBegin, PeOpen, PePlan, PeSaved } from '../../shared/pdfedit'
 import type { SeteukConfig, SeteukActivity, SeteukMode, SeteukProgress, SeteukOptions, SeteukRosters, SeteukRow, SeteukRows, SeteukStudent, SeteukStyle, SeteukWriteReply, SeteukWriteRequest } from '../../shared/seteuk'
 import type { SeteukCompressReply, SeteukCompressRequest, SeteukSumPatch, SeteukSumProgress, SeteukSums } from '../../shared/seteukSum'
 import type { NeisOptions, NeisPreviewReply } from '../../shared/seteukNeis'
@@ -173,6 +175,42 @@ const api = {
       ipcRenderer.on('batch:progress', handler)
       return () => ipcRenderer.removeListener('batch:progress', handler)
     }
+  },
+  /** 문서 → PDF 변환 · 합치기 · 나누기 — 모두 이 PC 안에서 */
+  convert: {
+    pickFiles: (): Promise<ConvList | null> => ipcRenderer.invoke('convert:pickFiles'),
+    pickFolder: (): Promise<ConvList | null> => ipcRenderer.invoke('convert:pickFolder'),
+    /** 끌어 놓은 파일 · 폴더 */
+    add: (paths: string[]): Promise<ConvList> => ipcRenderer.invoke('convert:add', paths),
+    run: (req: ConvRequest): Promise<ConvResult> => ipcRenderer.invoke('convert:run', req),
+    cancel: (job: string): Promise<void> => ipcRenderer.invoke('convert:cancel', job),
+    /** 저장한 폴더 열기 — 일 번호 또는 나눈 파일 번호로 */
+    reveal: (key: string): Promise<boolean> => ipcRenderer.invoke('convert:reveal', key),
+    pickSplit: (): Promise<SplitFile | null> => ipcRenderer.invoke('convert:pickSplit'),
+    addSplit: (path: string): Promise<SplitFile> => ipcRenderer.invoke('convert:addSplit', path),
+    split: (id: string, ranges: string): Promise<ConvResult> => ipcRenderer.invoke('convert:split', id, ranges),
+    onProgress: (cb: (p: ConvProgress) => void): (() => void) => {
+      const handler = (_e: unknown, p: ConvProgress): void => cb(p)
+      ipcRenderer.on('convert:progress', handler)
+      return () => ipcRenderer.removeListener('convert:progress', handler)
+    }
+  },
+  /** PDF 편집 — 파일은 번호로만 가리킨다. 저장은 늘 새 파일 */
+  pdfedit: {
+    pick: (): Promise<PeOpen | null> => ipcRenderer.invoke('pdfedit:pick'),
+    /** 끌어 놓은 PDF */
+    add: (paths: string[]): Promise<PeOpen> => ipcRenderer.invoke('pdfedit:add', paths),
+    forget: (ids: string[]): Promise<void> => ipcRenderer.invoke('pdfedit:forget', ids),
+    /** 완전 가리기 그림을 그릴 때 원본 내용을 다시 받는다 (연 뒤로 바뀌었으면 거절) */
+    bytes: (id: string): Promise<{ ok: boolean; bytes?: Uint8Array; error?: string }> => ipcRenderer.invoke('pdfedit:bytes', id),
+    /** pdf.js 의 cMap · 기본 글꼴 자료 */
+    asset: (kind: 'cmap' | 'font', name: string): Promise<Uint8Array | null> => ipcRenderer.invoke('pdfedit:asset', kind, name),
+    pickImage: (): Promise<{ ok: boolean; error?: string; bytes?: Uint8Array; name?: string } | null> => ipcRenderer.invoke('pdfedit:pickImage'),
+    begin: (plan: PePlan): Promise<PeBegin> => ipcRenderer.invoke('pdfedit:begin', plan),
+    put: (job: string, key: string, data: Uint8Array): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('pdfedit:put', job, key, data),
+    finish: (job: string): Promise<PeSaved> => ipcRenderer.invoke('pdfedit:finish', job),
+    abort: (job: string): Promise<void> => ipcRenderer.invoke('pdfedit:abort', job),
+    reveal: (key: string): Promise<boolean> => ipcRenderer.invoke('pdfedit:reveal', key)
   },
   journal: {
     list: (): Promise<JournalEntry[]> => ipcRenderer.invoke('journal:list'),

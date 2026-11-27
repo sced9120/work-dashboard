@@ -49,6 +49,7 @@ import type { SeteukActivity, SeteukAmount, SeteukCheck, SeteukConfig, SeteukImp
 import Icon from '../../components/Icon'
 import ModelPicker from '../../components/ModelPicker'
 import SeteukImport from '../../components/SeteukImport'
+import SeteukFormAct from '../../components/SeteukFormAct'
 import SeteukRules from '../../components/SeteukRules'
 import SeteukFill from '../../components/SeteukFill'
 import SeteukPromptMaker from '../../components/SeteukPromptMaker'
@@ -101,6 +102,8 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
     void window.api.local.load().then((s) => setHasKey(!!(geminiReady(s) || s.openai_key?.trim() || s.claude_key?.trim() || s.exaone_key?.trim())))
   }, [])
   const noKey = hasKey === false
+  /** '설문지로 만들기' 를 연 갈래 (다른 갈래로 옮기면 닫힌 것처럼 보인다) */
+  const [formMaker, setFormMaker] = useState('')
   const openDlg = (): void => (setMakerOpen(true), setCfgOpen(false))
   const closeDlg = (): void => (setMakerOpen(false), setCfgOpen(false))
   const NO_KEY_TIP = 'AI 키가 없어 쓸 수 없습니다. [설정]에서 키를 넣으면 쓸 수 있습니다.'
@@ -185,6 +188,9 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                 <button className="btn btn-sm" onClick={() => void addAct()} disabled={!!job}>
                   <Icon name="plus" size={14} /> 활동
                 </button>
+                <button className="btn btn-sm" onClick={() => setFormMaker((v) => (v === mode ? '' : mode))} disabled={!!job} aria-expanded={formMaker === mode} title="구글 설문지 응답 시트로 새 활동을 만들고 학생별 답을 넣습니다">
+                  <Icon name="plus" size={14} /> 설문지로 만들기
+                </button>
                 {act && rec && (
                   <button className="btn btn-sm stk-cfgbtn" onClick={openDlg} title="이 활동의 프롬프트 만들기 · 활동 규정(이름 · 기록 영역 · 분량 · 개요)을 창으로 엽니다">
                     <Icon name="sliders" size={14} /> 활동 설정
@@ -201,6 +207,8 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                   <span className="spacer" />
                 </div>
               )}
+
+              {formMaker === mode && <SeteukFormAct key={mode} mode={mode} students={students} base={act} onCreate={c.addFormAct} onClose={() => setFormMaker('')} />}
 
               {act && rec && (makerOpen || cfgOpen) && (
                 <div className="stk-modal-back" onMouseDown={(e) => e.target === e.currentTarget && closeDlg()}>
@@ -332,7 +340,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
 
             {!act ? (
               <section className="card empty">
-                <p>{info.name} 활동이 없습니다. [＋ 활동] 으로 하나 만들면 학생별 표가 열립니다.</p>
+                <p>{info.name} 활동이 없습니다. [＋ 활동] 이나 [＋ 설문지로 만들기] 로 하나 만들면 학생별 표가 열립니다.</p>
               </section>
             ) : !students.length ? (
               <section className="card stk-first">
@@ -483,7 +491,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                     )}
                   </div>
                 )}
-                {importOpen && <SeteukImport students={shown} actId={act?.id ?? ''} onApply={importNotes} onClose={() => setImportOpen(false)} />}
+                {importOpen && <SeteukImport key={act?.id} students={shown} actId={act?.id ?? ''} columns={act?.columns} onApply={importNotes} onClose={() => setImportOpen(false)} />}
                 <SeteukJobBars kind="write" />
                 <p className="small muted stk-count">
                   최종본 {filled} / {shown.length}명

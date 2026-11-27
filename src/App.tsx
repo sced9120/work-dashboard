@@ -23,6 +23,7 @@ import { openFeedback } from './lib/feedback'
 import { focusSearch } from './pages/Search'
 import { setOcrNotifier, useOcrTabs } from './lib/ocrStore'
 import { setBatchNotifier, useBatch } from './lib/batchStore'
+import { setConvertNotifier, useConvert } from './lib/convertStore'
 import { newChat, useChats } from './lib/chatStore'
 import { useToast } from './lib/toast'
 
@@ -47,6 +48,8 @@ const Tools = lazy(() => import('./pages/Tools'))
 const Memos = lazy(() => import('./pages/Memos'))
 const Seteuk = lazy(() => import('./pages/Seteuk'))
 const Ocr = lazy(() => import('./pages/Ocr'))
+const Convert = lazy(() => import('./pages/Convert'))
+const PdfEdit = lazy(() => import('./pages/PdfEdit'))
 const Messenger = lazy(() => import('./pages/Messenger'))
 const Homeroom = lazy(() => import('./pages/Homeroom'))
 const WARM = [() => import('./pages/Seteuk'), () => import('./pages/Chat'), () => import('./pages/Settings'), () => import('./pages/Homeroom'), () => import('./pages/Messenger')]
@@ -86,6 +89,8 @@ export type PageId =
   | '도구'
   | '메모장'
   | 'OCR'
+  | '변환'
+  | 'PDF편집'
   | '메신저'
   | '출결'
   | '담임'
@@ -100,6 +105,7 @@ function Shell(): JSX.Element {
   // 다른 화면에 있어도 읽는 중 · 답을 받는 중이면 메뉴에 표시한다
   const batchBusy = useBatch().busy
   const ocrBusy = useOcrTabs().tabs.some((t) => t.busy) || batchBusy
+  const convertBusy = useConvert().busy
   const chatBusy = Object.keys(useChats().live).length > 0
   // 자주 쓰는 화면을 켠 뒤 한가할 때 미리 받아 둔다
   useEffect(() => warmPages(), [])
@@ -107,9 +113,11 @@ function Shell(): JSX.Element {
   useEffect(() => {
     setOcrNotifier((message, ok) => toast(message, ok ? 'ok' : 'err'))
     setBatchNotifier((message, ok) => toast(message, ok ? 'ok' : 'err'))
+    setConvertNotifier((message, ok) => toast(message, ok ? 'ok' : 'err'))
     return () => {
       setOcrNotifier(null)
       setBatchNotifier(null)
+      setConvertNotifier(null)
     }
   }, [toast])
   // 창에 파일을 떨어뜨려도 프로그램이 그 파일로 넘어가지 않게 (받는 곳은 data-drop 이 붙은 화면만).
@@ -363,6 +371,8 @@ function Shell(): JSX.Element {
       {page === '도구' && <Tools />}
       {page === '메모장' && <Memos />}
       {page === 'OCR' && <Ocr onGo={setPage} />}
+      {page === '변환' && <Convert />}
+      {page === 'PDF편집' && <PdfEdit />}
       {page === '메신저' && <Messenger onGo={setPage} />}
       {/* 출결 은 담임 안의 칸으로 옮겼다 — 옛 링크 · 위젯이 '출결' 로 와도 출결 칸이 열린다 */}
       {page === '담임' && <Homeroom onGo={setPage} />}
@@ -416,6 +426,7 @@ function Shell(): JSX.Element {
           schoolName={schoolName}
           navp={navp}
           ocrBusy={ocrBusy}
+          convertBusy={convertBusy}
           chatBusy={chatBusy}
           newTools={newTools}
           feedback={cat.catalog.feedback ?? ''}
@@ -475,6 +486,7 @@ function Shell(): JSX.Element {
                       <Icon name={n.icon} />
                       {n.id === '도구' && newTools && <i className="nav-new" aria-label="새 도구" />}
                       {n.id === 'OCR' && ocrBusy && <i className="nav-busy" aria-label="읽는 중" />}
+                      {n.id === '변환' && convertBusy && <i className="nav-busy" aria-label="바꾸는 중" />}
                     </span>
                     <span className="side-label">{n.label}</span>
                   </button>

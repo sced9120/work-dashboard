@@ -67,6 +67,10 @@ node tests/t_seteuk_config.cjs                     # 세특 작성실 — 내 �
 node tests/t_seteuk_rules2026.cjs                  # 세특 작성실 — 2026 검사 규칙(한자 · 영문 · 장학금 · 대회 · 문단 기호 · 오탐 고침) · 채팅용 세특 지식 (빌드 없이)
 node tests/t_autoroute.cjs                         # 업무 도우미 자동 모델 — 점수 · 이어 묻기 · 모델 정하기 · 라우터 입출력 (빌드 없이)
 node -r ./tests/hook.cjs ./tests/run_autoroute.cjs # 업무 도우미 자동 모델 — GPT 자동 · Gemini 자동 요청
+node tests/t_convert.cjs                           # PDF 변환 — 합치기 계획 · 이름 겹침 · 쪽 범위 · 사진 돌림 (빌드 없이)
+node -r ./tests/hook.cjs ./tests/run_convert.cjs   # PDF 변환 — 사진 · PDF 로 저장 · 합치기 · 나누기 · 원본 그대로 (한글 · 오피스는 부르지 않음)
+node tests/t_pdfedit.cjs                           # PDF 편집 — 쪽 상자 · 돌림 · 보기↔PDF 좌표(pdf.js viewport 와 맞춤) · 저장 계획 검사 (빌드 없이)
+node -r ./tests/hook.cjs ./tests/run_pdfedit.cjs   # PDF 편집 — 열기 · 막기 · 지운 쪽이 남지 않음 · 네 돌림 · CropBox 자리(pdf.js 로 그려 픽셀 확인) · 완전 가리기 새는 것 없음
 node tests/t_weather.cjs                           # 날씨 · D-Day 위젯 — 학교 주소 → 지역 · 미세먼지 등급 · 날씨 답 읽기 · D-Day 셈 (빌드 없이)
 ```
 

@@ -44,6 +44,9 @@ import { counselDelete, counselLoad, counselMetaSave, counselPlan, counselPlanCa
 import { getCatalog } from './catalog'
 import { addPaths, cancelOcr, clearOcr, continueOcr, pickFiles, runOcr, saveXlsx } from './ocr'
 import { addFolder, cancelBatch, pickFolder, runBatch, saveBatch } from './batch'
+import { addPaths as addConvertPaths, addSplit, cancelConvert, pickFiles as pickConvertFiles, pickFolder as pickConvertFolder, pickSplit, revealOutput, runConvert, runSplit } from './convert'
+import type { ConvRequest } from '../../shared/convert'
+import { abortSave as abortPdfEdit, beginSave as beginPdfEdit, clearPdfEdit, fileBytes as pdfEditBytes, finishSave as finishPdfEdit, forget as forgetPdfEdit, openPaths as openPdfEdit, pdfjsAsset, pickImage as pickPdfEditImage, pickPdfs as pickPdfEdit, putPart as putPdfEdit, revealSaved as revealPdfEdit } from './pdfedit'
 import { seteukCancel, seteukDemoClear, seteukDemoFill, seteukLoad, seteukRequest, seteukSaveActs, seteukSaveRoster, seteukSaveRows, seteukAdvice, seteukGemText, seteukGround, seteukPoints, seteukReview, seteukMap,seteukSaveConfig, seteukSkillSave, seteukSaveOptions, seteukSaveStyle, seteukStyleCard, seteukWrite } from './seteuk'
 import type { SeteukActivity, SeteukConfig, SeteukMode, SeteukOptions, SeteukRow, SeteukStudent, SeteukStyle, SeteukWriteRequest } from '../../shared/seteuk'
 import { seteukCompress, seteukCompressCancel, seteukNeisPick, seteukNeisPreview, seteukNeisSave, seteukSaveSum, seteukSums } from './seteukSum'
@@ -345,6 +348,30 @@ function registerIpc(): void {
   ipcMain.handle('batch:save', (_e, rows: BatchRow[], options: BatchOptions, title: string, format: string) =>
     saveBatch(mainWindow, rows, options, String(title ?? ''), format === 'csv' ? 'csv' : 'xlsx')
   )
+
+  /* ---------- 문서 → PDF 변환 (이 PC 안에서만) ---------- */
+  ipcMain.handle('convert:pickFiles', () => pickConvertFiles(mainWindow))
+  ipcMain.handle('convert:pickFolder', () => pickConvertFolder(mainWindow))
+  ipcMain.handle('convert:add', (_e, paths: string[]) => addConvertPaths(paths))
+  ipcMain.handle('convert:run', (_e, req: ConvRequest) => runConvert(req, (p) => send('convert:progress', p)))
+  ipcMain.handle('convert:cancel', (_e, job: string) => cancelConvert(String(job)))
+  ipcMain.handle('convert:reveal', (_e, key: string) => revealOutput(String(key)))
+  ipcMain.handle('convert:pickSplit', () => pickSplit(mainWindow))
+  ipcMain.handle('convert:addSplit', (_e, p: string) => addSplit(p))
+  ipcMain.handle('convert:split', (_e, id: string, ranges: string) => runSplit(String(id), String(ranges ?? '')))
+
+  /* ---------- PDF 편집 (이 PC 안에서만 · 원본은 그대로, 늘 새 파일) ---------- */
+  ipcMain.handle('pdfedit:pick', () => pickPdfEdit(mainWindow))
+  ipcMain.handle('pdfedit:add', (_e, paths: unknown) => openPdfEdit(paths))
+  ipcMain.handle('pdfedit:forget', (_e, ids: unknown) => forgetPdfEdit(ids))
+  ipcMain.handle('pdfedit:bytes', (_e, id: unknown) => pdfEditBytes(id))
+  ipcMain.handle('pdfedit:asset', (_e, kind: unknown, name: unknown) => pdfjsAsset(kind, name))
+  ipcMain.handle('pdfedit:pickImage', () => pickPdfEditImage(mainWindow))
+  ipcMain.handle('pdfedit:begin', (_e, plan: unknown) => beginPdfEdit(plan))
+  ipcMain.handle('pdfedit:put', (_e, job: unknown, key: unknown, data: unknown) => putPdfEdit(job, key, data))
+  ipcMain.handle('pdfedit:finish', (_e, job: unknown) => finishPdfEdit(job))
+  ipcMain.handle('pdfedit:abort', (_e, job: unknown) => abortPdfEdit(job))
+  ipcMain.handle('pdfedit:reveal', (_e, key: unknown) => revealPdfEdit(key))
 
   /* ---------- 상담 기록 (담임) — 인수인계 파일에는 넣지 않는다 ---------- */
   ipcMain.handle('counsel:load', (_e, year?: number) => counselLoad(year))
@@ -1435,6 +1462,9 @@ app.on('before-quit', () => {
   stopRelayWatch()
   // OCR 로 Gemini 에 올려 둔 큰 파일이 있으면 지운다 (기다리지는 않는다 — 남아도 이틀 뒤 저절로 지워진다)
   void clearOcr()
+  // 바꾸던 문서가 있으면 멈추고, 몰래 켠 한글 · 오피스를 끈다
+  cancelConvert()
+  clearPdfEdit()
 })
 
 // before-quit 을 거치지 않고 끝나는 경우(트레이 · OS 종료)도 저장한다
