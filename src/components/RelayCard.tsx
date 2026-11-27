@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import QRCode from 'qrcode'
 import type { RelayInfoShape } from '../../electron/preload/index'
 import { useToast } from '../lib/toast'
+import { useConfirm } from '../lib/confirm'
 import { RELAY_NEEDS } from '../../shared/relay'
 
 /**
@@ -28,6 +29,7 @@ interface Props {
 
 export default function RelayCard({ tab, needs, title, desc, howTo, startOpen = false, className = '' }: Props): JSX.Element {
   const toast = useToast()
+  const ask = useConfirm()
   const [info, setInfo] = useState<RelayInfoShape | null>(null)
   const [open, setOpen] = useState(startOpen)
   const [url, setUrl] = useState('')
@@ -187,7 +189,7 @@ export default function RelayCard({ tab, needs, title, desc, howTo, startOpen = 
                     className="btn btn-sm btn-ghost"
                     onClick={() =>
                       void (async () => {
-                        if (!window.confirm('폰과 끊을까요? 다시 쓰려면 코드를 새로 만들어 붙여 넣어야 합니다.')) return
+                        if (!(await ask({ title: '폰과 끊을까요?', body: '다시 쓰려면 코드를 새로 만들어 붙여 넣어야 합니다.', okText: '끊기', danger: true }))) return
                         setInfo(await window.api.relay.disconnect())
                       })()
                     }
@@ -205,7 +207,7 @@ export default function RelayCard({ tab, needs, title, desc, howTo, startOpen = 
                   className="btn btn-sm"
                   onClick={() =>
                     void (async () => {
-                      if (info.hasKey && !window.confirm('새 열쇠로 코드를 다시 만들까요? 예전에 배포한 주소는 더 쓰지 못합니다.')) return
+                      if (info.hasKey && !(await ask({ title: '새 열쇠로 코드를 다시 만들까요?', body: '예전에 배포한 주소는 더 쓰지 못합니다.', okText: '다시 만들기', danger: true }))) return
                       setInfo(await window.api.relay.newKey())
                     })()
                   }

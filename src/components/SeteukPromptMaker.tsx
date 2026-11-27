@@ -3,6 +3,7 @@ import { CUSTOM_PLACEHOLDERS, STRUCTURE_TEMPLATES, buildSeteukPrompt, limitOf, u
 import type { SeteukActivity, SeteukConfig, SeteukStyle } from '../../shared/seteuk'
 import SeteukFill from './SeteukFill'
 import { useToast } from '../lib/toast'
+import { useConfirm } from '../lib/confirm'
 
 /**
  * 세특 작성실 — 프롬프트 만들기.
@@ -25,6 +26,7 @@ const MINE = ['# 과제', '# 세특 구성', '# 선생님 요청사항', '# 분�
 
 export default function SeteukPromptMaker({ act, style, config, onPatch, onClose }: Props): JSX.Element {
   const toast = useToast()
+  const ask = useConfirm()
   const prompt = useMemo(() => buildSeteukPrompt(act, { style, config }), [act, style, config])
   const parts = useMemo(
     () =>
@@ -91,9 +93,12 @@ export default function SeteukPromptMaker({ act, style, config, onPatch, onClose
                   <button
                     type="button"
                     className="btn btn-sm"
-                    onClick={() => {
-                      if (window.confirm('직접 쓴 글을 지우고 기본 프롬프트로 바꿉니다. 계속할까요?')) onPatch({ customPrompt: buildSeteukPrompt(act, { style, config, ignoreCustom: true }) })
-                    }}
+                    onClick={() =>
+                      void (async () => {
+                        if (!(await ask({ title: '기본 프롬프트로 다시 채울까요?', body: '직접 쓴 글을 지우고 기본 프롬프트로 바꿉니다.', okText: '다시 채우기', danger: true }))) return
+                        onPatch({ customPrompt: buildSeteukPrompt(act, { style, config, ignoreCustom: true }) })
+                      })()
+                    }
                   >
                     기본 프롬프트로 다시 채우기
                   </button>
