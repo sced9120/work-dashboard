@@ -39,6 +39,7 @@ import type { HelpCatalog, HelpHit, HelpMatch } from '../../shared/helpdocs'
 import type { NeisDay, NeisLesson, NeisMealDay, NeisResult, NeisSchool } from '../../shared/neis'
 import type { IcsEvent } from '../../shared/ics'
 import type { WeatherPlace, WeatherResult } from '../../shared/weather'
+import type { CurriculumCheck, CurriculumQuery, CurriculumResult, CurriculumSubject, Standard } from '../../shared/curriculum'
 import type { InboxItem, MsgResult } from '../../shared/messenger'
 
 export interface RelayInfoShape {
@@ -470,6 +471,14 @@ const api = {
     search: (q: string): Promise<{ ok: boolean; places: WeatherPlace[]; error?: string }> => ipcRenderer.invoke('weather:search', q),
     /** 나이스에 연결한 학교 주소의 시 · 군 · 구 */
     schoolPlace: (): Promise<WeatherPlace | null> => ipcRenderer.invoke('weather:schoolPlace')
+  },
+  /** 2022 개정 교육과정 성취기준 (3.8.0~) — 프로그램 안의 자료, 인터넷을 쓰지 않는다 */
+  curriculum: {
+    subjects: (): Promise<{ subjects: CurriculumSubject[]; total: number; version: string }> => ipcRenderer.invoke('curriculum:subjects'),
+    search: (q: CurriculumQuery): Promise<CurriculumResult> => ipcRenderer.invoke('curriculum:search', q),
+    get: (keys: string[]): Promise<Standard[]> => ipcRenderer.invoke('curriculum:get', keys),
+    /** 글 속 성취기준 코드 중 자료에 없는 것 */
+    check: (text: string): Promise<CurriculumCheck> => ipcRenderer.invoke('curriculum:check', text)
   },
   /** 학교 시간표 (엑셀에서 읽은 것) */
   tt: {

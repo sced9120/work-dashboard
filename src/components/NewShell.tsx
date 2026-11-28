@@ -39,6 +39,8 @@ const MAKE: { title: string; items: MakeItem[]; always?: boolean }[] = [
       { page: '학습', icon: 'inbox', label: '문서로 업무 만들기', desc: '공문 · 계획서를 넣으면 업무로 정리' },
       { page: '위원회', icon: 'doc', label: '학교 문서 만들기', desc: '한글 양식으로 계획서 · 회의록' },
       { page: '발표', icon: 'screen', label: '발표자료 만들기', desc: '연수 · 협의회 슬라이드' },
+      { page: '진도계획', icon: 'bars', label: '교과진도 계획', desc: '학사일정으로 주별 진도표 · 평가 계획' },
+      { page: '성취기준', icon: 'book', label: '성취기준 찾기', desc: '2022 개정 초 · 중 · 고 성취기준' },
       { page: 'OCR', icon: 'scan', label: '문서 스캔 · 정리', desc: '스캔 · 사진 속 표를 엑셀로' },
       { page: '변환', icon: 'file', label: 'PDF 변환', desc: '한글 · 오피스 · 사진을 한꺼번에 PDF 로' },
       { page: 'PDF편집', icon: 'edit', label: 'PDF 편집', desc: '합치기 · 쪽 정리 · 글 · 서명 · 가리기' },

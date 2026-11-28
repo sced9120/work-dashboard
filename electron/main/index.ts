@@ -66,6 +66,8 @@ import type { TtRow } from '../../shared/timetable'
 import { STD_EXAMPLE, aiReadTimetable, importTimetable, loadTimetable, rereadWithSheet, standardWorkbook } from './timetable'
 import { schoolContext } from './context'
 import { schoolPlace, searchPlaces, weatherAt } from './weather'
+import { curriculumCheck, curriculumGet, curriculumSearch, curriculumSubjects } from './curriculum'
+import type { CurriculumQuery } from '../../shared/curriculum'
 import { extractMessages, inboxList, inboxRemove, maskMessages, relayConnect, relayDisconnect, relayForm, relayInfo, relayNewKey, relayPull, relayPushSoon, relaySeenQr, startRelayWatch, stopRelayWatch } from './messenger'
 import { ymd } from '../../shared/neis'
 import { buildFromTemplate, buildWithTheme, readDesignMd, readPptxDesign } from './slides'
@@ -1184,6 +1186,12 @@ function registerIpc(): void {
   ipcMain.handle('weather:at', (_e, lat: number, lon: number, force: boolean) => weatherAt(Number(lat), Number(lon), force === true))
   ipcMain.handle('weather:search', (_e, q: string) => searchPlaces(String(q ?? '')))
   ipcMain.handle('weather:schoolPlace', () => schoolPlace())
+
+  /* ---------- 2022 개정 교육과정 성취기준 (3.8.0~) ---------- */
+  ipcMain.handle('curriculum:subjects', () => curriculumSubjects())
+  ipcMain.handle('curriculum:search', (_e, q: CurriculumQuery) => curriculumSearch(q ?? {}))
+  ipcMain.handle('curriculum:get', (_e, keys: string[]) => curriculumGet(keys))
+  ipcMain.handle('curriculum:check', (_e, text: string) => curriculumCheck(String(text ?? '')))
   ipcMain.handle('neis:test', () => testNeis())
   ipcMain.handle('neis:clearCache', () => clearNeisCache())
 

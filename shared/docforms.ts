@@ -20,6 +20,8 @@ export interface DocField {
   /** 여러 줄 칸의 높이(px). 없으면 한 줄짜리 */
   lines?: number
   required?: boolean
+  /** [성취기준 찾기] 단추를 붙인다 (3.8.0~) */
+  standards?: boolean
 }
 
 export interface DocForm {
@@ -467,6 +469,7 @@ export const DOC_FORMS: DocForm[] = [
         key: '단원',
         label: '단원 · 성취기준',
         lines: 120,
+        standards: true,
         placeholder: '한 줄에 하나씩.\n예: Ⅲ. 생활공간과 사회 / [10통사03-01] …'
       },
       {
@@ -733,7 +736,7 @@ export const DOC_FORMS: DocForm[] = [
         required: true,
         placeholder: '예: 2학년 통합사회 / 논술형 / 20점 / 10월 2주'
       },
-      { key: '성취기준', label: '관련 성취기준', lines: 80 },
+      { key: '성취기준', label: '관련 성취기준', lines: 80, standards: true },
       { key: '과제', label: '평가 과제', required: true, lines: 110, placeholder: '학생에게 무엇을 하라고 할 것인지' },
       { key: '요소', label: '채점 요소', lines: 110, placeholder: '한 줄에 하나씩.\n예: 자료 활용 / 8점\n논리 전개 / 7점' },
       { key: '수준', label: '수준 구분', placeholder: '예: 상·중·하 3단계 / A~E 5단계' },

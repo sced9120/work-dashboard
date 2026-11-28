@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { CUSTOM_PLACEHOLDERS, STRUCTURE_TEMPLATES, buildSeteukPrompt, limitOf, usesCustomPrompt } from '../../shared/seteuk'
 import type { SeteukActivity, SeteukConfig, SeteukStyle } from '../../shared/seteuk'
 import SeteukFill from './SeteukFill'
 import { useToast } from '../lib/toast'
 import { useConfirm } from '../lib/confirm'
+import StandardPicker, { appendStandards } from './StandardPicker'
 
 /**
  * 세특 작성실 — 프롬프트 만들기.
@@ -22,11 +23,12 @@ interface Props {
 }
 
 /** 선생님이 고치는 칸 */
-const MINE = ['# 과제', '# 세특 구성', '# 선생님 요청사항', '# 분량', '# 예시', '# 문체 예시', '# 내 문체', '# 활동 이름']
+const MINE = ['# 과제', '# 세특 구성', '# 선생님 요청사항', '# 관련 성취기준', '# 분량', '# 예시', '# 문체 예시', '# 내 문체', '# 활동 이름']
 
 export default function SeteukPromptMaker({ act, style, config, onPatch, onClose }: Props): JSX.Element {
   const toast = useToast()
   const ask = useConfirm()
+  const [stdPick, setStdPick] = useState(false)
   const prompt = useMemo(() => buildSeteukPrompt(act, { style, config }), [act, style, config])
   const parts = useMemo(
     () =>
@@ -160,9 +162,33 @@ export default function SeteukPromptMaker({ act, style, config, onPatch, onClose
             />
           </label>
 
+          <div className="stk-std">
+            <span className="stk-std-label">
+              관련 성취기준 (선택) <span className="muted">성취수준을 가늠하는 기준으로만 씁니다. 문장 · 코드는 글에 옮겨 적지 않습니다</span>
+            </span>
+            <div className="stk-std-row">
+              <textarea
+                value={act.standards ?? ''}
+                onChange={(e) => onPatch({ standards: e.target.value })}
+                placeholder="한 줄에 하나 — [성취기준 찾기]로 고르거나 직접 적습니다"
+                aria-label="관련 성취기준"
+              />
+              <button type="button" className="btn btn-sm" onClick={() => setStdPick(true)}>
+                성취기준 찾기
+              </button>
+            </div>
+          </div>
+
           <SeteukFill fill={act.fill} limit={limit} short={act.amount === '메모만큼'} onFill={(v) => onPatch({ fill: v })} onShort={(v) => onPatch({ amount: v ? '메모만큼' : '보통' })} />
 
           </fieldset>
+          {stdPick && (
+            <StandardPicker
+              title={`성취기준 찾기 — ${act.name}`}
+              onClose={() => setStdPick(false)}
+              onPick={(_l, picked) => onPatch({ standards: appendStandards(act.standards ?? '', picked) })}
+            />
+          )}
 
           <div className="stk-export">
             <span className="stk-style-label">

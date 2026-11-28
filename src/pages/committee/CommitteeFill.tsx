@@ -20,6 +20,8 @@ import { useToast } from '../../lib/toast'
 import { todayStr } from '../../lib/util'
 import ModelPicker from '../../components/ModelPicker'
 import FormFillCard from '../../components/FormFillCard'
+import StandardPicker, { appendStandards } from '../../components/StandardPicker'
+import StandardCheck from '../../components/StandardCheck'
 import { HwpFormMaker, HwpFormShelf, PersonalNote, pickHwpForms } from '../../components/HwpForms'
 import type { Method, PersonalWarn } from '../../components/HwpForms'
 import { takeCommitteeTab } from '../../lib/chatBridge'
@@ -27,6 +29,7 @@ import type { CommitteeState } from './core'
 import { BLANK_FORM_EDITOR, BLANK_TEMPLATE, fieldLines, parseFieldLines } from './core'
 
 export default function CommitteeFill({ c }: { c: CommitteeState }): JSX.Element {
+  const [stdField, setStdField] = useState<string | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { onGo, toast, ask, mode, setMode, templates, setTemplates, hasKey, setHasKey, model, setModel, formId, setFormId, values, setValues, offIds, setOffIds, result, setResult, busy, setBusy, hwpForms, setHwpForms, useHwp, setUseHwp, hwpId, setHwpId, composeKey, setComposeKey, composeContent, setComposeContent, pourId, setPourId, pourKey, setPourKey, personal, setPersonal, direct, setDirect, directContent, setDirectContent, names, setNames, aliases, setAliases, preview, setPreview, showPreview, setShowPreview, showNames, setShowNames, editing, setEditing, editingId, setEditingId, reading, setReading, slotTemplateId, setSlotTemplateId, slots, setSlots, customForms, setCustomForms, formEditor, setFormEditor, sketching, setSketching, allForms, form, groups, kindLabel, loadTemplates, loadHwp, loadCustomForms, myExamples, exampleIds, allText, linkedForms, otherForms, hwpForm, directForm, docName, chooseForm, backToList, openDirect, addHwp, findNames, buildPreview, missing, generate, valuesText, guideText, composeHwp, resultName, saveResult, saveAsHwp, toHwpForm, keepAsExample, openExampleEditor, pickExampleFile, saveExample, removeExample, scrubExample, openFormEditor, sketchFromSample, pickSampleFile, saveCustomForm, removeCustomForm, slotTemplate, slotNames, filledForm, exampleEditor } = c
   return (
@@ -201,9 +204,25 @@ export default function CommitteeFill({ c }: { c: CommitteeState }): JSX.Element
                       placeholder={f.placeholder}
                     />
                   )}
+                  {f.standards && (
+                    <div className="row std-field-row">
+                      <button type="button" className="btn btn-sm" onClick={() => setStdField(f.key)}>
+                        성취기준 찾기
+                      </button>
+                      <span className="small muted">2022 개정 교육과정에서 골라 「[코드] 문장」으로 넣습니다</span>
+                    </div>
+                  )}
+                  {f.standards && (values[f.key] ?? '').includes('[') && <StandardCheck text={values[f.key] ?? ''} />}
                   {f.hint && <div className="hint">{f.hint}</div>}
                 </div>
               ))}
+              {stdField && (
+                <StandardPicker
+                  title={`성취기준 찾기 — ${form.fields.find((x) => x.key === stdField)?.label ?? ''}`}
+                  onClose={() => setStdField(null)}
+                  onPick={(_l, picked) => setValues((v) => ({ ...v, [stdField]: appendStandards(v[stdField] ?? '', picked) }))}
+                />
+              )}
               <p className="hint" style={{ marginBottom: 0 }}>
                 {useHwp && hwpForm ? (
                   <>비워 둔 칸의 내용은 문서에서 뺍니다. 프로그램이 지어내거나 ( ) 로 남기지 않습니다.</>
@@ -509,6 +528,7 @@ export default function CommitteeFill({ c }: { c: CommitteeState }): JSX.Element
                   확인하고 고치신 뒤 사용하세요. 아래에서 바로 고칠 수 있습니다.
                 </div>
 
+                <StandardCheck text={result} />
                 <textarea
                   value={result}
                   onChange={(e) => setResult(e.target.value)}

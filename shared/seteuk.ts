@@ -63,6 +63,8 @@ export interface SeteukActivity {
   columns: string[]
   /** 교과영역 — 고르면 그 교과의 핵심역량 문구가 서술 관점에 들어간다(비면 넣지 않는다) */
   area: string
+  /** 관련 성취기준 — 한 줄에 하나 "[코드] 문장". 초안이 성취수준을 가늠하는 기준으로 쓴다(문장을 옮겨 적지는 않는다) (3.8.0~) */
+  standards?: string
   /** 글에 활동 이름을 넣을지 — 기본 켬(false 일 때만 끔). 예: '통계 포스터 발표에서 …' (3.7.6~) */
   nameInText?: boolean
   /** 프롬프트 전체를 직접 쓰는지 — 켜고 customPrompt 가 있으면 기본 구조(역할 · 규칙 · 금지사항 …) 대신 그 글을 그대로 쓴다. 끄면 글은 남겨 둔다 */
@@ -221,6 +223,7 @@ export function readActs(raw: string): SeteukActivity[] {
       request: str(x.request).slice(0, 2000),
       columns: readColumns(x.columns),
       area: SETEUK_SUBJECTS.some((sub) => sub.key === x.area) ? str(x.area) : '',
+      ...(str(x.standards).trim() ? { standards: str(x.standards).slice(0, 4000) } : {}),
       ...(x.nameInText === false ? { nameInText: false } : {}),
       ...(x.customOn === true ? { customOn: true } : {}),
       ...(str(x.customPrompt).trim() ? { customPrompt: str(x.customPrompt).slice(0, 20000) } : {}),
@@ -693,6 +696,23 @@ export const DATE_RULE =
   ' [3.12] 같은 날짜가 있으면 시간 순서로 읽고, 둘 이상이면 기록이 뒷받침하는 만큼만 변화를 드러낸다. 날짜는 글에 쓰지 않는다.'
 
 /** 규칙 묶음(시스템 프롬프트). 학생 자료는 seteukUser 로 따로 붙인다 */
+/**
+ * 관련 성취기준 칸 (3.8.0~) — 학생이 무엇을 할 수 있게 되었는지 가늠하는 기준으로만 쓴다.
+ * 기재요령: 성취기준의 지식을 옮겨 적거나 활동만 늘어놓지 않는다 → 문장 · 코드는 글에 넣지 않게 한다.
+ */
+export function standardsSection(act: Pick<SeteukActivity, 'standards'>): string {
+  const list = lines(act.standards ?? '')
+    .map((l) => l.replace(/^[-·•]\s*/, ''))
+    .slice(0, 12)
+  if (!list.length) return ''
+  return (
+    '# 관련 성취기준 — 성취수준을 가늠하는 기준\n' +
+    list.map((l) => `- ${l}`).join('\n') +
+    '\n- 학생 자료에 드러난 수행이 이 성취기준의 어느 부분에 닿는지 가늠해, 학생이 실제로 한 일과 할 수 있게 된 것을 구체적으로 쓴다.' +
+    '\n- 성취기준 문장이나 코드를 글에 옮겨 적지 않는다. 학생 자료에 없는 성취를 성취기준에서 끌어와 지어내지 않는다.'
+  )
+}
+
 export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions = {}): string {
   // 직접 쓴 전체 프롬프트 — 기본 구조를 쓰지 않는다. 생성 뒤 자동 검사(기재 금지 · 분량)는 그대로 돈다
   if (!opt.ignoreCustom && usesCustomPrompt(act)) return fillCustomPrompt(act)
@@ -726,6 +746,8 @@ export function buildSeteukPrompt(act: SeteukActivity, opt: SeteukPromptOptions 
   const sub = act.area ? subjectOf(act.area) : null
   const views = [cfg.sections.view ? rec.view : '', sub?.comp ?? ''].filter((x) => x && x.trim())
   if (views.length) P.push('# 서술 관점과 역량\n' + views.join('\n\n'))
+  const stds = standardsSection(act)
+  if (stds) P.push(stds)
   P.push(SUBSTANCE_RULES)
   const nameLine = activityNameRule(act)
   if (nameLine) P.push(nameLine)

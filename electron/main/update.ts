@@ -24,14 +24,14 @@ const TIMEOUT_MS = 6000
 /**
  * 릴리스 설명에서 사람이 읽을 것만 남긴다.
  *
- * 커밋 메시지 끝에 붙는 Co-Authored-By 나 GitHub 이 덧붙이는
+ * 커밋 메시지 끝에 붙는 Co-Authored-By · Claude-Session 이나 GitHub 이 덧붙이는
  * "Full Changelog" 줄은 팝업에서 볼 것이 아니다.
  */
 export function tidyNotes(body: string): string {
   return body
     .replace(/\r\n?/g, '\n')
     .split('\n')
-    .filter((line) => !/^\s*(Co-Authored-By|Signed-off-by):/i.test(line))
+    .filter((line) => !/^\s*(Co-Authored-By|Signed-off-by|Claude-Session):/i.test(line))
     .filter((line) => !/^\s*\*\*Full Changelog\*\*/i.test(line))
     .filter((line) => !/^\s*🤖\s*Generated with/i.test(line))
     .join('\n')

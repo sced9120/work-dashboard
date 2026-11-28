@@ -50,6 +50,8 @@ export const NAV: { section: string; items: NavItem[] }[] = [
       { id: '위원회', icon: 'doc', label: '학교 문서 만들기' },
       { id: '발표', icon: 'screen', label: '발표자료 만들기' },
       { id: '세특', icon: 'pen', label: '세특 작성실' },
+      { id: '진도계획', icon: 'bars', label: '교과진도 계획' },
+      { id: '성취기준', icon: 'book', label: '성취기준 찾기' },
       { id: 'OCR', icon: 'scan', label: '문서 스캔 · 정리' },
       { id: '변환', icon: 'file', label: 'PDF 변환' },
       { id: 'PDF편집', icon: 'edit', label: 'PDF 편집' },

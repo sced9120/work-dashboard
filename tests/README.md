@@ -72,6 +72,9 @@ node -r ./tests/hook.cjs ./tests/run_convert.cjs   # PDF 변환 — 사진 · PD
 node tests/t_pdfedit.cjs                           # PDF 편집 — 쪽 상자 · 돌림 · 보기↔PDF 좌표(pdf.js viewport 와 맞춤) · 저장 계획 검사 (빌드 없이)
 node -r ./tests/hook.cjs ./tests/run_pdfedit.cjs   # PDF 편집 — 열기 · 막기 · 지운 쪽이 남지 않음 · 네 돌림 · CropBox 자리(pdf.js 로 그려 픽셀 확인) · 완전 가리기 새는 것 없음
 node tests/t_weather.cjs                           # 날씨 · D-Day 위젯 — 학교 주소 → 지역 · 미세먼지 등급 · 날씨 답 읽기 · D-Day 셈 (빌드 없이)
+node tests/t_curriculum.cjs                        # 성취기준 자료 4,451개 · 찾기 · 글 속 코드 확인 (빌드 없이)
+node tests/t_courseplan.cjs                        # 교과진도 계획 — 주별 진도표 셈 · 공휴일 알림 · 단원 나누기 · 나이스 학사일정 · 문서 글 (빌드 없이)
+node tests/t_seteuk_expr.cjs                       # 세특 검사 — 뒤집는 구조 · 이전 수준 · 사건 짐작 · 부정문 · 다짐 표현, 관련 성취기준 칸 (빌드 없이)
 ```
 
 Electron 의 Node 로 돌리려면 `ELECTRON_RUN_AS_NODE=1 node_modules/electron/dist/electron -r ./tests/hook.cjs ./tests/run_ocr.cjs`

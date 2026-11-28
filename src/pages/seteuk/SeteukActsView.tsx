@@ -64,6 +64,7 @@ import { useToast } from '../../lib/toast'
 import type { ReactNode } from 'react'
 import type { SeteukState } from './core'
 import Markdown from '../../components/Markdown'
+import StandardPicker, { appendStandards } from '../../components/StandardPicker'
 import { SAVE_DELAY, MODE_KEY, INTRO_KEY, newId, stored, remember } from './core'
 
 /**
@@ -104,6 +105,7 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
   const noKey = hasKey === false
   /** '설문지로 만들기' 를 연 갈래 (다른 갈래로 옮기면 닫힌 것처럼 보인다) */
   const [formMaker, setFormMaker] = useState('')
+  const [stdPick, setStdPick] = useState(false)
   const openDlg = (): void => (setMakerOpen(true), setCfgOpen(false))
   const closeDlg = (): void => (setMakerOpen(false), setCfgOpen(false))
   const NO_KEY_TIP = 'AI 키가 없어 쓸 수 없습니다. [설정]에서 키를 넣으면 쓸 수 있습니다.'
@@ -310,6 +312,22 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
                     <span>활동 개요 — 무엇을 한 수업 · 활동인지</span>
                     <textarea value={act.desc} onChange={(e) => patchAct({ desc: e.target.value })} placeholder="예: 실생활 자료로 함수의 그래프를 그리고 변화율을 설명하는 모둠 탐구 3차시" />
                   </label>
+                  <div className="stk-wide stk-std">
+                    <span className="stk-std-label">
+                      관련 성취기준 (선택) <span className="muted">초안이 성취수준을 가늠하는 기준으로만 씁니다. 성취기준 문장 · 코드는 글에 옮겨 적지 않습니다.</span>
+                    </span>
+                    <div className="stk-std-row">
+                      <textarea
+                        value={act.standards ?? ''}
+                        onChange={(e) => patchAct({ standards: e.target.value })}
+                        placeholder="한 줄에 하나 — [성취기준 찾기]로 고르거나 직접 적습니다"
+                        aria-label="관련 성취기준"
+                      />
+                      <button type="button" className="btn btn-sm" onClick={() => setStdPick(true)}>
+                        성취기준 찾기
+                      </button>
+                    </div>
+                  </div>
                   <p className="small muted stk-wide">{rec.note} 한 영역에 활동이 여럿이면 활동마다 분량을 나눠 적어 두세요.</p>
                   <div className="stk-wide stk-examples">
                     <span className="stk-style-label">
@@ -716,6 +734,13 @@ export default function SeteukActsView({ c, rosterPanel }: { c: SeteukState; ros
             )}
           </>
         )}
+      {stdPick && act && (
+        <StandardPicker
+          title={`성취기준 찾기 — ${act.name}`}
+          onClose={() => setStdPick(false)}
+          onPick={(_l, picked) => patchAct({ standards: appendStandards(act.standards ?? '', picked) })}
+        />
+      )}
     </>
   )
 }

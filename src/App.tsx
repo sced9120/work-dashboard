@@ -52,6 +52,8 @@ const Convert = lazy(() => import('./pages/Convert'))
 const PdfEdit = lazy(() => import('./pages/PdfEdit'))
 const Messenger = lazy(() => import('./pages/Messenger'))
 const Homeroom = lazy(() => import('./pages/Homeroom'))
+const Standards = lazy(() => import('./pages/Standards'))
+const CoursePlan = lazy(() => import('./pages/CoursePlan'))
 const WARM = [() => import('./pages/Seteuk'), () => import('./pages/Chat'), () => import('./pages/Settings'), () => import('./pages/Homeroom'), () => import('./pages/Messenger')]
 function warmPages(): void {
   const idle = (cb: () => void): void => {
@@ -96,6 +98,8 @@ export type PageId =
   | '담임'
   | '이번주'
   | '세특'
+  | '성취기준'
+  | '진도계획'
 
 function Shell(): JSX.Element {
   const ui = useUiPrefs()
@@ -379,6 +383,8 @@ function Shell(): JSX.Element {
       {page === '출결' && <Homeroom onGo={setPage} initial="출결" />}
       {page === '이번주' && <Week onGo={setPage} />}
       {page === '세특' && <Seteuk onGo={setPage} />}
+      {page === '성취기준' && <Standards onGo={setPage} />}
+      {page === '진도계획' && <CoursePlan onGo={setPage} />}
       </Suspense>
     </PageGuard>
   )
